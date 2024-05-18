@@ -1,0 +1,26 @@
+SELECT
+    wm.item_cbo.item_bar_code,
+    wm.wm_inventory.cntry_of_orgn,
+    wm.locn_hdr.dsp_locn,
+    CONCAT(
+        SUBSTR(wm.locn_hdr.dsp_locn, 3, 1),
+        CASE
+            WHEN TO_NUMBER(SUBSTR(wm.locn_hdr.dsp_locn, 8, 2)) <= 20 THEN '1'
+            ELSE '3'
+        END
+    ) AS Zone,
+    wm.wm_inventory.on_hand_qty,
+    wm.wm_inventory.wm_allocated_qty,
+    wm.wm_inventory.to_be_filled_qty
+FROM
+         wm.wm_inventory
+    INNER JOIN wm.locn_hdr ON wm.locn_hdr.locn_id = wm.wm_inventory.location_id
+    INNER JOIN wm.item_cbo ON wm.item_cbo.item_id = wm.wm_inventory.item_id
+WHERE
+    wm.locn_hdr.locn_class = 'A'
+    AND wm.locn_hdr.work_grp = 'SHLF'
+    AND wm.wm_inventory.inventory_type = 'E'
+    AND wm.locn_hdr.dsp_locn LIKE 'AS%'
+ORDER BY
+    wm.item_cbo.item_bar_code,
+    wm.locn_hdr.dsp_locn
