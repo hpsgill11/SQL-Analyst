@@ -1,4 +1,5 @@
-SELECT
+WITH CTE AS (
+    SELECT
         TO_CHAR(wm.orders.created_dttm, 'YYYY/MM/DD') as Order_Create_Date,
         wm.task_dtl.TC_ORDER_ID,
         wm.task_dtl.task_Id as Pick_Task_ID,
@@ -34,7 +35,8 @@ SELECT
             ORDER BY DBMS_RANDOM.VALUE 
             FETCH FIRST 1 ROWS ONLY
         ) AS LPN_ID,
-                    (SELECT lh.DSP_LOCN
+        (
+            SELECT lh.DSP_LOCN
             FROM wm.wm_inventory wi 
             JOIN wm.locn_hdr lh ON lh.locn_id = wi.location_id
             WHERE wi.allocatable = 'Y' 
@@ -45,7 +47,7 @@ SELECT
             ORDER BY DBMS_RANDOM.VALUE 
             FETCH FIRST 1 ROWS ONLY
         ) AS LPN_Current_Location,
-                (
+        (
             SELECT wi.on_hand_qty
             FROM wm.wm_inventory wi 
             JOIN wm.locn_hdr lh ON lh.locn_id = wi.location_id
@@ -68,11 +70,16 @@ SELECT
     WHERE 
         wm.orders.order_type = 'ECOMM' 
         AND wm.task_dtl.INVN_TYPE = 'E'
-        AND wm.task_hdr.STAT_CODE = '5'
-AND wm.task_dtl.task_Id IN (
-    SELECT wm.task_dtl.task_Id
-    FROM wm.task_dtl
-    JOIN wm.wm_inventory ON wm.task_dtl.PULL_LOCN_ID = wm.wm_inventory.location_id
-    GROUP BY wm.task_dtl.task_Id
-    HAVING SUM(wm.wm_inventory.to_be_filled_qty) = 0
-);
+        AND wm.task_hdr.STAT_CODE < '6'
+)
+SELECT *
+FROM CTE
+WHERE Pick_Task_ID NOT IN (
+    SELECT Pick_Task_ID
+    FROM CTE
+    WHERE Letdown_Status = 'Manual Letdown Required' OR Letdown_Status = 'Letdown in progress'
+)
+ORDER BY 
+    Order_Create_Date ASC, 
+    Pick_Task_ID ASC, 
+    Location ASC;
