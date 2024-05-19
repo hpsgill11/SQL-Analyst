@@ -80,7 +80,7 @@ WITH CTE AS (
 SELECT *
 FROM CTE
 WHERE 
-    Letdown_Status IS NOT NULL
+    Letdown_Status = 'Manual Letdown Required'
 ORDER BY 
     Order_Create_Date ASC, 
     Pick_Task_ID ASC, 
