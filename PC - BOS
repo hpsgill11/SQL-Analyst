@@ -1,0 +1,69 @@
+SELECT 
+    do_status,
+    order_type,
+    COALESCE(ECOMM, 0) AS ECOMM,
+    COALESCE(RETAIL, 0) AS RETAIL,
+    COALESCE(STRAT, 0) AS STRAT,
+    COALESCE(B_GRADE, 0) AS B_GRADE,
+    COALESCE(COMMUNITY, 0) AS COMMUNITY,
+    COALESCE(ECOMM, 0) + COALESCE(RETAIL, 0) + COALESCE(STRAT, 0) + COALESCE(B_GRADE, 0) + COALESCE(COMMUNITY, 0) AS Total
+FROM (
+    SELECT 
+        CASE 
+            WHEN o.do_status = 110 THEN 'Released'
+            WHEN o.do_status = 120 THEN 'PDCA'
+            WHEN o.do_status = 100 THEN 'DRAFT'
+            ELSE NULL
+        END AS do_status,
+        oli.invn_type,
+        o.order_type,
+        COUNT(DISTINCT o.tc_order_id) AS num_orders
+    FROM 
+        WM.orders o 
+        JOIN WM.order_line_item oli ON o.order_id = oli.order_id
+        JOIN WM.item_facility_mapping_wms ifm ON ifm.item_id = oli.item_id
+        JOIN WM.do_status ds ON ds.order_status = o.do_status
+        JOIN WM.item_cbo ic ON oli.item_name = ic.item_name 
+        JOIN WM.wm_inventory wmi ON oli.item_id = wmi.ITEM_ID AND oli.invn_type = wmi.inventory_type
+        JOIN WM.locn_hdr lh ON wmi.LOCATION_ID = lh.LOCN_ID
+        JOIN WM.item_master im ON ic.item_id = im.item_id
+        LEFT JOIN WM.facility f ON o.d_facility_id = f.facility_id
+    WHERE 
+        o.do_status IN ('110','120')
+        AND o.is_original_order = '1'
+        -- AND o.order_type != 'ECOMM'
+    GROUP BY
+        CASE 
+            WHEN o.do_status = 110 THEN 'Released'
+            WHEN o.do_status = 120 THEN 'PDCA'
+            WHEN o.do_status = 100 THEN 'DRAFT'
+            ELSE NULL
+        END,
+     oli.invn_type,
+      o.order_type
+) 
+PIVOT (
+    SUM(num_orders) 
+    FOR invn_type IN (
+        'E' AS ECOMM, 
+        'R' AS RETAIL, 
+        'S' AS STRAT, 
+        'B' AS B_GRADE, 
+        'C' AS COMMUNITY
+    )
+) 
+ORDER BY 
+    do_status DESC,
+    CASE 
+        WHEN order_type = 'ECOMM' THEN 1
+        WHEN order_type = 'RETAIL' THEN 2
+        WHEN order_type = 'ALLOC' THEN 3
+        WHEN order_type = 'SPECIAL' THEN 4
+        WHEN order_type = 'DCTRANSFER' THEN 5
+        WHEN order_type = 'INTERCOMPANY' THEN 6
+        WHEN order_type = 'STRAT' THEN 7
+        WHEN order_type = 'REPLEN' THEN 8
+        WHEN order_type = 'COMMUNITY' THEN 9
+        WHEN order_type = 'WAREHOUSE' THEN 10
+        ELSE 11
+    END;
