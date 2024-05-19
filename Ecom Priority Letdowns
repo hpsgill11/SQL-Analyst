@@ -35,7 +35,13 @@ WITH CTE AS (
          JOIN wm.task_hdr ON wm.task_dtl.Task_ID = wm.task_hdr.TASK_ID
          WHERE wm.task_hdr.STAT_CODE < '89' 
          AND wm.task_dtl.DEST_LOCN_ID = wm.locn_hdr.LOCN_ID
-         FETCH FIRST ROW ONLY) AS Letdown_iLPN
+         FETCH FIRST ROW ONLY) AS Letdown_iLPN,
+        ROUND(
+            CASE 
+                WHEN CURRENT_DATE = TO_DATE(TO_CHAR(wm.orders.created_dttm, 'YYYY/MM/DD'), 'YYYY/MM/DD') THEN 0
+                ELSE CURRENT_DATE - TO_DATE(TO_CHAR(wm.orders.created_dttm, 'YYYY/MM/DD'), 'YYYY/MM/DD')
+            END, 1
+        ) AS Order_Age
     FROM wm.orders
     JOIN wm.task_dtl ON wm.orders.TC_ORDER_ID = wm.task_dtl.TC_ORDER_ID
     JOIN wm.task_hdr ON wm.task_dtl.Task_ID = wm.task_hdr.TASK_ID
@@ -53,7 +59,7 @@ SELECT *
 FROM CTE
 WHERE 
     Letdown_Status = 'Letdown in progress'
-ORDER BY 
+ORDER BY
     Order_Create_Date ASC, 
     Pick_Task_ID ASC, 
     Location ASC;
