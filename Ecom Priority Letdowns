@@ -12,7 +12,7 @@ WITH CTE AS (
         END AS Task_Header_Status,
         wm.task_dtl.TASK_GENRTN_REF_NBR as Wave_Number,
         wm.wave_parm.wave_desc,
-        wm.task_dtl.QTY_ALLOC as Allocated_Quantity,
+        wm.task_dtl.TASK_CMPL_REF_NBR as oLPN,
         wm.wm_inventory.on_hand_qty,
         wm.wm_inventory.wm_allocated_qty,
         wm.wm_inventory.to_be_filled_qty,
@@ -23,13 +23,19 @@ WITH CTE AS (
             WHEN wm.wm_inventory.to_be_filled_qty > 0 THEN 'Letdown in progress'
             ELSE NULL
         END AS Letdown_Status,
-        -- New column
         (SELECT wm.task_dtl.task_ID 
          FROM wm.task_dtl 
          JOIN wm.task_hdr ON wm.task_dtl.Task_ID = wm.task_hdr.TASK_ID
          WHERE wm.task_hdr.STAT_CODE < '89' 
          AND wm.task_dtl.DEST_LOCN_ID = wm.locn_hdr.LOCN_ID
-         FETCH FIRST ROW ONLY) AS Matched_Task_ID
+         FETCH FIRST ROW ONLY) AS Letdown_Task_ID,
+        -- New column for wm.task_dtl.cntr_NBR
+        (SELECT wm.task_dtl.cntr_NBR 
+         FROM wm.task_dtl 
+         JOIN wm.task_hdr ON wm.task_dtl.Task_ID = wm.task_hdr.TASK_ID
+         WHERE wm.task_hdr.STAT_CODE < '89' 
+         AND wm.task_dtl.DEST_LOCN_ID = wm.locn_hdr.LOCN_ID
+         FETCH FIRST ROW ONLY) AS Letdown_iLPN
     FROM wm.orders
     JOIN wm.task_dtl ON wm.orders.TC_ORDER_ID = wm.task_dtl.TC_ORDER_ID
     JOIN wm.task_hdr ON wm.task_dtl.Task_ID = wm.task_hdr.TASK_ID
@@ -39,9 +45,9 @@ WITH CTE AS (
     JOIN wm.wave_parm ON wm.wave_parm.wave_nbr = wm.task_dtl.TASK_GENRTN_REF_NBR
     JOIN wm.wm_inventory ON wm.locn_hdr.locn_id = wm.wm_inventory.location_id
     WHERE 
-        wm.orders.order_type = 'ECOMM' 
-        AND wm.task_dtl.INVN_TYPE = 'E'
-        AND wm.task_hdr.STAT_CODE < '30'
+    wm.orders.order_type = 'ECOMM' 
+    AND wm.task_dtl.INVN_TYPE = 'E'
+    AND wm.task_hdr.STAT_CODE < '30'
 )
 SELECT *
 FROM CTE
