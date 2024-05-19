@@ -32,10 +32,12 @@ WITH CTE AS (
             AND wi.inbound_outbound_indicator = 'I' 
             AND wi.ITEM_ID = wm.item_cbo.ITEM_ID
             AND lh.DSP_LOCN LIKE 'CR1%'
-            ORDER BY DBMS_RANDOM.VALUE 
+            AND wi.on_hand_qty > wm.wm_inventory.wm_allocated_qty
+            ORDER BY wi.on_hand_qty ASC
             FETCH FIRST 1 ROWS ONLY
         ) AS LPN_ID,
-                    (SELECT lh.DSP_LOCN
+        (
+            SELECT lh.DSP_LOCN
             FROM wm.wm_inventory wi 
             JOIN wm.locn_hdr lh ON lh.locn_id = wi.location_id
             WHERE wi.allocatable = 'Y' 
@@ -43,10 +45,11 @@ WITH CTE AS (
             AND wi.inbound_outbound_indicator = 'I' 
             AND wi.ITEM_ID = wm.item_cbo.ITEM_ID
             AND lh.DSP_LOCN LIKE 'CR1%'
-            ORDER BY DBMS_RANDOM.VALUE 
+            AND wi.on_hand_qty > wm.wm_inventory.wm_allocated_qty
+            ORDER BY wi.on_hand_qty ASC
             FETCH FIRST 1 ROWS ONLY
         ) AS LPN_Current_Location,
-                (
+        (
             SELECT wi.on_hand_qty
             FROM wm.wm_inventory wi 
             JOIN wm.locn_hdr lh ON lh.locn_id = wi.location_id
@@ -55,7 +58,8 @@ WITH CTE AS (
             AND wi.inbound_outbound_indicator = 'I' 
             AND wi.ITEM_ID = wm.item_cbo.ITEM_ID
             AND lh.DSP_LOCN LIKE 'CR1%'
-            ORDER BY DBMS_RANDOM.VALUE 
+            AND wi.on_hand_qty > wm.wm_inventory.wm_allocated_qty
+            ORDER BY wi.on_hand_qty ASC
             FETCH FIRST 1 ROWS ONLY
         ) AS LPN_On_Hand_Qty
     FROM wm.orders
