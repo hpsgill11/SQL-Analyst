@@ -18,11 +18,6 @@ WITH CTE AS (
         wm.wm_inventory.to_be_filled_qty,
         wm.item_cbo.ITEM_NAME,
         wm.locn_hdr.DSP_LOCN AS Location,
-        CASE 
-            WHEN (wm.wm_inventory.on_hand_qty + wm.wm_inventory.to_be_filled_qty) < wm.wm_inventory.wm_allocated_qty THEN 'Manual Letdown Required'
-            WHEN wm.wm_inventory.to_be_filled_qty > 0 THEN 'Letdown in progress'
-            ELSE NULL
-        END AS Letdown_Status,
         (
             SELECT TC_LPN_ID 
             FROM wm.wm_inventory wi 
@@ -61,7 +56,23 @@ WITH CTE AS (
             AND wi.on_hand_qty > wm.wm_inventory.wm_allocated_qty
             ORDER BY wi.on_hand_qty ASC
             FETCH FIRST 1 ROWS ONLY
-        ) AS LPN_On_Hand_Qty
+        ) AS LPN_On_Hand_Qty,
+                        (
+            SELECT 
+                CASE 
+                    WHEN COUNT(*) > 0 THEN 'Yes'
+                    ELSE 'No'
+                END
+            FROM wm.task_dtl td
+            JOIN wm.wm_inventory wi ON td.PULL_LOCN_ID = wi.location_id
+            WHERE td.task_Id = wm.task_dtl.task_Id
+            AND wi.to_be_filled_qty > 0
+        ) AS Letdowns_in_Progress,
+                CASE 
+            WHEN (wm.wm_inventory.on_hand_qty + wm.wm_inventory.to_be_filled_qty) < wm.wm_inventory.wm_allocated_qty THEN 'Manual Letdown Required'
+            WHEN wm.wm_inventory.to_be_filled_qty > 0 THEN 'Letdown in progress'
+            ELSE NULL
+        END AS Letdown_Status
     FROM wm.orders
     JOIN wm.task_dtl ON wm.orders.TC_ORDER_ID = wm.task_dtl.TC_ORDER_ID
     JOIN wm.task_hdr ON wm.task_dtl.Task_ID = wm.task_hdr.TASK_ID
