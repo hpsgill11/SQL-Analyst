@@ -2,6 +2,18 @@ SELECT
     TO_CHAR(wm.orders.created_dttm, 'YYYY/MM/DD') as Order_Create_Date,
     task_dtl.tc_order_id AS Order_ID,
     do_status.description AS Order_Status,
+    CASE 
+        WHEN wm.task_hdr.STAT_CODE = 5 AND wm.lpn.lpn_facility_status = '10' THEN 'Pending FA'
+        WHEN wm.task_hdr.STAT_CODE = 10 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NULL THEN 'Ready To Carton Start'
+        WHEN wm.task_hdr.STAT_CODE = 10 OR wm.task_hdr.STAT_CODE = 30 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NOT NULL THEN 'Carton Started'
+        WHEN wm.task_hdr.STAT_CODE = 99 AND wm.lpn.lpn_facility_status = '10' THEN 'Units to Pack'
+        WHEN wm.lpn.lpn_facility_status = '99' THEN 'Shorted'
+        WHEN wm.lpn.lpn_facility_status = '15' THEN 'In Packing'
+        WHEN wm.lpn.lpn_facility_status = '20' THEN 'Packed'
+        WHEN wm.lpn.lpn_facility_status = '30' THEN 'Weighed'
+        WHEN wm.lpn.lpn_facility_status = '50' THEN 'Loaded'
+        WHEN wm.lpn.lpn_facility_status = '90' THEN 'Shipped'
+    END AS Pick_Status,
     wm.task_dtl.INVN_TYPE,
     CASE 
         WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
