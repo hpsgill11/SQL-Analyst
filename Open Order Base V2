@@ -2,6 +2,7 @@ SELECT
     TO_CHAR(wm.orders.created_dttm, 'YYYY/MM/DD') as Order_Create_Date,
     task_dtl.tc_order_id AS Order_ID,
     do_status.description AS Order_Status,
+    wm.task_dtl.INVN_TYPE,
     CASE 
         WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
     ELSE 'Multi'
@@ -40,7 +41,7 @@ SELECT
         WHEN task_dtl_2.stat_code = '90' THEN task_dtl_2.stat_code || ' - Pick Complete'
         WHEN task_dtl.qty_alloc = 0 THEN 'Canceled/Deleted'
         ELSE task_dtl_2.stat_code || ' - Pick Incomplete'
-    END AS pick_status2,
+    END AS pick_status,
     NVL(alloc_invn_dtl_2.qty_pulld, 0) AS Qty_Put,
     NVL(alloc_invn_dtl_2.qty_alloc, 0) AS Qty_To_Be_Put,
     CASE 
