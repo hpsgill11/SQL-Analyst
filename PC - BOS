@@ -1,5 +1,5 @@
 SELECT 
-    do_status,
+    do_status as Order_Status,
     order_type,
     COALESCE(ECOMM, 0) AS ECOMM_INV,
     COALESCE(RETAIL, 0) AS RETAIL_INV,
