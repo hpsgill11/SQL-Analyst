@@ -1,5 +1,5 @@
 WITH CTE AS (
-    SELECT
+SELECT
         TO_CHAR(wm.orders.created_dttm, 'YYYY/MM/DD') as Order_Create_Date,
         wm.task_dtl.TC_ORDER_ID,
         wm.task_dtl.task_Id as Pick_Task_ID,
@@ -57,12 +57,12 @@ WITH CTE AS (
             ORDER BY wi.on_hand_qty ASC
             FETCH FIRST 1 ROWS ONLY
         ) AS LPN_On_Hand_Qty,
-                        (
-            SELECT 
-                CASE 
-                    WHEN COUNT(*) > 0 THEN 'Good to Release'
-                    ELSE 'Do not Release'
-                END
+    (
+        SELECT 
+            CASE 
+                WHEN SUM(wi.to_be_filled_qty) = 0 THEN 'Good to Release'
+                ELSE 'Do not Release'
+            END
             FROM wm.task_dtl td
             JOIN wm.wm_inventory wi ON td.PULL_LOCN_ID = wi.location_id
             WHERE td.task_Id = wm.task_dtl.task_Id
@@ -91,7 +91,7 @@ WITH CTE AS (
             JOIN wm.wm_inventory ON wm.task_dtl.PULL_LOCN_ID = wm.wm_inventory.location_id
             WHERE (wm.wm_inventory.on_hand_qty + wm.wm_inventory.to_be_filled_qty) < wm.wm_inventory.wm_allocated_qty
         )
-)
+    )
 SELECT *
 FROM CTE
 WHERE 
