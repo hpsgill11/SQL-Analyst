@@ -1,11 +1,11 @@
 SELECT 
     do_status,
     order_type,
-    COALESCE(ECOMM, 0) AS ECOMM,
-    COALESCE(RETAIL, 0) AS RETAIL,
-    COALESCE(STRAT, 0) AS STRAT,
-    COALESCE(B_GRADE, 0) AS B_GRADE,
-    COALESCE(COMMUNITY, 0) AS COMMUNITY,
+    COALESCE(ECOMM, 0) AS ECOMM_INV,
+    COALESCE(RETAIL, 0) AS RETAIL_INV,
+    COALESCE(STRAT, 0) AS STRAT_INV,
+    COALESCE(B_GRADE, 0) AS B_GRADE_INV,
+    COALESCE(COMMUNITY, 0) AS COMMUNITY_INV,
     COALESCE(ECOMM, 0) + COALESCE(RETAIL, 0) + COALESCE(STRAT, 0) + COALESCE(B_GRADE, 0) + COALESCE(COMMUNITY, 0) AS Total
 FROM (
     SELECT 
@@ -17,6 +17,9 @@ FROM (
         END AS do_status,
         oli.invn_type,
         CASE 
+            WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%STRAGGLER%' THEN 'INTERCOMPANY - STRAGGLER'
+            WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%STRAGGLER%' THEN 'DCTRANSFER - STRAGGLER'
+            WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%STRAGGLER%' THEN 'SPECIAL - STRAGGLER'
             WHEN o.mark_for LIKE '%NSO%' THEN 'NSO'
             ELSE o.order_type
         END AS order_type,
@@ -44,6 +47,9 @@ FROM (
         END,
      oli.invn_type,
      CASE 
+        WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%STRAGGLER%' THEN 'INTERCOMPANY - STRAGGLER'
+        WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%STRAGGLER%' THEN 'DCTRANSFER - STRAGGLER'
+        WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%STRAGGLER%' THEN 'SPECIAL - STRAGGLER'
         WHEN o.mark_for LIKE '%NSO%' THEN 'NSO'
         ELSE o.order_type
      END
@@ -66,11 +72,14 @@ ORDER BY
         WHEN order_type = 'ALLOC' THEN 3
         WHEN order_type = 'SPECIAL' THEN 4
         WHEN order_type = 'DCTRANSFER' THEN 5
-        WHEN order_type = 'INTERCOMPANY' THEN 6
-        WHEN order_type = 'STRAT' THEN 7
-        WHEN order_type = 'REPLEN' THEN 8
-        WHEN order_type = 'COMMUNITY' THEN 9
-        WHEN order_type = 'WAREHOUSE' THEN 10
-        WHEN order_type = 'NSO' THEN 11
-        ELSE 12
+        WHEN order_type = 'DCTRANSFER - STRAGGLER' THEN 6
+        WHEN order_type = 'INTERCOMPANY' THEN 7
+        WHEN order_type = 'INTERCOMPANY - STRAGGLER' THEN 8
+        WHEN order_type = 'STRAT' THEN 9
+        WHEN order_type = 'REPLEN' THEN 10
+        WHEN order_type = 'COMMUNITY' THEN 11
+        WHEN order_type = 'WAREHOUSE' THEN 12
+        WHEN order_type = 'NSO' THEN 13
+        WHEN order_type = 'SPECIAL - STRAGGLER' THEN 14
+        ELSE 15
     END;
