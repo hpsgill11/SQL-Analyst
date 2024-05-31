@@ -20,7 +20,8 @@ FROM (
             WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%STRAGGLER%' THEN 'INTERCOMPANY - STRAGGLER'
             WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%STRAGGLER%' THEN 'DCTRANSFER - STRAGGLER'
             WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%STRAGGLER%' THEN 'SPECIAL - STRAGGLER'
-            WHEN o.mark_for LIKE '%NSO%' THEN 'NSO'
+            WHEN o.order_type = 'ALLOC' AND o.mark_for LIKE '%NSO%' THEN 'ALLOC - NSO'
+            WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%NSO%' THEN 'SPECIAL - NSO'
             ELSE o.order_type
         END AS order_type,
         COUNT(DISTINCT o.tc_order_id) AS num_orders
@@ -37,7 +38,6 @@ FROM (
     WHERE 
         o.do_status IN ('110','120')
         AND o.is_original_order = '1'
-        -- AND o.order_type != 'ECOMM'
     GROUP BY
         CASE 
             WHEN o.do_status = 110 THEN 'Released'
@@ -50,7 +50,8 @@ FROM (
         WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%STRAGGLER%' THEN 'INTERCOMPANY - STRAGGLER'
         WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%STRAGGLER%' THEN 'DCTRANSFER - STRAGGLER'
         WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%STRAGGLER%' THEN 'SPECIAL - STRAGGLER'
-        WHEN o.mark_for LIKE '%NSO%' THEN 'NSO'
+        WHEN o.order_type = 'ALLOC' AND o.mark_for LIKE '%NSO%' THEN 'ALLOC - NSO'
+        WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%NSO%' THEN 'SPECIAL - NSO'
         ELSE o.order_type
      END
 ) 
@@ -70,16 +71,17 @@ ORDER BY
         WHEN order_type = 'ECOMM' THEN 1
         WHEN order_type = 'RETAIL' THEN 2
         WHEN order_type = 'ALLOC' THEN 3
-        WHEN order_type = 'SPECIAL' THEN 4
-        WHEN order_type = 'DCTRANSFER' THEN 5
-        WHEN order_type = 'DCTRANSFER - STRAGGLER' THEN 6
-        WHEN order_type = 'INTERCOMPANY' THEN 7
-        WHEN order_type = 'INTERCOMPANY - STRAGGLER' THEN 8
-        WHEN order_type = 'STRAT' THEN 9
-        WHEN order_type = 'REPLEN' THEN 10
-        WHEN order_type = 'COMMUNITY' THEN 11
-        WHEN order_type = 'WAREHOUSE' THEN 12
-        WHEN order_type = 'NSO' THEN 13
-        WHEN order_type = 'SPECIAL - STRAGGLER' THEN 14
-        ELSE 15
+        WHEN order_type = 'ALLOC - NSO' THEN 4
+        WHEN order_type = 'SPECIAL' THEN 5
+        WHEN order_type = 'SPECIAL - STRAGGLER' THEN 6
+        WHEN order_type = 'SPECIAL - NSO' THEN 7
+        WHEN order_type = 'DCTRANSFER' THEN 8
+        WHEN order_type = 'DCTRANSFER - STRAGGLER' THEN 9
+        WHEN order_type = 'INTERCOMPANY' THEN 10
+        WHEN order_type = 'INTERCOMPANY - STRAGGLER' THEN 11
+        WHEN order_type = 'STRAT' THEN 12
+        WHEN order_type = 'REPLEN' THEN 13
+        WHEN order_type = 'COMMUNITY' THEN 14
+        WHEN order_type = 'WAREHOUSE' THEN 15
+        ELSE 16
     END;
