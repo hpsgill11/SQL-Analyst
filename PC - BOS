@@ -39,6 +39,7 @@ FROM (
     WHERE 
         o.do_status IN ('110','120')
         AND o.is_original_order = '1'
+        AND o.order_type != 'ECOMM'
     GROUP BY
         CASE 
             WHEN o.do_status = 110 THEN 'Released'
