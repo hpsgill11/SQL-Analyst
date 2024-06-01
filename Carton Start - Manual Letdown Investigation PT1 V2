@@ -2,6 +2,12 @@ WITH CTE AS (
     SELECT
         TO_CHAR(wm.orders.created_dttm, 'YYYY/MM/DD') as Order_Create_Date,
         wm.task_dtl.TC_ORDER_ID,
+        wm.task_dtl.TASK_GENRTN_REF_NBR as Wave_Number,
+        wm.wave_parm.wave_desc,
+        wm.task_dtl.QTY_ALLOC as Allocated_Quantity,
+        wm.wm_inventory.on_hand_qty,
+        wm.wm_inventory.wm_allocated_qty,
+        wm.wm_inventory.to_be_filled_qty,
         wm.task_dtl.task_Id as Pick_Task_ID,
         CASE wm.task_hdr.STAT_CODE
             WHEN 5 THEN 'Locked Disabled'
@@ -10,12 +16,6 @@ WITH CTE AS (
             WHEN 99 THEN 'Cancelled'
             ELSE TO_CHAR(wm.task_hdr.STAT_CODE)
         END AS Task_Header_Status,
-        wm.task_dtl.TASK_GENRTN_REF_NBR as Wave_Number,
-        wm.wave_parm.wave_desc,
-        wm.task_dtl.QTY_ALLOC as Allocated_Quantity,
-        wm.wm_inventory.on_hand_qty,
-        wm.wm_inventory.wm_allocated_qty,
-        wm.wm_inventory.to_be_filled_qty,
         wm.item_cbo.ITEM_NAME,
         wm.locn_hdr.DSP_LOCN AS Location,
         (
