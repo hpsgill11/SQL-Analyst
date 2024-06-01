@@ -60,13 +60,13 @@ SELECT
     (
         SELECT 
             CASE 
-                WHEN SUM(wi.to_be_filled_qty) = 0 THEN 'Good to Release'
-                ELSE 'Do not Release'
+                WHEN SUM(wi.to_be_filled_qty) = 0 THEN 'No Letdown in Progress'
+                ELSE 'Letdowns in Progress'
             END
             FROM wm.task_dtl td
             JOIN wm.wm_inventory wi ON td.PULL_LOCN_ID = wi.location_id
             WHERE td.task_Id = wm.task_dtl.task_Id
-        ) AS Letdowns_in_Progress,
+        ) AS Letdown_Flag,
                 CASE 
             WHEN (wm.wm_inventory.on_hand_qty + wm.wm_inventory.to_be_filled_qty) < wm.wm_inventory.wm_allocated_qty THEN 'Manual Letdown Required'
             WHEN wm.wm_inventory.to_be_filled_qty > 0 THEN 'Letdown in progress'
