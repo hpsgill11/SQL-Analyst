@@ -1,0 +1,110 @@
+WITH CTE AS (
+    SELECT
+        TO_CHAR(wm.orders.created_dttm, 'YYYY/MM/DD') as Order_Create_Date,
+        wm.task_dtl.TC_ORDER_ID,
+        wm.task_dtl.task_Id as Pick_Task_ID,
+        CASE wm.task_hdr.STAT_CODE
+            WHEN 5 THEN 'Locked Disabled'
+            WHEN 10 THEN 'Released'
+            WHEN 30 THEN 'Assigned'
+            WHEN 99 THEN 'Cancelled'
+            ELSE TO_CHAR(wm.task_hdr.STAT_CODE)
+        END AS Task_Header_Status,
+        wm.task_dtl.TASK_GENRTN_REF_NBR as Wave_Number,
+        wm.wave_parm.wave_desc,
+        wm.task_dtl.QTY_ALLOC as Allocated_Quantity,
+        wm.wm_inventory.on_hand_qty,
+        wm.wm_inventory.wm_allocated_qty,
+        wm.wm_inventory.to_be_filled_qty,
+        wm.item_cbo.ITEM_NAME,
+        wm.locn_hdr.DSP_LOCN AS Location,
+        (
+            SELECT TC_LPN_ID 
+            FROM wm.wm_inventory wi 
+            JOIN wm.locn_hdr lh ON lh.locn_id = wi.location_id
+            WHERE wi.allocatable = 'Y' 
+            AND wi.LOCN_CLASS = 'R'
+            AND wi.inbound_outbound_indicator = 'I' 
+            AND wi.ITEM_ID = wm.item_cbo.ITEM_ID
+            AND lh.DSP_LOCN LIKE 'CR1%'
+            AND wi.on_hand_qty > wm.wm_inventory.wm_allocated_qty
+            ORDER BY wi.on_hand_qty ASC
+            FETCH FIRST 1 ROWS ONLY
+        ) AS LPN_ID,
+        (
+            SELECT lh.DSP_LOCN
+            FROM wm.wm_inventory wi 
+            JOIN wm.locn_hdr lh ON lh.locn_id = wi.location_id
+            WHERE wi.allocatable = 'Y' 
+            AND wi.LOCN_CLASS = 'R'
+            AND wi.inbound_outbound_indicator = 'I' 
+            AND wi.ITEM_ID = wm.item_cbo.ITEM_ID
+            AND lh.DSP_LOCN LIKE 'CR1%'
+            AND wi.on_hand_qty > wm.wm_inventory.wm_allocated_qty
+            ORDER BY wi.on_hand_qty ASC
+            FETCH FIRST 1 ROWS ONLY
+        ) AS LPN_Current_Location,
+        (
+            SELECT wi.on_hand_qty
+            FROM wm.wm_inventory wi 
+            JOIN wm.locn_hdr lh ON lh.locn_id = wi.location_id
+            WHERE wi.allocatable = 'Y' 
+            AND wi.LOCN_CLASS = 'R'
+            AND wi.inbound_outbound_indicator = 'I' 
+            AND wi.ITEM_ID = wm.item_cbo.ITEM_ID
+            AND lh.DSP_LOCN LIKE 'CR1%'
+            AND wi.on_hand_qty > wm.wm_inventory.wm_allocated_qty
+            ORDER BY wi.on_hand_qty ASC
+            FETCH FIRST 1 ROWS ONLY
+        ) AS LPN_On_Hand_Qty,
+        (
+            SELECT 
+                CASE 
+                    WHEN SUM(wi.to_be_filled_qty) = 0 THEN 'No Letdown in Progress'
+                    ELSE 'Letdowns in Progress'
+                END
+            FROM wm.task_dtl td
+            JOIN wm.wm_inventory wi ON td.PULL_LOCN_ID = wi.location_id
+            WHERE td.task_Id = wm.task_dtl.task_Id
+        ) AS Letdown_Flag,
+        CASE 
+            WHEN (wm.wm_inventory.on_hand_qty + wm.wm_inventory.to_be_filled_qty) < wm.wm_inventory.wm_allocated_qty THEN 'Manual Letdown Required'
+            WHEN wm.wm_inventory.to_be_filled_qty > 0 THEN 'Letdown in progress'
+            ELSE NULL
+        END AS Letdown_Status
+    FROM wm.orders
+    JOIN wm.task_dtl ON wm.orders.TC_ORDER_ID = wm.task_dtl.TC_ORDER_ID
+    JOIN wm.task_hdr ON wm.task_dtl.Task_ID = wm.task_hdr.TASK_ID
+    JOIN wm.locn_hdr ON wm.task_dtl.PULL_LOCN_ID = wm.locn_hdr.LOCN_ID
+    JOIN wm.item_cbo ON wm.task_dtl.ITEM_ID = wm.item_cbo.ITEM_ID
+    JOIN wm.lpn ON wm.lpn.TC_LPN_ID = wm.task_dtl.TASK_CMPL_REF_NBR
+    JOIN wm.wave_parm ON wm.wave_parm.wave_nbr = wm.task_dtl.TASK_GENRTN_REF_NBR
+    JOIN wm.wm_inventory ON wm.locn_hdr.locn_id = wm.wm_inventory.location_id
+    WHERE 
+        wm.orders.order_type = 'ECOMM' 
+        AND wm.task_dtl.INVN_TYPE = 'E'
+        AND wm.task_hdr.STAT_CODE < '30'
+        AND wm.task_dtl.task_Id IN (
+            SELECT task_Id
+            FROM wm.task_dtl
+            JOIN wm.wm_inventory ON wm.task_dtl.PULL_LOCN_ID = wm.wm_inventory.location_id
+            WHERE (wm.wm_inventory.on_hand_qty + wm.wm_inventory.to_be_filled_qty) < wm.wm_inventory.wm_allocated_qty
+        )
+),
+ActionCTE AS (
+    SELECT CTE.*,
+        CASE 
+            WHEN COUNT(LPN_ID) OVER (PARTITION BY Pick_Task_ID) = 0 AND Letdown_Flag = 'No Letdown in Progress' THEN 'Release'
+            ELSE 'Do not Release'
+        END AS Action
+    FROM CTE
+)
+SELECT *
+FROM ActionCTE
+WHERE 
+    Letdown_Status = 'Manual Letdown Required'
+    AND NOT (Task_Header_Status = 'Released' AND Action = 'Release')
+ORDER BY 
+    Order_Create_Date ASC, 
+    -- Pick_Task_ID ASC, 
+    Location ASC;
