@@ -91,7 +91,11 @@ SELECT
             WHERE (wm.wm_inventory.on_hand_qty + wm.wm_inventory.to_be_filled_qty) < wm.wm_inventory.wm_allocated_qty
         )
     )
-SELECT *
+SELECT CTE.*,
+    CASE 
+        WHEN COUNT(LPN_ID) OVER (PARTITION BY Pick_Task_ID) = 0 AND Letdown_Flag = 'No Letdown in Progress' THEN 'Release'
+        ELSE 'Do not Release'
+    END AS Action
 FROM CTE
 WHERE 
     Letdown_Status = 'Manual Letdown Required'
