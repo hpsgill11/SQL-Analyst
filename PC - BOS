@@ -1,4 +1,5 @@
 SELECT 
+    TO_CHAR(Oldest_Order_Date, 'YYYY/MM/DD') AS Oldest_Order_Date,
     do_status as Order_Status,
     order_type,
     COALESCE(ECOMM, 0) AS ECOMM_INV,
@@ -25,7 +26,8 @@ FROM (
             WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'REPLEN - CUSTOM FO'
             ELSE o.order_type
         END AS order_type,
-        COUNT(DISTINCT o.tc_order_id) AS num_orders
+        COUNT(DISTINCT o.tc_order_id) AS num_orders,
+        MIN(o.created_dttm) AS Oldest_Order_Date
     FROM 
         WM.orders o 
         JOIN WM.order_line_item oli ON o.order_id = oli.order_id
@@ -39,7 +41,7 @@ FROM (
     WHERE 
         o.do_status IN ('110','120')
         AND o.is_original_order = '1'
-        AND o.order_type != 'ECOMM'
+        -- AND o.order_type != 'ECOMM'
     GROUP BY
         CASE 
             WHEN o.do_status = 110 THEN 'Released'
