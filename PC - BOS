@@ -22,6 +22,7 @@ FROM (
             WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%STRAGGLER%' THEN 'SPECIAL - STRAGGLER'
             WHEN o.order_type = 'ALLOC' AND o.mark_for LIKE '%NSO%' THEN 'ALLOC - NSO'
             WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%NSO%' THEN 'SPECIAL - NSO'
+            WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'REPLEN - CUSTOM FO'
             ELSE o.order_type
         END AS order_type,
         COUNT(DISTINCT o.tc_order_id) AS num_orders
@@ -52,6 +53,7 @@ FROM (
         WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%STRAGGLER%' THEN 'SPECIAL - STRAGGLER'
         WHEN o.order_type = 'ALLOC' AND o.mark_for LIKE '%NSO%' THEN 'ALLOC - NSO'
         WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%NSO%' THEN 'SPECIAL - NSO'
+        WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'REPLEN - CUSTOM FO'
         ELSE o.order_type
      END
 ) 
@@ -81,7 +83,8 @@ ORDER BY
         WHEN order_type = 'INTERCOMPANY - STRAGGLER' THEN 11
         WHEN order_type = 'STRAT' THEN 12
         WHEN order_type = 'REPLEN' THEN 13
-        WHEN order_type = 'COMMUNITY' THEN 14
-        WHEN order_type = 'WAREHOUSE' THEN 15
-        ELSE 16
+        WHEN order_type = 'REPLEN - CUSTOM FO' THEN 14
+        WHEN order_type = 'COMMUNITY' THEN 15
+        WHEN order_type = 'WAREHOUSE' THEN 16
+        ELSE 17
     END;
