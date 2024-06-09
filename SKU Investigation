@@ -3,6 +3,13 @@ SELECT
         o.created_dttm,
         o.DELIVERY_END_DTTM,
         o.tc_order_id,
+        ds.description AS ORDER_STATUS,
+        oli.invn_type,
+        f.Region,
+        o.d_facility_alias_id AS Store,
+        o.MARK_FOR,
+        o.RTE_TYPE_1 AS LANE_NAME,
+        o.REF_FIELD_1,
         CASE 
             WHEN oli.DO_DTL_STATUS = 112 THEN 'Special Processing Pending'
             WHEN oli.DO_DTL_STATUS = 100 THEN 'Draft'
@@ -11,15 +18,8 @@ SELECT
             WHEN oli.DO_DTL_STATUS = 115 THEN 'Selected for Preview Wave'
             WHEN oli.DO_DTL_STATUS = 120 THEN 'Partially DC Allocated'
             ELSE 'Unknown'
-        END AS Order_LINE_Status,
-        oli.invn_type,
-        f.Region,
-        o.d_facility_alias_id,
-        o.MARK_FOR,
-        o.RTE_TYPE_1 AS LANE_NAME,
-        o.REF_FIELD_1,
+        END AS Order_Line_Status,
         oli.item_name,
-        ds.description AS ORDER_STATUS,
         oli.order_qty,
         oli.ALLOCATED_QTY,
         oli.order_qty - oli.ALLOCATED_QTY AS required_quantity,
