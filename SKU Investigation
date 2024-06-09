@@ -42,7 +42,7 @@ SUM(CASE
             ELSE 0 
         END) AS "Total Unallocatable",
 CASE 
-    WHEN ifm.pick_locn_assign_type IN ('P06', 'PRK') 
+    WHEN ifm.pick_locn_assign_type IN ('P06', 'PRK','P09') 
          OR ic.PRODUCT_CLASS_ID = 172 
          OR ic.item_style LIKE 'LM%' 
          OR oli.invn_type = 'R'
