@@ -76,14 +76,14 @@ END AS "Waveable Quantity",
     END AS Cleanup
     FROM 
         WM.orders o 
-        JOIN WM.order_line_item oli ON o.order_id = oli.order_id
-        JOIN WM.item_facility_mapping_wms ifm ON ifm.item_id = oli.item_id
-        JOIN WM.do_status ds ON ds.order_status = o.do_status
-        JOIN WM.item_cbo ic ON oli.item_name = ic.item_name 
-        JOIN WM.wm_inventory wmi ON oli.item_id = wmi.ITEM_ID AND oli.invn_type = wmi.inventory_type
-        JOIN WM.locn_hdr lh ON wmi.LOCATION_ID = lh.LOCN_ID
-        JOIN WM.item_master im ON ic.item_id = im.item_id
-        LEFT JOIN WM.facility f ON o.d_facility_id = f.facility_id
+        FULL JOIN WM.order_line_item oli ON o.order_id = oli.order_id
+        FULL JOIN WM.item_facility_mapping_wms ifm ON ifm.item_id = oli.item_id
+        FULL JOIN WM.do_status ds ON ds.order_status = o.do_status
+        FULL JOIN WM.item_cbo ic ON oli.item_name = ic.item_name 
+        FULL JOIN WM.wm_inventory wmi ON oli.item_id = wmi.ITEM_ID AND oli.invn_type = wmi.inventory_type
+        FULL JOIN WM.locn_hdr lh ON wmi.LOCATION_ID = lh.LOCN_ID
+        FULL JOIN WM.item_master im ON ic.item_id = im.item_id
+        FULL JOIN WM.facility f ON o.d_facility_id = f.facility_id
     WHERE 
         o.do_status <= '120'
         AND oli.DO_DTL_STATUS <= 120
