@@ -16,6 +16,7 @@ WITH CTE AS (
             WHEN 99 THEN 'Cancelled'
             ELSE TO_CHAR(wm.task_hdr.STAT_CODE)
         END AS Task_Header_Status,
+        wm.task_dtl.MISC_ALPHA_FIELD_2,
         wm.item_cbo.ITEM_NAME,
         wm.locn_hdr.DSP_LOCN AS Location,
         (
