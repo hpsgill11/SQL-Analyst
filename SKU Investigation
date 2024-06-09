@@ -1,0 +1,113 @@
+SELECT 
+        o.order_type,
+        o.created_dttm,
+        o.DELIVERY_END_DTTM,
+        o.tc_order_id,
+        CASE 
+            WHEN oli.DO_DTL_STATUS = 112 THEN 'Special Processing Pending'
+            WHEN oli.DO_DTL_STATUS = 100 THEN 'Draft'
+            WHEN oli.DO_DTL_STATUS = 105 THEN 'Pre-Released'
+            WHEN oli.DO_DTL_STATUS = 110 THEN 'Released'
+            WHEN oli.DO_DTL_STATUS = 115 THEN 'Selected for Preview Wave'
+            WHEN oli.DO_DTL_STATUS = 120 THEN 'Partially DC Allocated'
+            ELSE 'Unknown'
+        END AS Order_LINE_Status,
+        oli.invn_type,
+        f.Region,
+        o.d_facility_alias_id,
+        o.MARK_FOR,
+        o.RTE_TYPE_1 AS LANE_NAME,
+        o.REF_FIELD_1,
+        oli.item_name,
+        ds.description AS ORDER_STATUS,
+        oli.order_qty,
+        oli.ALLOCATED_QTY,
+        oli.order_qty - oli.ALLOCATED_QTY AS required_quantity,
+        SUM(oli.order_qty - oli.ALLOCATED_QTY) OVER (PARTITION BY o.order_type, oli.invn_type, oli.item_name) AS "Total Required",
+        ic.REF_FIELD2,
+        ic.REF_FIELD3,
+        ic.item_style,
+        ic.Unit_Volume,
+        oli.description, 
+        ifm.pick_locn_assign_type,
+        ic.PRODUCT_CLASS_ID,
+        im.PROD_GROUP AS PROD_CLASS,
+SUM(CASE     WHEN lh.work_grp = 'CRAK' AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y'    THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))     ELSE 0 END) AS "MIS Reserve Available", 
+SUM(CASE     WHEN lh.work_grp = 'MRAK' AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y'    THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))     ELSE 0 END) AS "MIL Reserve Available", 
+SUM(CASE     WHEN lh.work_grp = 'SHLF' AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y'    THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))     ELSE 0 END) AS "MIS Active Available", 
+SUM(CASE     WHEN lh.work_grp IN ('MFLW','MRPH','MACT') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y'    THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))     ELSE 0 END) AS "MIL Active Available", 
+SUM(CASE     WHEN lh.work_grp NOT IN ('CRAK', 'MRAK', 'SHLF', 'MFLW','MRPH','MACT') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y'    THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))     ELSE 0 END) AS "Needs Further Research",
+SUM(CASE 
+            WHEN wmi.ALLOCATABLE = 'N' AND oli.invn_type = wmi.inventory_type THEN (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty) 
+            ELSE 0 
+        END) AS "Total Unallocatable",
+CASE 
+    WHEN ifm.pick_locn_assign_type IN ('P06', 'PRK') 
+         OR ic.PRODUCT_CLASS_ID = 172 
+         OR ic.item_style LIKE 'LM%' 
+         OR oli.invn_type = 'R'
+         OR oli.invn_type = 'S'
+         OR oli.invn_type = 'B'
+         OR oli.invn_type = 'C'
+    THEN SUM(CASE 
+                WHEN lh.work_grp IN ('MFLW', 'MRPH', 'MACT', 'MRAK') 
+                     AND oli.invn_type = wmi.inventory_type 
+                     AND wmi.ALLOCATABLE = 'Y' 
+                THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) 
+                ELSE 0 
+            END) - SUM(oli.order_qty - oli.ALLOCATED_QTY) OVER (PARTITION BY o.order_type, oli.invn_type, oli.item_name)
+    ELSE SUM(CASE 
+                WHEN lh.work_grp IN ('CRAK', 'SHLF') 
+                     AND oli.invn_type = wmi.inventory_type 
+                     AND wmi.ALLOCATABLE = 'Y' 
+                THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) 
+                ELSE 0 
+            END) - SUM(oli.order_qty - oli.ALLOCATED_QTY) OVER (PARTITION BY o.order_type, oli.invn_type, oli.item_name)
+END AS "Waveable Quantity",
+    CASE 
+        WHEN SUM(CASE WHEN lh.work_grp = 'CRAK' AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+            + SUM(CASE WHEN lh.work_grp = 'MRAK' AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+            + SUM(CASE WHEN lh.work_grp = 'SHLF' AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+            + SUM(CASE WHEN lh.work_grp IN ('MFLW','MRPH','MACT') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+            + SUM(CASE WHEN lh.work_grp NOT IN ('CRAK', 'MRAK', 'SHLF', 'MFLW','MRPH','MACT') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+            + SUM(CASE WHEN wmi.ALLOCATABLE = 'N' AND oli.invn_type = wmi.inventory_type THEN (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty) ELSE 0 END) = 0
+        THEN 'Y'
+        ELSE 'N'
+    END AS Cleanup
+    FROM 
+        WM.orders o 
+        JOIN WM.order_line_item oli ON o.order_id = oli.order_id
+        JOIN WM.item_facility_mapping_wms ifm ON ifm.item_id = oli.item_id
+        JOIN WM.do_status ds ON ds.order_status = o.do_status
+        JOIN WM.item_cbo ic ON oli.item_name = ic.item_name 
+        JOIN WM.wm_inventory wmi ON oli.item_id = wmi.ITEM_ID AND oli.invn_type = wmi.inventory_type
+        JOIN WM.locn_hdr lh ON wmi.LOCATION_ID = lh.LOCN_ID
+        JOIN WM.item_master im ON ic.item_id = im.item_id
+        LEFT JOIN WM.facility f ON o.d_facility_id = f.facility_id
+    WHERE 
+        o.do_status <= '120'
+        AND oli.DO_DTL_STATUS <= 120
+    GROUP BY 
+        o.created_dttm,
+        o.tc_order_id,
+        o.RTE_TYPE_1,
+        o.REF_FIELD_1,
+        oli.DO_DTL_STATUS,
+        oli.invn_type,
+        o.order_type,
+        oli.item_name,
+        ds.description,
+        ic.REF_FIELD2,
+        ic.REF_FIELD3,
+        ic.item_style,
+        ic.Unit_Volume,
+        oli.description,
+        oli.order_qty,
+        oli.ALLOCATED_QTY,
+        ifm.pick_locn_assign_type,
+        ic.PRODUCT_CLASS_ID,
+        im.PROD_GROUP,
+        f.Region,
+        o.d_facility_alias_id,
+        O.MARK_FOR,
+        O.DELIVERY_END_DTTM
