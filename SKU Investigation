@@ -8,7 +8,7 @@ SELECT
         f.Region,
         o.d_facility_alias_id AS Store,
         o.MARK_FOR,
-        o.RTE_TYPE_1 AS LANE_NAME,
+        o.LANE_NAME AS LANE_NAME,
         o.REF_FIELD_1,
         CASE 
             WHEN oli.DO_DTL_STATUS = 112 THEN 'Special Processing Pending'
@@ -90,7 +90,7 @@ END AS "Waveable Quantity",
     GROUP BY 
         o.created_dttm,
         o.tc_order_id,
-        o.RTE_TYPE_1,
+        o.LANE_NAME,
         o.REF_FIELD_1,
         oli.DO_DTL_STATUS,
         oli.invn_type,
