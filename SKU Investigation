@@ -32,11 +32,11 @@ SELECT
         ifm.pick_locn_assign_type,
         ic.PRODUCT_CLASS_ID,
         im.PROD_GROUP AS PROD_CLASS,
-SUM(CASE     WHEN lh.work_grp = 'CRAK' AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y'    THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))     ELSE 0 END) AS "MIS Reserve Available", 
+SUM(CASE     WHEN lh.work_grp IN ('CRAK','PRAK') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y'    THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))     ELSE 0 END) AS "MIS Reserve Available", 
 SUM(CASE     WHEN lh.work_grp = 'MRAK' AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y'    THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))     ELSE 0 END) AS "MIL Reserve Available", 
 SUM(CASE     WHEN lh.work_grp = 'SHLF' AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y'    THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))     ELSE 0 END) AS "MIS Active Available", 
 SUM(CASE     WHEN lh.work_grp IN ('MFLW','MRPH','MACT') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y'    THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))     ELSE 0 END) AS "MIL Active Available", 
-SUM(CASE     WHEN lh.work_grp NOT IN ('CRAK', 'MRAK', 'SHLF', 'MFLW','MRPH','MACT') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y'    THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))     ELSE 0 END) AS "Needs Further Research",
+SUM(CASE     WHEN lh.work_grp NOT IN ('CRAK', 'MRAK', 'SHLF', 'MFLW','MRPH','MACT','PRAK') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y'    THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))     ELSE 0 END) AS "Needs Further Research",
 SUM(CASE 
             WHEN wmi.ALLOCATABLE = 'N' AND oli.invn_type = wmi.inventory_type THEN (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty) 
             ELSE 0 
@@ -57,7 +57,7 @@ CASE
                 ELSE 0 
             END) - SUM(oli.order_qty - oli.ALLOCATED_QTY) OVER (PARTITION BY o.order_type, oli.invn_type, oli.item_name)
     ELSE SUM(CASE 
-                WHEN lh.work_grp IN ('CRAK', 'SHLF') 
+                WHEN lh.work_grp IN ('CRAK', 'SHLF','PRAK') 
                      AND oli.invn_type = wmi.inventory_type 
                      AND wmi.ALLOCATABLE = 'Y' 
                 THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) 
@@ -65,11 +65,11 @@ CASE
             END) - SUM(oli.order_qty - oli.ALLOCATED_QTY) OVER (PARTITION BY o.order_type, oli.invn_type, oli.item_name)
 END AS "Waveable Quantity",
     CASE 
-        WHEN SUM(CASE WHEN lh.work_grp = 'CRAK' AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+        WHEN SUM(CASE WHEN lh.work_grp IN ('CRAK','PRAK') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
             + SUM(CASE WHEN lh.work_grp = 'MRAK' AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
             + SUM(CASE WHEN lh.work_grp = 'SHLF' AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
             + SUM(CASE WHEN lh.work_grp IN ('MFLW','MRPH','MACT') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
-            + SUM(CASE WHEN lh.work_grp NOT IN ('CRAK', 'MRAK', 'SHLF', 'MFLW','MRPH','MACT') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+            + SUM(CASE WHEN lh.work_grp NOT IN ('CRAK', 'MRAK', 'SHLF', 'MFLW','MRPH','MACT','PRAK') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
             + SUM(CASE WHEN wmi.ALLOCATABLE = 'N' AND oli.invn_type = wmi.inventory_type THEN (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty) ELSE 0 END) = 0
         THEN 'Y'
         ELSE 'N'
