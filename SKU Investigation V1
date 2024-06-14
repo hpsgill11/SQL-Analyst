@@ -170,9 +170,8 @@ FROM
     LEFT JOIN WM.item_master im ON ic.item_id = im.item_id
     LEFT JOIN WM.facility f ON o.d_facility_id = f.facility_id
 WHERE 
-    o.do_status <= '120'
+    o.do_status IN ('110','120')
     AND oli.DO_DTL_STATUS <= 120
-    AND o.order_type = 'ECOMM'
 GROUP BY 
     o.created_dttm,
     o.tc_order_id,
