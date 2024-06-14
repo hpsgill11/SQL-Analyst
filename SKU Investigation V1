@@ -28,7 +28,10 @@ SELECT
             o.order_type, 
             oli.invn_type, 
             oli.item_name, 
-            CASE WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') END
+                CASE 
+        WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
+        WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
+    END
     ) AS "Total Required",
     ic.REF_FIELD2,
     ic.REF_FIELD3,
@@ -98,7 +101,10 @@ SELECT
                         o.order_type, 
                         oli.invn_type, 
                         oli.item_name, 
-                        CASE WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') END
+                            CASE 
+        WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
+        WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
+    END
                 )
         ELSE SUM(CASE 
                     WHEN lh.work_grp IN ('CRAK', 'SHLF','PRAK') 
@@ -111,7 +117,10 @@ SELECT
                         o.order_type, 
                         oli.invn_type, 
                         oli.item_name, 
-                        CASE WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') END
+                            CASE 
+        WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
+        WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
+    END
                 )
     END AS "Waveable Quantity",
     CASE 
