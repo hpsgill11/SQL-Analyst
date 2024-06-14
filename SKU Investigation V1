@@ -216,5 +216,4 @@ GROUP BY
     f.Region,
     o.d_facility_alias_id,
     o.MARK_FOR,
-    o.DELIVERY_END_DTTM,
-    CASE WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') END
+    o.DELIVERY_END_DTTM
