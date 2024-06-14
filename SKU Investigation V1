@@ -26,6 +26,7 @@ SELECT
     SUM(oli.order_qty - oli.ALLOCATED_QTY) OVER (
         PARTITION BY 
             o.order_type, 
+            f.Region,
             oli.invn_type, 
             oli.item_name, 
                 CASE 
@@ -99,6 +100,7 @@ SELECT
                 END) - SUM(oli.order_qty - oli.ALLOCATED_QTY) OVER (
                     PARTITION BY 
                         o.order_type, 
+                        f.Region,
                         oli.invn_type, 
                         oli.item_name, 
                             CASE 
@@ -115,6 +117,7 @@ SELECT
                 END) - SUM(oli.order_qty - oli.ALLOCATED_QTY) OVER (
                     PARTITION BY 
                         o.order_type, 
+                        f.Region,
                         oli.invn_type, 
                         oli.item_name, 
                             CASE 
