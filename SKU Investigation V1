@@ -34,6 +34,7 @@ SELECT
         WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
         WHEN o.order_type = 'DCTRANSFER' THEN o.tc_order_id
         WHEN o.order_type = 'INTERCOMPANY' THEN o.tc_order_id
+        WHEN o.order_type = 'ALLOC' THEN TO_CHAR(o.DELIVERY_END_DTTM, 'YYYY/MM/DD')
     END
     ) AS "Total Required",
     ic.REF_FIELD2,
@@ -110,6 +111,7 @@ SELECT
         WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
         WHEN o.order_type = 'DCTRANSFER' THEN o.tc_order_id
         WHEN o.order_type = 'INTERCOMPANY' THEN o.tc_order_id
+        WHEN o.order_type = 'ALLOC' THEN TO_CHAR(o.DELIVERY_END_DTTM, 'YYYY/MM/DD')
     END
                 )
         ELSE SUM(CASE 
@@ -129,6 +131,7 @@ SELECT
         WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
         WHEN o.order_type = 'DCTRANSFER' THEN o.tc_order_id
         WHEN o.order_type = 'INTERCOMPANY' THEN o.tc_order_id
+        WHEN o.order_type = 'ALLOC' THEN TO_CHAR(o.DELIVERY_END_DTTM, 'YYYY/MM/DD')
     END
                 )
     END AS "Waveable Quantity",
