@@ -26,7 +26,7 @@ SELECT
     SUM(oli.order_qty - oli.ALLOCATED_QTY) OVER (
         PARTITION BY 
             o.order_type, 
-            f.Region,
+            SUBSTR(f.Region, 1, 1),
             oli.invn_type, 
             oli.item_name, 
                 CASE 
@@ -34,6 +34,9 @@ SELECT
         WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
         WHEN o.order_type = 'DCTRANSFER' THEN o.tc_order_id
         WHEN o.order_type = 'INTERCOMPANY' THEN o.tc_order_id
+        WHEN o.order_type = 'COMM' THEN o.tc_order_id
+        WHEN o.order_type = 'WAREHOUSE' THEN o.tc_order_id
+        WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
         WHEN o.order_type = 'ALLOC' THEN TO_CHAR(o.DELIVERY_END_DTTM, 'YYYY/MM/DD')
     END
     ) AS "Total Required",
@@ -103,7 +106,7 @@ SELECT
                 END) - SUM(oli.order_qty - oli.ALLOCATED_QTY) OVER (
                     PARTITION BY 
                         o.order_type, 
-                        f.Region,
+                        SUBSTR(f.Region, 1, 1),
                         oli.invn_type, 
                         oli.item_name, 
                             CASE 
@@ -111,6 +114,9 @@ SELECT
         WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
         WHEN o.order_type = 'DCTRANSFER' THEN o.tc_order_id
         WHEN o.order_type = 'INTERCOMPANY' THEN o.tc_order_id
+        WHEN o.order_type = 'COMM' THEN o.tc_order_id
+        WHEN o.order_type = 'WAREHOUSE' THEN o.tc_order_id
+        WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
         WHEN o.order_type = 'ALLOC' THEN TO_CHAR(o.DELIVERY_END_DTTM, 'YYYY/MM/DD')
     END
                 )
@@ -123,7 +129,7 @@ SELECT
                 END) - SUM(oli.order_qty - oli.ALLOCATED_QTY) OVER (
                     PARTITION BY 
                         o.order_type, 
-                        f.Region,
+                        SUBSTR(f.Region, 1, 1),
                         oli.invn_type, 
                         oli.item_name, 
                             CASE 
@@ -131,6 +137,9 @@ SELECT
         WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
         WHEN o.order_type = 'DCTRANSFER' THEN o.tc_order_id
         WHEN o.order_type = 'INTERCOMPANY' THEN o.tc_order_id
+        WHEN o.order_type = 'COMM' THEN o.tc_order_id
+        WHEN o.order_type = 'WAREHOUSE' THEN o.tc_order_id
+        WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
         WHEN o.order_type = 'ALLOC' THEN TO_CHAR(o.DELIVERY_END_DTTM, 'YYYY/MM/DD')
     END
                 )
