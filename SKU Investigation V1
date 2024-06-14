@@ -32,6 +32,8 @@ SELECT
                 CASE 
         WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
         WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
+        WHEN o.order_type = 'DCTRANSFER' THEN o.tc_order_id
+        WHEN o.order_type = 'INTERCOMPANY' THEN o.tc_order_id
     END
     ) AS "Total Required",
     ic.REF_FIELD2,
@@ -106,6 +108,8 @@ SELECT
                             CASE 
         WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
         WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
+        WHEN o.order_type = 'DCTRANSFER' THEN o.tc_order_id
+        WHEN o.order_type = 'INTERCOMPANY' THEN o.tc_order_id
     END
                 )
         ELSE SUM(CASE 
@@ -123,6 +127,8 @@ SELECT
                             CASE 
         WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
         WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
+        WHEN o.order_type = 'DCTRANSFER' THEN o.tc_order_id
+        WHEN o.order_type = 'INTERCOMPANY' THEN o.tc_order_id
     END
                 )
     END AS "Waveable Quantity",
