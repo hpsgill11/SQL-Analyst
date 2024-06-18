@@ -234,7 +234,13 @@ SELECT
     MainTable.tc_order_id,
     MainTable.ORDER_STATUS,
     MainTable.invn_type,
-    TRIM(BOTH ',' FROM (
+    MainTable.Region,
+    MainTable.Store,
+    MainTable.MARK_FOR,
+    MainTable.LANE_NAME,
+    MainTable.REF_FIELD_1,
+    MainTable.Order_Line_Status,
+        TRIM(BOTH ',' FROM (
         CASE 
             WHEN COUNT(
                 CASE 
@@ -287,12 +293,6 @@ SELECT
             ELSE ''
         END
     )) AS Order_Inventory_Flags,
-        MainTable.Region,
-    MainTable.Store,
-    MainTable.MARK_FOR,
-    MainTable.LANE_NAME,
-    MainTable.REF_FIELD_1,
-    MainTable.Order_Line_Status,
     MainTable.item_name,
     MainTable.order_qty,
     MainTable.ALLOCATED_QTY,
