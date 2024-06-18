@@ -279,7 +279,7 @@ SELECT
                     THEN 1 
                     ELSE NULL 
                 END) OVER (PARTITION BY MainTable.tc_order_id) > 0 
-            THEN ',Women'
+            THEN ',Womens'
             ELSE ''
         END ||
         CASE
