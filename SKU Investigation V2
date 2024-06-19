@@ -298,59 +298,65 @@ SELECT
     MainTable.LANE_NAME,
     MainTable.REF_FIELD_1,
     MainTable.Order_Line_Status,
-        TRIM(BOTH ',' FROM (
-        CASE 
-            WHEN COUNT(
-                CASE 
-                    WHEN MainTable.pick_locn_assign_type IN ('P06', 'PRK')
-                      OR MainTable.PRODUCT_CLASS_ID = 172
-                    THEN 1 
-                    ELSE NULL 
-                END) OVER (PARTITION BY MainTable.tc_order_id) > 0 
-            THEN 'Mats/Bags' 
-            ELSE '' 
-        END ||
-        CASE
-            WHEN COUNT(
-                CASE 
-                    WHEN MainTable.pick_locn_assign_type = 'P09'
-                    THEN 1 
-                    ELSE NULL 
-                END) OVER (PARTITION BY MainTable.tc_order_id) > 0 
-            THEN ',Footwear'
-            ELSE ''
-        END ||
-        CASE
-            WHEN COUNT(
-                CASE 
-                    WHEN MainTable.item_style LIKE 'LM%' 
-                    THEN 1 
-                    ELSE NULL 
-                END) OVER (PARTITION BY MainTable.tc_order_id) > 0 
-            THEN ',Mens'
-            ELSE ''
-        END ||
-        CASE
-            WHEN COUNT(
-                CASE 
-                    WHEN MainTable.item_style LIKE 'LW%' 
-                    THEN 1 
-                    ELSE NULL 
-                END) OVER (PARTITION BY MainTable.tc_order_id) > 0 
-            THEN ',Womens'
-            ELSE ''
-        END ||
-        CASE
-            WHEN COUNT(
-                CASE 
-                    WHEN MainTable.item_style LIKE 'LU%'
-                    THEN 1 
-                    ELSE NULL 
-                END) OVER (PARTITION BY MainTable.tc_order_id) > 0 
-            THEN ',Accessories'
-            ELSE ''
-        END
-    )) AS Order_Inventory_Flags,
+TRIM(BOTH ',' FROM (
+    CASE 
+        WHEN COUNT(
+            CASE 
+                WHEN MainTable.pick_locn_assign_type IN ('P06', 'PRK')
+                  OR MainTable.PRODUCT_CLASS_ID = 172
+                THEN 1 
+                ELSE NULL 
+            END) OVER (PARTITION BY MainTable.tc_order_id) > 0 
+        THEN 'Mats/Bags' 
+        ELSE '' 
+    END ||
+    CASE
+        WHEN COUNT(
+            CASE 
+                WHEN MainTable.pick_locn_assign_type = 'P09'
+                THEN 1 
+                ELSE NULL 
+            END) OVER (PARTITION BY MainTable.tc_order_id) > 0 
+        THEN ',Footwear'
+        ELSE ''
+    END ||
+    CASE
+        WHEN COUNT(
+            CASE 
+                WHEN MainTable.item_style LIKE 'LM%' 
+                  AND MainTable.pick_locn_assign_type NOT IN ('P06', 'PRK', 'P09')
+                  AND MainTable.PRODUCT_CLASS_ID != 172
+                THEN 1 
+                ELSE NULL 
+            END) OVER (PARTITION BY MainTable.tc_order_id) > 0 
+        THEN ',Mens'
+        ELSE ''
+    END ||
+    CASE
+        WHEN COUNT(
+            CASE 
+                WHEN MainTable.item_style LIKE 'LW%' 
+                  AND MainTable.pick_locn_assign_type NOT IN ('P06', 'PRK', 'P09')
+                  AND MainTable.PRODUCT_CLASS_ID != 172
+                THEN 1 
+                ELSE NULL 
+            END) OVER (PARTITION BY MainTable.tc_order_id) > 0 
+        THEN ',Womens'
+        ELSE ''
+    END ||
+    CASE
+        WHEN COUNT(
+            CASE 
+                WHEN MainTable.item_style LIKE 'LU%'
+                  AND MainTable.pick_locn_assign_type NOT IN ('P06', 'PRK', 'P09')
+                  AND MainTable.PRODUCT_CLASS_ID != 172
+                THEN 1 
+                ELSE NULL 
+            END) OVER (PARTITION BY MainTable.tc_order_id) > 0 
+        THEN ',Accessories'
+        ELSE ''
+    END
+)) AS Order_Inventory_Flags,
     MainTable.item_name,
     MainTable.order_qty,
     MainTable.ALLOCATED_QTY,
