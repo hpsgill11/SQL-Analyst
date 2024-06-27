@@ -1,6 +1,11 @@
 SELECT
-    TO_CHAR(wm.orders.created_dttm, 'YYYY/MM/DD') as Order_Create_Date,
+    TO_CHAR(wm.orders.created_dttm, 'YYYY/MM/DD') as Order_Create_Date_PST,
+    TO_CHAR(wm.orders.created_dttm + INTERVAL '3' HOUR, 'YYYY/MM/DD') AS Order_Create_Date_EST,
     task_dtl.tc_order_id AS Order_ID,
+    CASE 
+        WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
+    ELSE 'Multi'
+    END AS Order_Type,
     do_status.description AS Order_Status,
     CASE 
         WHEN wm.task_hdr.STAT_CODE = 5 AND wm.lpn.lpn_facility_status = '10' THEN 'Pending FA'
@@ -13,12 +18,8 @@ SELECT
         WHEN wm.lpn.lpn_facility_status = '30' THEN 'Weighed'
         WHEN wm.lpn.lpn_facility_status = '50' THEN 'Loaded'
         WHEN wm.lpn.lpn_facility_status = '90' THEN 'Shipped'
-    END AS Pick_Status,
+    END AS Pick_and_Pack_Status,
     wm.task_dtl.INVN_TYPE,
-    CASE 
-        WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
-    ELSE 'Multi'
-    END AS Order_Type,
     wm.orders.RTE_TYPE_1 AS LANE_NAME,
     wm.orders.ref_field_1,
     task_dtl.task_type,
@@ -49,18 +50,18 @@ SELECT
     task_dtl_2.qty_pulld AS qty_picked,
     NVL(picking_short_item.short_qty, 0) AS qty_shorted,
     CASE 
-        WHEN task_dtl_2.stat_code = '99' THEN task_dtl_2.stat_code || ' - Pick Canceled/Shorted'
-        WHEN task_dtl_2.stat_code = '90' THEN task_dtl_2.stat_code || ' - Pick Complete'
+        WHEN task_dtl_2.stat_code = '99' THEN 'Pick Canceled/Shorted'
+        WHEN task_dtl_2.stat_code = '90' THEN 'Pick Complete'
         WHEN task_dtl.qty_alloc = 0 THEN 'Canceled/Deleted'
-        ELSE task_dtl_2.stat_code || ' - Pick Incomplete'
+        ELSE 'Pick Incomplete'
     END AS pick_status,
     NVL(alloc_invn_dtl_2.qty_pulld, 0) AS Qty_Put,
     NVL(alloc_invn_dtl_2.qty_alloc, 0) AS Qty_To_Be_Put,
     CASE 
-        WHEN alloc_invn_dtl_2.stat_code = '90' THEN alloc_invn_dtl_2.stat_code || ' - Put Complete'
-        WHEN alloc_invn_dtl_2.stat_code = '99' OR (alloc_invn_dtl_2.stat_code IS NULL AND picking_short_item.short_qty IS NOT NULL) THEN alloc_invn_dtl_2.stat_code || ' - Put Canceled'
-        WHEN alloc_invn_dtl_2.stat_code = '91' OR alloc_invn_dtl_2.stat_code IS NULL THEN alloc_invn_dtl_2.stat_code || ' - Not Applicable'
-        ELSE alloc_invn_dtl_2.stat_code || ' - Put Incomplete'
+        WHEN alloc_invn_dtl_2.stat_code = '90' THEN 'Put Complete'
+        WHEN alloc_invn_dtl_2.stat_code = '99' OR (alloc_invn_dtl_2.stat_code IS NULL AND picking_short_item.short_qty IS NOT NULL) THEN 'Put Canceled'
+        WHEN alloc_invn_dtl_2.stat_code = '91' OR alloc_invn_dtl_2.stat_code IS NULL THEN 'Not Applicable'
+        ELSE 'Put Incomplete'
     END AS Put_Status,
     wm.lpn.TRACKING_NBR,
     wm.lpn.TC_parent_LPN_id as Pallet_ID,
@@ -81,6 +82,4 @@ LEFT JOIN wm.picking_short_item ON task_dtl.line_item_id = picking_short_item.li
 WHERE wm.orders.DO_STATUS IN (120,130,140,150,160,165,180)
 AND wm.orders.order_type = 'ECOMM' 
 AND wm.task_dtl.INVN_TYPE = 'E'
-AND wm.task_dtl.CURR_WORK_GRP = 'SHLF'
--- AND wm.orders.DO_STATUS != '200'
--- AND wm.orders.DO_STATUS != '190'
+-- AND wm.task_dtl.CURR_WORK_GRP = 'SHLF'
