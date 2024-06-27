@@ -69,7 +69,11 @@ SELECT
     CASE 
         WHEN ifm.pick_locn_assign_type = 'P09' THEN 'Footwear'
         ELSE 'Non Footwear'
-    END AS Footwear_Indicator
+    END AS Footwear_Indicator,
+     wm.item_cbo.REF_FIELD2,
+    wm.item_cbo.REF_FIELD3,
+    wm.item_cbo.item_style,
+    wm.item_cbo.Unit_Volume
 FROM wm.task_hdr
 JOIN wm.task_dtl ON task_dtl.task_id = task_hdr.task_id
 JOIN wm.item_cbo ON task_dtl.item_id = item_cbo.item_id
