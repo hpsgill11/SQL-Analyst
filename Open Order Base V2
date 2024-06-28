@@ -90,5 +90,5 @@ LEFT JOIN wm.alloc_invn_dtl alloc_invn_dtl_2 ON alloc_invn_dtl_2.carton_nbr = ta
 LEFT JOIN wm.picking_short_item ON task_dtl.line_item_id = picking_short_item.line_item_id AND task_dtl.tc_order_id = picking_short_item.tc_order_id
 WHERE wm.orders.DO_STATUS IN (120,130,140,150,160,165,180)
 AND wm.orders.order_type = 'ECOMM' 
-AND wm.task_dtl.INVN_TYPE = 'E'
+-- AND wm.task_dtl.INVN_TYPE = 'E'
 -- AND wm.task_dtl.CURR_WORK_GRP = 'SHLF'
