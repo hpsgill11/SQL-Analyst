@@ -63,25 +63,25 @@ SELECT
             WHEN wm.lpn.lpn_facility_status = '15' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
             ELSE 0
         END
-    ) AS In_Packing,
+    ) || ' Units' AS In_Packing,
     SUM(
         CASE
             WHEN wm.lpn.lpn_facility_status = '20' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
             ELSE 0
         END
-    ) AS Packed,
+    ) || ' Units' AS Packed,
     SUM(
         CASE
             WHEN wm.lpn.lpn_facility_status = '30' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
             ELSE 0
         END
-    ) AS Weighed,
+    ) || ' Units' AS Weighed,
     SUM(
         CASE
             WHEN wm.lpn.lpn_facility_status = '50' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
             ELSE 0
         END
-    ) AS Loaded
+    ) || ' Units' AS Loaded
 FROM wm.task_hdr
 JOIN wm.task_dtl ON task_dtl.task_id = task_hdr.task_id
 JOIN wm.item_cbo ON task_dtl.item_id = item_cbo.item_id
