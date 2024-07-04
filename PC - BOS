@@ -19,22 +19,27 @@ FROM (
         oli.invn_type,
         CASE 
             WHEN o.order_type = 'INTERCOMPANY' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'INTERCOMPANY - NSO'
+            WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'INTERCOMPANY - CUSTOM FO'
             WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%STRAGGLER%' THEN 'INTERCOMPANY - STRAGGLER'
             WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%FULL PULL%' THEN 'INTERCOMPANY - FULL PULL'
             
             WHEN o.order_type = 'DCTRANSFER' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'DCTRANSFER - NSO'
+            WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'DCTRANSFER - CUSTOM FO'
             WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%STRAGGLER%' THEN 'DCTRANSFER - STRAGGLER'
             WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%FULL PULL%' THEN 'DCTRANSFER - FULL PULL'
             
             WHEN o.order_type = 'SPECIAL' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'SPECIAL - NSO'
+            WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'SPECIAL - CUSTOM FO'
             WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%STRAGGLER%' THEN 'SPECIAL - STRAGGLER'
             WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%FULL PULL%' THEN 'SPECIAL - FULL PULL'
 
             WHEN o.order_type = 'ALLOC' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'ALLOC - NSO' 
+            WHEN o.order_type = 'ALLOC' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'ALLOC - CUSTOM FO'
             WHEN o.order_type = 'ALLOC' AND (o.mark_for LIKE '%STRAGGLER%' OR f.Region = 'NSO') THEN 'ALLOC - STRAGGLER' 
             WHEN o.order_type = 'ALLOC' AND (o.mark_for LIKE '%FULL PULL%' OR f.Region = 'NSO') THEN 'ALLOC - FULL PULL' 
             
             WHEN o.order_type = 'STRAT' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'STRAT - NSO'
+            WHEN o.order_type = 'STRAT' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'STRAT - CUSTOM FO'
             WHEN o.order_type = 'STRAT' AND (o.mark_for LIKE '%STRAGGLER%' OR f.Region = 'NSO') THEN 'STRAT - STRAGGLER'
             WHEN o.order_type = 'STRAT' AND (o.mark_for LIKE '%FULL PULL%' OR f.Region = 'NSO') THEN 'STRAT - FULL PULL'
             
@@ -42,6 +47,11 @@ FROM (
             WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'REPLEN - CUSTOM FO'
             WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%STRAGGLER%' THEN 'REPLEN - STRAGGLER'
             WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%FULL PULL%' THEN 'REPLEN - FULL PULL'
+            
+            WHEN o.order_type = 'WAREHOUSE' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'WAREHOUSE - NSO'
+            WHEN o.order_type = 'WAREHOUSE' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'WAREHOUSE - CUSTOM FO'
+            WHEN o.order_type = 'WAREHOUSE' AND o.mark_for LIKE '%STRAGGLER%' THEN 'WAREHOUSE - STRAGGLER'
+            WHEN o.order_type = 'WAREHOUSE' AND o.mark_for LIKE '%FULL PULL%' THEN 'WAREHOUSE - FULL PULL'
             
             ELSE o.order_type
         END AS order_type,
@@ -71,22 +81,27 @@ FROM (
      oli.invn_type,
      CASE 
             WHEN o.order_type = 'INTERCOMPANY' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'INTERCOMPANY - NSO'
+            WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'INTERCOMPANY - CUSTOM FO'
             WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%STRAGGLER%' THEN 'INTERCOMPANY - STRAGGLER'
             WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%FULL PULL%' THEN 'INTERCOMPANY - FULL PULL'
             
             WHEN o.order_type = 'DCTRANSFER' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'DCTRANSFER - NSO'
+            WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'DCTRANSFER - CUSTOM FO'
             WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%STRAGGLER%' THEN 'DCTRANSFER - STRAGGLER'
             WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%FULL PULL%' THEN 'DCTRANSFER - FULL PULL'
             
             WHEN o.order_type = 'SPECIAL' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'SPECIAL - NSO'
+            WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'SPECIAL - CUSTOM FO'
             WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%STRAGGLER%' THEN 'SPECIAL - STRAGGLER'
             WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%FULL PULL%' THEN 'SPECIAL - FULL PULL'
 
             WHEN o.order_type = 'ALLOC' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'ALLOC - NSO' 
+            WHEN o.order_type = 'ALLOC' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'ALLOC - CUSTOM FO'
             WHEN o.order_type = 'ALLOC' AND (o.mark_for LIKE '%STRAGGLER%' OR f.Region = 'NSO') THEN 'ALLOC - STRAGGLER' 
             WHEN o.order_type = 'ALLOC' AND (o.mark_for LIKE '%FULL PULL%' OR f.Region = 'NSO') THEN 'ALLOC - FULL PULL' 
             
             WHEN o.order_type = 'STRAT' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'STRAT - NSO'
+            WHEN o.order_type = 'STRAT' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'STRAT - CUSTOM FO'
             WHEN o.order_type = 'STRAT' AND (o.mark_for LIKE '%STRAGGLER%' OR f.Region = 'NSO') THEN 'STRAT - STRAGGLER'
             WHEN o.order_type = 'STRAT' AND (o.mark_for LIKE '%FULL PULL%' OR f.Region = 'NSO') THEN 'STRAT - FULL PULL'
             
@@ -94,6 +109,11 @@ FROM (
             WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'REPLEN - CUSTOM FO'
             WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%STRAGGLER%' THEN 'REPLEN - STRAGGLER'
             WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%FULL PULL%' THEN 'REPLEN - FULL PULL'
+            
+            WHEN o.order_type = 'WAREHOUSE' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'WAREHOUSE - NSO'
+            WHEN o.order_type = 'WAREHOUSE' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'WAREHOUSE - CUSTOM FO'
+            WHEN o.order_type = 'WAREHOUSE' AND o.mark_for LIKE '%STRAGGLER%' THEN 'WAREHOUSE - STRAGGLER'
+            WHEN o.order_type = 'WAREHOUSE' AND o.mark_for LIKE '%FULL PULL%' THEN 'WAREHOUSE - FULL PULL'
         ELSE o.order_type
      END
 ) 
