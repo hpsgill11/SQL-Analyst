@@ -1,6 +1,9 @@
 SELECT
     l.created_dttm,
     l.wave_nbr,
+    wp.wave_desc,
+        l.tc_order_id,
+    l.tc_lpn_id AS olpn,
     lh.dsp_locn,
         CASE 
         WHEN aid.pikr_nbr = '99' THEN 'AS4'  
@@ -15,7 +18,7 @@ SELECT
             WHEN 99 THEN 'Cancelled'
             ELSE TO_CHAR(th.STAT_CODE)
         END AS Task_Header_Status,
-        td.MISC_ALPHA_FIELD_2,
+        td.MISC_ALPHA_FIELD_2 AS Tote_Number,
     aid.qty_alloc,
     aid.qty_pulld,
     wmi.on_hand_qty,
@@ -25,10 +28,48 @@ SELECT
         WHEN wmi.on_hand_qty - aid.qty_alloc >= 0 THEN 0 
         ELSE 1 
     END AS insufficient_on_hand,
-    wp.wave_desc,
+
     td.task_id,
-    l.tc_order_id,
-    l.tc_lpn_id AS olpn
+
+       (
+        SELECT wi.TC_LPN_ID 
+        FROM wm.wm_inventory wi 
+        JOIN wm.locn_hdr lh2 ON lh2.locn_id = wi.location_id
+        WHERE wi.allocatable = 'Y' 
+          AND wi.LOCN_CLASS = 'R'
+          AND wi.inbound_outbound_indicator = 'I' 
+          AND wi.ITEM_ID = ic.ITEM_ID
+          AND lh2.DSP_LOCN LIKE 'CR1%'
+          AND wi.on_hand_qty > wi.wm_allocated_qty
+        ORDER BY wi.on_hand_qty ASC
+        FETCH FIRST 1 ROWS ONLY
+    ) AS LPN_ID,
+           (
+        SELECT lh2.DSP_LOCN 
+        FROM wm.wm_inventory wi 
+        JOIN wm.locn_hdr lh2 ON lh2.locn_id = wi.location_id
+        WHERE wi.allocatable = 'Y' 
+          AND wi.LOCN_CLASS = 'R'
+          AND wi.inbound_outbound_indicator = 'I' 
+          AND wi.ITEM_ID = ic.ITEM_ID
+          AND lh2.DSP_LOCN LIKE 'CR1%'
+          AND wi.on_hand_qty > wi.wm_allocated_qty
+        ORDER BY wi.on_hand_qty ASC
+        FETCH FIRST 1 ROWS ONLY
+    ) AS LPN_Current_Location,
+           (
+        SELECT wi.on_hand_qty
+        FROM wm.wm_inventory wi 
+        JOIN wm.locn_hdr lh2 ON lh2.locn_id = wi.location_id
+        WHERE wi.allocatable = 'Y' 
+          AND wi.LOCN_CLASS = 'R'
+          AND wi.inbound_outbound_indicator = 'I' 
+          AND wi.ITEM_ID = ic.ITEM_ID
+          AND lh2.DSP_LOCN LIKE 'CR1%'
+          AND wi.on_hand_qty > wi.wm_allocated_qty
+        ORDER BY wi.on_hand_qty ASC
+        FETCH FIRST 1 ROWS ONLY
+    ) AS LPN_On_Hand_Qty
 FROM
     wm.lpn l
     INNER JOIN wm.alloc_invn_dtl aid ON l.tc_lpn_id = aid.carton_nbr
