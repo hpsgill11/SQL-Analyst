@@ -102,6 +102,12 @@ WHERE
    AND l.lpn_facility_status < '90'
    AND wmi.to_be_filled_qty = '0'
    AND th.STAT_CODE < '30'
-   AND (wmi.on_hand_qty + wmi.to_be_filled_qty) < wmi.wm_allocated_Qty
+  -- AND (wmi.on_hand_qty + wmi.to_be_filled_qty) < wmi.wm_allocated_Qty
+    AND td.task_id IN (
+        SELECT task_Id
+        FROM wm.task_dtl
+        JOIN wm.wm_inventory ON wm.task_dtl.PULL_LOCN_ID = wm.wm_inventory.location_id
+        WHERE (wm.wm_inventory.on_hand_qty + wm.wm_inventory.to_be_filled_qty) < wm.wm_inventory.wm_allocated_qty
+    )
 ORDER BY
     aid.task_genrtn_ref_nbr DESC
