@@ -154,23 +154,4 @@ PIVOT (
     )
 ) 
 ORDER BY 
-    do_status DESC,
-    CASE 
-        WHEN order_type = 'ECOMM' THEN 1
-        WHEN order_type = 'RETAIL' THEN 2
-        WHEN order_type = 'ALLOC' THEN 3
-        WHEN order_type = 'ALLOC - NSO' THEN 4
-        WHEN order_type = 'SPECIAL' THEN 5
-        WHEN order_type = 'SPECIAL - STRAGGLER' THEN 6
-        WHEN order_type = 'SPECIAL - NSO' THEN 7
-        WHEN order_type = 'DCTRANSFER' THEN 8
-        WHEN order_type = 'DCTRANSFER - STRAGGLER' THEN 9
-        WHEN order_type = 'INTERCOMPANY' THEN 10
-        WHEN order_type = 'INTERCOMPANY - STRAGGLER' THEN 11
-        WHEN order_type = 'STRAT' THEN 12
-        WHEN order_type = 'REPLEN' THEN 13
-        WHEN order_type = 'REPLEN - CUSTOM FO' THEN 14
-        WHEN order_type = 'COMMUNITY' THEN 15
-        WHEN order_type = 'WAREHOUSE' THEN 16
-        ELSE 17
-    END;
+    do_status DESC, order_type
