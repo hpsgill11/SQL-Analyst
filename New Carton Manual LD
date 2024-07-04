@@ -1,3 +1,4 @@
+WITH CTE AS (
 SELECT
     l.created_dttm,
     l.wave_nbr,
@@ -111,3 +112,14 @@ WHERE
     )
 ORDER BY
     aid.task_genrtn_ref_nbr DESC
+)
+
+SELECT
+    CTE.*,
+    CASE 
+        WHEN SUM(to_be_filled_qty) OVER (PARTITION BY task_id) = 0 THEN 'No Letdowns in Progress'
+        ELSE 'Letdowns in Progress'
+    END AS letdown_status
+FROM CTE
+WHERE
+    (on_hand_qty + to_be_filled_qty) < wm_allocated_qty;
