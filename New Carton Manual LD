@@ -1,0 +1,66 @@
+SELECT
+    l.created_dttm,
+    l.wave_nbr,
+    lh.dsp_locn,
+        CASE 
+        WHEN aid.pikr_nbr = '99' THEN 'AS4'  
+        WHEN aid.pikr_nbr = '95' THEN 'MA1' 
+        ELSE TO_CHAR(aid.pikr_nbr) 
+    END AS zone,
+    ic.item_name AS SKU,
+        CASE th.STAT_CODE
+            WHEN 5 THEN 'Locked Disabled'
+            WHEN 10 THEN 'Released'
+            WHEN 30 THEN 'Assigned'
+            WHEN 99 THEN 'Cancelled'
+            ELSE TO_CHAR(th.STAT_CODE)
+        END AS Task_Header_Status,
+        td.MISC_ALPHA_FIELD_2,
+    aid.qty_alloc,
+    aid.qty_pulld,
+    wmi.on_hand_qty,
+    wmi.to_be_filled_qty,
+    wmi.wm_allocated_Qty,
+    CASE 
+        WHEN wmi.on_hand_qty - aid.qty_alloc >= 0 THEN 0 
+        ELSE 1 
+    END AS insufficient_on_hand,
+    wp.wave_desc,
+    td.task_id,
+    l.tc_order_id,
+    l.tc_lpn_id AS olpn
+FROM
+    wm.lpn l
+    INNER JOIN wm.alloc_invn_dtl aid ON l.tc_lpn_id = aid.carton_nbr
+    LEFT OUTER JOIN wm.locn_hdr lh ON aid.pull_locn_id = lh.locn_id
+    LEFT OUTER JOIN wm.task_dtl td ON aid.ALLOC_INVN_DTL_ID = td.ALLOC_INVN_DTL_ID 
+        AND td.task_genrtn_ref_code NOT IN ('15')
+    LEFT OUTER JOIN wm.task_hdr th ON td.task_id = th.task_id
+    LEFT OUTER JOIN wm.wave_parm wp ON l.wave_nbr = wp.wave_nbr
+    LEFT OUTER JOIN wm.wm_inventory wmi ON aid.pull_locn_id = wmi.location_id 
+        AND aid.item_id = wmi.item_id
+    LEFT OUTER JOIN wm.item_cbo ic ON aid.item_id = ic.item_id
+    LEFT OUTER JOIN wm.ship_wave_parm swp ON l.wave_nbr = swp.ship_wave_nbr
+    LEFT OUTER JOIN (
+        SELECT sc.code_desc, sc.code_id 
+        FROM wm.sys_code sc 
+        WHERE sc.rec_type = 'S' AND sc.code_type = '590'
+    ) ys ON ys.code_id = th.task_type
+    LEFT OUTER JOIN (
+        SELECT code_id, code_desc 
+        FROM wm.sys_code 
+        WHERE code_type = '325'
+    ) c ON wp.alloc_type = c.code_id
+    LEFT OUTER JOIN (
+        SELECT SUBSTR(proc_key, 0, 12) AS proc_key, user_id 
+        FROM wm.proc_lock
+    ) pl ON l.wave_nbr = pl.proc_key
+WHERE
+    l.inbound_outbound_indicator = 'O'
+   AND l.tc_order_id LIKE 'c%'
+   AND l.lpn_facility_status < '90'
+   AND wmi.to_be_filled_qty = '0'
+   AND th.STAT_CODE < '30'
+   AND (wmi.on_hand_qty + wmi.to_be_filled_qty) < wmi.wm_allocated_Qty
+ORDER BY
+    aid.task_genrtn_ref_nbr DESC
