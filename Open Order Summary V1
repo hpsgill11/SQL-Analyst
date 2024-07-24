@@ -25,7 +25,6 @@ SELECT
         WHEN wm.lpn.lpn_facility_status = '90' THEN 'Shipped'
         WHEN wm.lpn.lpn_facility_status = '99' THEN 'Shorted'
     END AS Pick_and_Pack_Status,
-    wm.order_line_item.invn_type AS Order_Inv_Type,
     wm.orders.RTE_TYPE_1 AS LANE_NAME,
     wm.orders.REF_FIELD_1,
     
@@ -84,8 +83,6 @@ SELECT
         WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'SHLF'
         WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp IS NULL THEN 'MFLW'
         WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp IS NULL THEN 'SHLF'
-        
-    
         ELSE wm.locn_hdr.work_grp
     END AS Work_group,
     
