@@ -1,10 +1,19 @@
 SELECT
+    CASE 
+        WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Milton'
+        WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Mississauga'
+        WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp IS NULL THEN 'Milton'
+        WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp IS NULL THEN 'Mississauga'
+        ELSE wm.locn_hdr.work_grp
+    END AS facility,
     wm.orders.created_dttm + INTERVAL '3' HOUR AS Order_Create_Date_EST,
     wm.orders.tc_order_id,
     CASE 
         WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
     ELSE 'Multi'
     END AS Order_Type,
+    wm.orders.d_name as Customer_Name,
+    wm.orders.d_address_1 as Delivery_Address,
     wm.do_status.description AS Order_Status,
     CASE 
         WHEN wm.order_line_item.DO_DTL_STATUS = '100' THEN 'Waiting to be Waved'
@@ -78,13 +87,6 @@ SELECT
     END AS Tote_Number,
    locn_hdr.dsp_locn AS pull_locn,
     task_dtl.pikr_nbr AS Zone,
-    CASE 
-        WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'MFLW'
-        WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'SHLF'
-        WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp IS NULL THEN 'MFLW'
-        WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp IS NULL THEN 'SHLF'
-        ELSE wm.locn_hdr.work_grp
-    END AS Work_group,
     
     task_dtl_2.task_id AS cart_task_ID,
     task_dtl_2.TASK_GENRTN_REF_NBR AS Cart_Number,
