@@ -80,8 +80,12 @@ SELECT
    locn_hdr.dsp_locn AS pull_locn,
     task_dtl.pikr_nbr AS Zone,
     CASE 
+        WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'MFLW'
+        WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'SHLF'
         WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp IS NULL THEN 'MFLW'
         WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp IS NULL THEN 'SHLF'
+        
+    
         ELSE wm.locn_hdr.work_grp
     END AS Work_group,
     
@@ -141,7 +145,7 @@ FROM
     LEFT JOIN wm.picking_short_item ON wm.task_dtl.line_item_id = wm.picking_short_item.line_item_id AND wm.task_dtl.tc_order_id = wm.picking_short_item.tc_order_id
 WHERE
    wm.orders.order_type = 'ECOMM'
- AND wm.do_status.order_status = 150
+ AND wm.do_status.order_status < 180
  AND wm.order_line_item.DO_DTL_STATUS NOT IN ('200','190')
  
  
@@ -152,5 +156,5 @@ WHERE
 -- AND wm.alloc_invn_dtl.task_genrtn_ref_nbr = '202407200246'
 -- AND task_hdr.task_desc AS Tote_Type = ''
 -- AND task_dtl.task_id = '19189988'
--- AND wm.locn_hdr.work_grp = 'MACT'
+ AND wm.locn_hdr.work_grp = 'GIFT'
  --AND WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09'
