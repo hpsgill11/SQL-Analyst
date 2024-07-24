@@ -156,5 +156,5 @@ WHERE
 -- AND wm.alloc_invn_dtl.task_genrtn_ref_nbr = '202407200246'
 -- AND task_hdr.task_desc AS Tote_Type = ''
 -- AND task_dtl.task_id = '19189988'
- AND wm.locn_hdr.work_grp = 'GIFT'
+ --AND wm.locn_hdr.work_grp = 'GIFT'
  --AND WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09'
