@@ -29,7 +29,6 @@ SELECT
     wm.orders.RTE_TYPE_1 AS LANE_NAME,
     wm.orders.REF_FIELD_1,
     
-    wm.order_line_item.description AS Item_Description,
     CASE 
         WHEN wm.order_line_item.DO_DTL_STATUS = 112 THEN 'Special Processing Pending'
         WHEN wm.order_line_item.DO_DTL_STATUS = 100 THEN 'Draft'
@@ -54,13 +53,15 @@ SELECT
     wm.alloc_invn_dtl.task_genrtn_ref_nbr AS Wave_Number,
     wm.wave_parm.wave_desc,
     wm.order_line_item.item_name,
+    wm.order_line_item.description AS Item_Description,
 
     wm.alloc_invn_dtl.task_cmpl_ref_nbr as oLPN,
     lpn_facility_status.description AS oLPN_Status,
+    wm.lpn.last_updated_dttm AS oLPN_Last_Updated_DTTM,
 
     wm.order_line_item.order_qty,
     wm.order_line_item.ALLOCATED_QTY,
-    
+    task_dtl.qty_alloc AS Task_qty_allocated,
     task_dtl.task_id,
         CASE wm.task_hdr.STAT_CODE
         WHEN 5 THEN 'Locked Disabled'
@@ -85,7 +86,7 @@ SELECT
     
     task_dtl_2.task_id AS cart_task_ID,
     task_dtl_2.TASK_GENRTN_REF_NBR AS Cart_Number,
-    task_dtl.qty_alloc AS Task_qty_allocated,
+
     task_dtl_2.qty_pulld AS qty_picked,
     NVL(picking_short_item.short_qty, 0) AS qty_shorted,
     CASE 
@@ -139,12 +140,12 @@ FROM
     LEFT JOIN wm.picking_short_item ON wm.task_dtl.line_item_id = wm.picking_short_item.line_item_id AND wm.task_dtl.tc_order_id = wm.picking_short_item.tc_order_id
 WHERE
    wm.orders.order_type = 'ECOMM'
- AND wm.do_status.order_status = 130
+ AND wm.do_status.order_status = 140
  AND wm.order_line_item.DO_DTL_STATUS NOT IN ('200','190')
  
  
 -- AND wm.order_line_item.invn_type = 'R'
- --AND wm.orders.tc_order_id = 'c171882726161527_20240722114304599887429'
+ --AND wm.orders.tc_order_id = 'c172172783752815_20240723035316621405811'
 -- AND wm.task_hdr.STAT_CODE = '5'
  --AND wm.alloc_invn_dtl.task_cmpl_ref_nbr = '00000999990724306289'
 -- AND wm.alloc_invn_dtl.task_genrtn_ref_nbr = '202407200246'
