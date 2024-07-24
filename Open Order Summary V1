@@ -58,6 +58,7 @@ SELECT
     wm.alloc_invn_dtl.task_cmpl_ref_nbr as oLPN,
     lpn_facility_status.description AS oLPN_Status,
     wm.lpn.last_updated_dttm AS oLPN_Last_Updated_DTTM,
+    wm.lpn.created_DTTM AS oLPN_Create_DTTM,
 
     wm.order_line_item.order_qty,
     wm.order_line_item.ALLOCATED_QTY,
@@ -140,7 +141,7 @@ FROM
     LEFT JOIN wm.picking_short_item ON wm.task_dtl.line_item_id = wm.picking_short_item.line_item_id AND wm.task_dtl.tc_order_id = wm.picking_short_item.tc_order_id
 WHERE
    wm.orders.order_type = 'ECOMM'
- AND wm.do_status.order_status = 140
+ AND wm.do_status.order_status = 150
  AND wm.order_line_item.DO_DTL_STATUS NOT IN ('200','190')
  
  
