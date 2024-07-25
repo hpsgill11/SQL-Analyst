@@ -1,158 +1,157 @@
-SELECT
-    CASE 
-        WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Milton'
-        WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Mississauga'
-        WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp IS NULL THEN 'Milton'
-        WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp IS NULL THEN 'Mississauga'
-        ELSE wm.locn_hdr.work_grp
-    END AS facility,
-    wm.orders.created_dttm + INTERVAL '3' HOUR AS Order_Create_Date_EST,
-    wm.orders.tc_order_id,
-    CASE 
-        WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
-    ELSE 'Multi'
-    END AS Order_Type,
-    wm.orders.d_address_1 as Delivery_Address,
-    wm.do_status.description AS Order_Status,
-    CASE 
-        WHEN wm.order_line_item.DO_DTL_STATUS = '100' THEN 'Waiting to be Waved'
-        WHEN wm.order_line_item.DO_DTL_STATUS = '110' THEN 'Waiting to be Waved'
-        WHEN wm.task_hdr.STAT_CODE = 5 AND wm.lpn.lpn_facility_status = '10' THEN 'Pending FA'
-        WHEN wm.task_hdr.STAT_CODE = 10 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NULL THEN 'Ready To Carton Start'
-        WHEN wm.task_hdr.STAT_CODE = 10 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NOT NULL THEN 'Carton Started'
-        WHEN wm.task_hdr.STAT_CODE = 30 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NOT NULL THEN 'Picking In Progress'
-        WHEN wm.task_hdr.STAT_CODE = 30 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NULL THEN 'Task Issue - Investigate'
-        WHEN wm.task_hdr.STAT_CODE = 99 AND wm.lpn.lpn_facility_status = '10' THEN 'Pending Packs'
-        WHEN wm.lpn.lpn_facility_status = '12' THEN 'Released'
-        WHEN wm.lpn.lpn_facility_status = '15' THEN 'In Packing'
-        WHEN wm.lpn.lpn_facility_status = '20' THEN 'Packed'
-        WHEN wm.lpn.lpn_facility_status = '30' THEN 'Weighed'
-        WHEN wm.lpn.lpn_facility_status = '30' THEN 'Manifested'
-        WHEN wm.lpn.lpn_facility_status = '50' THEN 'Loaded on truck'
-        WHEN wm.lpn.lpn_facility_status = '89' THEN 'Completed VAS'
-        WHEN wm.lpn.lpn_facility_status = '90' THEN 'Shipped'
-        WHEN wm.lpn.lpn_facility_status = '99' THEN 'Shorted'
-    END AS Pick_and_Pack_Status,
-    wm.orders.RTE_TYPE_1 AS LANE_NAME,
-    wm.orders.REF_FIELD_1,
-    
-    CASE 
-        WHEN wm.order_line_item.DO_DTL_STATUS = 112 THEN 'Special Processing Pending'
-        WHEN wm.order_line_item.DO_DTL_STATUS = 100 THEN 'Draft'
-        WHEN wm.order_line_item.DO_DTL_STATUS = 105 THEN 'Pre-Released'
-        WHEN wm.order_line_item.DO_DTL_STATUS = 110 THEN 'Released'
-        WHEN wm.order_line_item.DO_DTL_STATUS = 115 THEN 'Selected for Preview Wave'
-        WHEN wm.order_line_item.DO_DTL_STATUS = 120 THEN 'Partially DC Allocated'
-        WHEN wm.order_line_item.DO_DTL_STATUS = 130 THEN 'DC Allocated'
-        WHEN wm.order_line_item.DO_DTL_STATUS = 140 THEN 'In Packing'
-        WHEN wm.order_line_item.DO_DTL_STATUS = 150 THEN 'Packed'
-        WHEN wm.order_line_item.DO_DTL_STATUS = 160 THEN 'Weighed'
-        WHEN wm.order_line_item.DO_DTL_STATUS = 170 THEN 'Manifested'
-        WHEN wm.order_line_item.DO_DTL_STATUS = 180 THEN 'Loaded'
-        WHEN wm.order_line_item.DO_DTL_STATUS = 190 THEN 'Shipped'
-        WHEN wm.order_line_item.DO_DTL_STATUS = 200 THEN 'Cancelled'
-        WHEN wm.order_line_item.DO_DTL_STATUS = 185 THEN 'Partially Shipped'
-        WHEN wm.order_line_item.DO_DTL_STATUS = 165 THEN 'Staged'
-        WHEN wm.order_line_item.DO_DTL_STATUS = 195 THEN 'Delivered'
-        ELSE 'Unknown'
-    END AS Order_Line_Status,
-    wm.order_line_item.invn_type as Order_Line_Inv_Type,
-    wm.alloc_invn_dtl.task_genrtn_ref_nbr AS Wave_Number,
-    wm.wave_parm.wave_desc,
-    wm.order_line_item.item_name,
-    wm.order_line_item.description AS Item_Description,
-
-    wm.alloc_invn_dtl.task_cmpl_ref_nbr as oLPN,
-    lpn_facility_status.description AS oLPN_Status,
-    wm.lpn.last_updated_dttm AS oLPN_Last_Updated_DTTM,
-    wm.lpn.created_DTTM AS oLPN_Create_DTTM,
-
-    wm.order_line_item.order_qty,
-    wm.order_line_item.ALLOCATED_QTY,
-    task_dtl.qty_alloc AS Task_qty_allocated,
-    task_dtl.task_id,
-        CASE wm.task_hdr.STAT_CODE
-        WHEN 5 THEN 'Locked Disabled'
-        WHEN 10 THEN 'Released'
-        WHEN 30 THEN 'Assigned'
-        WHEN 99 THEN 'Cancelled'
-    ELSE TO_CHAR(wm.task_hdr.STAT_CODE)
-    END AS Task_Header_Status,
-    task_dtl.task_type,
-    task_hdr.task_desc AS Tote_Type,
+SELECT 
+    TO_CHAR(Oldest_Order_Date, 'YYYY/MM/DD') AS Oldest_Order_Date,
+    do_status as Order_Status,
+    order_type,
+    COALESCE(ECOMM, 0) AS ECOMM_INV,
+    COALESCE(RETAIL, 0) AS RETAIL_INV,
+    COALESCE(STRAT, 0) AS STRAT_INV,
+    COALESCE(B_GRADE, 0) AS B_GRADE_INV,
+    COALESCE(COMMUNITY, 0) AS COMMUNITY_INV,
+    COALESCE(ECOMM, 0) + COALESCE(RETAIL, 0) + COALESCE(STRAT, 0) + COALESCE(B_GRADE, 0) + COALESCE(COMMUNITY, 0) AS Total_Orders
+FROM (
+    SELECT 
         CASE 
-        WHEN (wm.task_hdr.STAT_CODE IN (10) AND (wm.task_dtl.MISC_ALPHA_FIELD_2 IS NULL OR wm.task_dtl.MISC_ALPHA_FIELD_2 = '')) THEN 'Ready to Induct'
-        ELSE wm.task_dtl.MISC_ALPHA_FIELD_2
-    END AS Tote_Number,
-   locn_hdr.dsp_locn AS pull_locn,
-    task_dtl.pikr_nbr AS Zone,
-    
-    task_dtl_2.task_id AS cart_task_ID,
-    task_dtl_2.TASK_GENRTN_REF_NBR AS Cart_Number,
+            WHEN o.do_status = 110 THEN 'Released'
+            WHEN o.do_status = 120 THEN 'PDCA'
+            WHEN o.do_status = 100 THEN 'DRAFT'
+            ELSE NULL
+        END AS do_status,
+        oli.invn_type,
+        CASE 
+            WHEN o.order_type = 'INTERCOMPANY' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'INTERCOMPANY - NSO'
+            WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'INTERCOMPANY - CUSTOM FO'
+            WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%STRAGGLER%' THEN 'INTERCOMPANY - STRAGGLER'
+            WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%FULL PULL%' THEN 'INTERCOMPANY - FULL PULL'
+            WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%BFMD%' THEN 'INTERCOMPANY - BFMD'
 
-    task_dtl_2.qty_pulld AS qty_picked,
-    NVL(picking_short_item.short_qty, 0) AS qty_shorted,
-    CASE 
-        WHEN task_dtl_2.stat_code = '99' THEN 'Pick Canceled/Shorted'
-        WHEN task_dtl_2.stat_code = '90' THEN 'Pick Complete'
-        WHEN task_dtl.qty_alloc = 0 THEN 'Canceled/Deleted'
-        ELSE 'Pick Incomplete'
-    END AS pick_status,
-    NVL(alloc_invn_dtl_2.qty_alloc, 0) AS Qty_To_Be_Put,
-    NVL(alloc_invn_dtl_2.qty_pulld, 0) AS Qty_Put,
-    CASE 
-        WHEN alloc_invn_dtl_2.stat_code = '90' THEN 'Put Complete'
-        WHEN alloc_invn_dtl_2.stat_code = '99' OR (alloc_invn_dtl_2.stat_code IS NULL AND picking_short_item.short_qty IS NOT NULL) THEN 'Put Canceled'
-        WHEN alloc_invn_dtl_2.stat_code = '91' OR alloc_invn_dtl_2.stat_code IS NULL THEN 'Not Applicable'
-        ELSE 'Put Incomplete'
-    END AS Put_Status,
-    
-    wm.lpn.TRACKING_NBR,
-    wm.lpn.TC_parent_LPN_id as Pallet_ID,
-    wm.lpn.TC_shipment_id as Shipment_ID,
-    
-    WM.item_cbo.REF_FIELD3 || ' - ' || wm.item_cbo.item_style AS Item_Style,
-    WM.item_cbo.Unit_Volume,
-CASE 
-    WHEN WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09' THEN 'Footwear'
-    ELSE 'Non Footwear'
-END AS Footwear_Indicator
-FROM
-    wm.orders
-    LEFT JOIN wm.order_line_item ON wm.orders.order_id = wm.order_line_item.order_id
-    LEFT JOIN wm.do_status ON wm.orders.do_status = wm.do_status.order_status
-    LEFT JOIN WM.item_cbo ON wm.order_line_item.item_name = WM.item_cbo.item_name
-    LEFT JOIN WM.item_facility_mapping_wms ON wm.order_line_item.item_id = WM.item_facility_mapping_wms.item_id
-    
-    LEFT JOIN wm.alloc_invn_dtl ON wm.order_line_item.line_item_ID = wm.alloc_invn_dtl.line_item_ID AND wm.alloc_invn_dtl.tc_order_id = wm.orders.tc_order_id AND wm.alloc_invn_dtl.task_cmpl_ref_code = 6 AND wm.alloc_invn_dtl.task_genrtn_ref_code = 1
-    
-    LEFT JOIN wm.task_dtl ON wm.alloc_invn_dtl.alloc_invn_dtl_id = wm.task_dtl.alloc_invn_dtl_id AND wm.task_dtl.carton_nbr = wm.alloc_invn_dtl.carton_nbr AND wm.task_dtl.task_genrtn_ref_code = '1'
-    
-    LEFT JOIN wm.task_hdr ON wm.task_dtl.task_id = wm.task_hdr.task_id
-    
-    LEFT JOIN wm.wave_parm ON wm.wave_parm.wave_nbr = wm.alloc_invn_dtl.task_genrtn_ref_nbr
-    
-    LEFT JOIN wm.locn_hdr ON wm.alloc_invn_dtl.pull_locn_id = locn_hdr.locn_id
-    
-    LEFT JOIN wm.lpn ON wm.alloc_invn_dtl.task_cmpl_ref_nbr = wm.lpn.tc_lpn_id 
-    
-    LEFT JOIN wm.lpn_facility_status ON lpn.lpn_facility_status = lpn_facility_status.lpn_facility_status AND lpn_facility_status.inbound_outbound_indicator = 'O'
-    
-    LEFT JOIN wm.task_dtl task_dtl_2 ON task_dtl_2.alloc_invn_dtl_id = wm.alloc_invn_dtl.alloc_invn_dtl_id AND task_dtl_2.line_item_id = wm.order_line_item.line_item_id AND task_dtl_2.task_cmpl_ref_code = '15'
-    LEFT JOIN wm.alloc_invn_dtl alloc_invn_dtl_2 ON alloc_invn_dtl_2.carton_nbr = wm.task_dtl.carton_nbr AND wm.task_dtl.carton_seq_nbr = alloc_invn_dtl_2.carton_seq_nbr AND alloc_invn_dtl_2.invn_need_type = 52
-    LEFT JOIN wm.picking_short_item ON wm.task_dtl.line_item_id = wm.picking_short_item.line_item_id AND wm.task_dtl.tc_order_id = wm.picking_short_item.tc_order_id
-WHERE
-   wm.orders.order_type = 'ECOMM'
- AND wm.do_status.order_status < 180
- AND wm.order_line_item.DO_DTL_STATUS NOT IN ('200','190')
- 
- 
--- AND wm.order_line_item.invn_type = 'R'
- --AND wm.orders.tc_order_id = 'c172172783752815_20240723035316621405811'
--- AND wm.task_hdr.STAT_CODE = '5'
- --AND wm.alloc_invn_dtl.task_cmpl_ref_nbr = '00000999990724306289'
--- AND wm.alloc_invn_dtl.task_genrtn_ref_nbr = '202407200246'
--- AND task_hdr.task_desc AS Tote_Type = ''
--- AND task_dtl.task_id = '19189988'
- --AND wm.locn_hdr.work_grp = 'GIFT'
- --AND WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09'
+            WHEN o.order_type = 'DCTRANSFER' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'DCTRANSFER - NSO'
+            WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'DCTRANSFER - CUSTOM FO'
+            WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%STRAGGLER%' THEN 'DCTRANSFER - STRAGGLER'
+            WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%FULL PULL%' THEN 'DCTRANSFER - FULL PULL'
+            WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%BFMD%' THEN 'DCTRANSFER - BFMD'
+
+            WHEN o.order_type = 'SPECIAL' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'SPECIAL - NSO'
+            WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'SPECIAL - CUSTOM FO'
+            WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%STRAGGLER%' THEN 'SPECIAL - STRAGGLER'
+            WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%FULL PULL%' THEN 'SPECIAL - FULL PULL'
+            WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%BFMD%' THEN 'SPECIAL - BFMD'
+            
+                        WHEN o.order_type = 'ALLOC' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'ALLOC - NSO' 
+            WHEN o.order_type = 'ALLOC' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'ALLOC - CUSTOM FO'
+            WHEN o.order_type = 'ALLOC' AND (o.mark_for LIKE '%STRAGGLER%' OR f.Region = 'NSO') THEN 'ALLOC - STRAGGLER' 
+            WHEN o.order_type = 'ALLOC' AND (o.mark_for LIKE '%FULL PULL%' OR f.Region = 'NSO') THEN 'ALLOC - FULL PULL' 
+            WHEN o.order_type = 'ALLOC' AND o.mark_for LIKE '%BFMD%' THEN 'ALLOC - BFMD'
+
+            WHEN o.order_type = 'STRAT' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'STRAT - NSO'
+            WHEN o.order_type = 'STRAT' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'STRAT - CUSTOM FO'
+            WHEN o.order_type = 'STRAT' AND (o.mark_for LIKE '%STRAGGLER%' OR f.Region = 'NSO') THEN 'STRAT - STRAGGLER'
+            WHEN o.order_type = 'STRAT' AND (o.mark_for LIKE '%FULL PULL%' OR f.Region = 'NSO') THEN 'STRAT - FULL PULL'
+            WHEN o.order_type = 'STRAT' AND o.mark_for LIKE '%BFMD%' THEN 'STRAT - BFMD'
+
+            WHEN o.order_type = 'REPLEN' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'REPLEN - NSO'
+            WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'REPLEN - CUSTOM FO'
+            WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%STRAGGLER%' THEN 'REPLEN - STRAGGLER'
+            WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%FULL PULL%' THEN 'REPLEN - FULL PULL'
+            WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%BFMD%' THEN 'REPLEN - BFMD'
+
+            WHEN o.order_type = 'WAREHOUSE' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'WAREHOUSE - NSO'
+            WHEN o.order_type = 'WAREHOUSE' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'WAREHOUSE - CUSTOM FO'
+            WHEN o.order_type = 'WAREHOUSE' AND o.mark_for LIKE '%STRAGGLER%' THEN 'WAREHOUSE - STRAGGLER'
+            WHEN o.order_type = 'WAREHOUSE' AND o.mark_for LIKE '%FULL PULL%' THEN 'WAREHOUSE - FULL PULL'
+            WHEN o.order_type = 'WAREHOUSE' AND o.mark_for LIKE '%BFMD%' THEN 'WAREHOUSE - BFMD'
+
+            WHEN o.order_type = 'COMMUNITY' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'COMMUNITY - NSO'
+            WHEN o.order_type = 'COMMUNITY' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'COMMUNITY - CUSTOM FO'
+            WHEN o.order_type = 'COMMUNITY' AND o.mark_for LIKE '%STRAGGLER%' THEN 'COMMUNITY - STRAGGLER'
+            WHEN o.order_type = 'COMMUNITY' AND o.mark_for LIKE '%FULL PULL%' THEN 'COMMUNITY - FULL PULL'
+            WHEN o.order_type = 'COMMUNITY' AND o.mark_for LIKE '%BFMD%' THEN 'COMMUNITY - BFMD'
+
+            ELSE o.order_type
+        END AS order_type,
+        COUNT(DISTINCT o.tc_order_id) AS num_orders,
+        MIN(o.created_dttm) AS Oldest_Order_Date
+    FROM 
+        WM.orders o 
+        JOIN WM.order_line_item oli ON o.order_id = oli.order_id
+        JOIN WM.item_facility_mapping_wms ifm ON ifm.item_id = oli.item_id
+        JOIN WM.do_status ds ON ds.order_status = o.do_status
+        JOIN WM.item_cbo ic ON oli.item_name = ic.item_name 
+        JOIN WM.wm_inventory wmi ON oli.item_id = wmi.ITEM_ID AND oli.invn_type = wmi.inventory_type
+        JOIN WM.locn_hdr lh ON wmi.LOCATION_ID = lh.LOCN_ID
+        JOIN WM.item_master im ON ic.item_id = im.item_id
+        LEFT JOIN WM.facility f ON o.d_facility_id = f.facility_id
+    WHERE 
+        o.do_status IN ('110','120')
+        AND o.is_original_order = '1'
+        AND o.order_type != 'ECOMM'
+    GROUP BY
+            CASE 
+            WHEN o.do_status = 110 THEN 'Released'
+            WHEN o.do_status = 120 THEN 'PDCA'
+            WHEN o.do_status = 100 THEN 'DRAFT'
+            ELSE NULL
+        END,
+     oli.invn_type,
+     CASE 
+            WHEN o.order_type = 'INTERCOMPANY' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'INTERCOMPANY - NSO'
+            WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'INTERCOMPANY - CUSTOM FO'
+            WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%STRAGGLER%' THEN 'INTERCOMPANY - STRAGGLER'
+            WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%FULL PULL%' THEN 'INTERCOMPANY - FULL PULL'
+            WHEN o.order_type = 'INTERCOMPANY' AND o.mark_for LIKE '%BFMD%' THEN 'INTERCOMPANY - BFMD'
+
+            WHEN o.order_type = 'DCTRANSFER' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'DCTRANSFER - NSO'
+            WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'DCTRANSFER - CUSTOM FO'
+            WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%STRAGGLER%' THEN 'DCTRANSFER - STRAGGLER'
+            WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%FULL PULL%' THEN 'DCTRANSFER - FULL PULL'
+            WHEN o.order_type = 'DCTRANSFER' AND o.mark_for LIKE '%BFMD%' THEN 'DCTRANSFER - BFMD'
+
+            WHEN o.order_type = 'SPECIAL' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'SPECIAL - NSO'
+            WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'SPECIAL - CUSTOM FO'
+            WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%STRAGGLER%' THEN 'SPECIAL - STRAGGLER'
+            WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%FULL PULL%' THEN 'SPECIAL - FULL PULL'
+            WHEN o.order_type = 'SPECIAL' AND o.mark_for LIKE '%BFMD%' THEN 'SPECIAL - BFMD'
+            
+                        WHEN o.order_type = 'ALLOC' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'ALLOC - NSO' 
+            WHEN o.order_type = 'ALLOC' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'ALLOC - CUSTOM FO'
+            WHEN o.order_type = 'ALLOC' AND (o.mark_for LIKE '%STRAGGLER%' OR f.Region = 'NSO') THEN 'ALLOC - STRAGGLER' 
+            WHEN o.order_type = 'ALLOC' AND (o.mark_for LIKE '%FULL PULL%' OR f.Region = 'NSO') THEN 'ALLOC - FULL PULL' 
+            WHEN o.order_type = 'ALLOC' AND o.mark_for LIKE '%BFMD%' THEN 'ALLOC - BFMD'
+
+            WHEN o.order_type = 'STRAT' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'STRAT - NSO'
+            WHEN o.order_type = 'STRAT' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'STRAT - CUSTOM FO'
+            WHEN o.order_type = 'STRAT' AND (o.mark_for LIKE '%STRAGGLER%' OR f.Region = 'NSO') THEN 'STRAT - STRAGGLER'
+            WHEN o.order_type = 'STRAT' AND (o.mark_for LIKE '%FULL PULL%' OR f.Region = 'NSO') THEN 'STRAT - FULL PULL'
+            WHEN o.order_type = 'STRAT' AND o.mark_for LIKE '%BFMD%' THEN 'STRAT - BFMD'
+
+            WHEN o.order_type = 'REPLEN' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'REPLEN - NSO'
+            WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'REPLEN - CUSTOM FO'
+            WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%STRAGGLER%' THEN 'REPLEN - STRAGGLER'
+            WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%FULL PULL%' THEN 'REPLEN - FULL PULL'
+            WHEN o.order_type = 'REPLEN' AND o.mark_for LIKE '%BFMD%' THEN 'REPLEN - BFMD'
+
+            WHEN o.order_type = 'WAREHOUSE' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'WAREHOUSE - NSO'
+            WHEN o.order_type = 'WAREHOUSE' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'WAREHOUSE - CUSTOM FO'
+            WHEN o.order_type = 'WAREHOUSE' AND o.mark_for LIKE '%STRAGGLER%' THEN 'WAREHOUSE - STRAGGLER'
+            WHEN o.order_type = 'WAREHOUSE' AND o.mark_for LIKE '%FULL PULL%' THEN 'WAREHOUSE - FULL PULL'
+            WHEN o.order_type = 'WAREHOUSE' AND o.mark_for LIKE '%BFMD%' THEN 'WAREHOUSE - BFMD'
+
+            WHEN o.order_type = 'COMMUNITY' AND (o.mark_for LIKE '%NSO%' OR f.Region = 'NSO') THEN 'COMMUNITY - NSO'
+            WHEN o.order_type = 'COMMUNITY' AND o.mark_for LIKE '%CUSTOM FO%' THEN 'COMMUNITY - CUSTOM FO'
+            WHEN o.order_type = 'COMMUNITY' AND o.mark_for LIKE '%STRAGGLER%' THEN 'COMMUNITY - STRAGGLER'
+            WHEN o.order_type = 'COMMUNITY' AND o.mark_for LIKE '%FULL PULL%' THEN 'COMMUNITY - FULL PULL'
+            WHEN o.order_type = 'COMMUNITY' AND o.mark_for LIKE '%BFMD%' THEN 'COMMUNITY - BFMD'
+        ELSE o.order_type
+     END
+) 
+PIVOT (
+    SUM(num_orders) 
+    FOR invn_type IN (
+        'E' AS ECOMM, 
+        'R' AS RETAIL, 
+        'S' AS STRAT, 
+        'B' AS B_GRADE, 
+        'C' AS COMMUNITY
+    )
+) 
+ORDER BY 
+    do_status DESC, order_type
