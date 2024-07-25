@@ -4,6 +4,8 @@ SELECT
         WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Mississauga'
         WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp IS NULL THEN 'Milton'
         WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp IS NULL THEN 'Mississauga'
+        WHEN wm.locn_hdr.work_grp = 'SHLF' THEN 'Mississauga'
+        WHEN wm.locn_hdr.work_grp IN ('MFLW', 'MRPH', 'MACT', 'MRAK')  THEN 'Milton'
         ELSE wm.locn_hdr.work_grp
     END AS facility,
     wm.orders.created_dttm + INTERVAL '3' HOUR AS Order_Create_Date_EST,
@@ -13,7 +15,7 @@ SELECT
     ELSE 'Multi'
     END AS Order_Type,
     wm.orders.d_name as Customer_Name,
-    wm.orders.d_address_1 as Delivery_Address,
+    wm.orders.bill_to_email AS Email,
     wm.do_status.description AS Order_Status,
     CASE 
         WHEN wm.order_line_item.DO_DTL_STATUS = '100' THEN 'Waiting to be Waved'
@@ -147,7 +149,7 @@ WHERE
  AND wm.do_status.order_status < 180
  AND wm.order_line_item.DO_DTL_STATUS NOT IN ('200','190')
  
- 
+-- TEST
 -- AND wm.order_line_item.invn_type = 'R'
  --AND wm.orders.tc_order_id = 'c172172783752815_20240723035316621405811'
 -- AND wm.task_hdr.STAT_CODE = '5'
