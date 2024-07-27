@@ -16,7 +16,7 @@ SELECT
     END AS Order_Type,
     wm.orders.d_name as Customer_Name,
     wm.orders.bill_to_email AS Email,
-    wm.do_status.description AS Order_Status,
+    wm.orders.do_status || ' - ' ||  wm.do_status.description AS Order_Status,
     CASE 
         WHEN wm.order_line_item.DO_DTL_STATUS = '100' THEN 'Waiting to be Waved'
         WHEN wm.order_line_item.DO_DTL_STATUS = '110' THEN 'Waiting to be Waved'
