@@ -13,7 +13,7 @@ SELECT
     CASE 
        WHEN wm.order_line_item.invn_type = 'R' THEN 'Milton'
        WHEN wm.order_line_item.invn_type = 'E' 
-            AND (wm.item_cbo.item_style LIKE 'LM%' 
+            AND (SUBSTR(wm.item_cbo.item_style, 1, 2) = 'LM'
             OR wm.item_facility_mapping_wms.pick_locn_assign_type IN ('P09','P06','PRK') 
             OR wm.item_cbo.PRODUCT_CLASS_ID = '172')
        THEN 'Milton'
@@ -42,7 +42,7 @@ GROUP BY
     CASE 
        WHEN wm.order_line_item.invn_type = 'R' THEN 'Milton'
        WHEN wm.order_line_item.invn_type = 'E' 
-            AND (wm.item_cbo.item_style LIKE 'LM%' 
+            AND (SUBSTR(wm.item_cbo.item_style, 1, 2) = 'LM'
             OR wm.item_facility_mapping_wms.pick_locn_assign_type IN ('P09','P06','PRK') 
             OR wm.item_cbo.PRODUCT_CLASS_ID = '172')
        THEN 'Milton'
