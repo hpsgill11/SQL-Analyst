@@ -56,4 +56,5 @@ GROUP BY
     END
 ORDER BY
     Order_Create_Date_EST,
-    wm.order_line_item.invn_type;
+    wm.order_line_item.invn_type,
+    Footwear_Indicator;
