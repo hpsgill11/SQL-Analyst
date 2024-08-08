@@ -1,6 +1,4 @@
 SELECT
-    TO_CHAR(wm.orders.created_dttm + wh.TIME_ZONE, 'YYYY/MM/DD') AS Order_Create_Date_EST,
-    
     CASE 
         WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Milton'
         WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Mississauga'
@@ -14,6 +12,7 @@ SELECT
     WHEN WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09' THEN 'Footwear'
     ELSE 'Non Footwear'
 END AS Footwear_Indicator,
+    TO_CHAR(wm.orders.created_dttm + wh.TIME_ZONE, 'YYYY/MM/DD') AS Order_Create_Date_EST,
     CASE 
         WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
         ELSE 'Multi'
@@ -88,6 +87,7 @@ END AS Footwear_Indicator,
             ELSE NULL
         END) || ' Totes' AS Pending_Packs,
         
+
         SUM(
         CASE
             WHEN wm.lpn.lpn_facility_status = '15' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
@@ -102,7 +102,7 @@ END AS Footwear_Indicator,
     ) || ' Units' AS Packed,
     SUM(
         CASE
-           WHEN wm.lpn.lpn_facility_status = '30' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
+            WHEN wm.lpn.lpn_facility_status = '30' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
             ELSE 0
         END
     ) || ' Units' AS Weighed,
@@ -112,6 +112,7 @@ END AS Footwear_Indicator,
             ELSE 0
         END
     ) || ' Units' AS Loaded
+    
 FROM
     wm.orders
     LEFT JOIN wm.order_line_item ON wm.orders.order_id = wm.order_line_item.order_id
@@ -146,15 +147,9 @@ where pay_scale in ('UTC_ADJ','TIME_ZONE','SHIFT_ADJ') ) wh
 WHERE wm.orders.order_type = 'ECOMM'
  AND wm.do_status.order_status < 181
  AND wm.order_line_item.DO_DTL_STATUS NOT IN ('200','190')
- --AND wm.order_line_item.invn_type = 'E'
- --AND wm.order_line_item.invn_type in (#Promptmany('pInv')#)
-
+ --TEST AND wm.order_line_item.invn_type = 'E'
+-- AND wm.order_line_item.invn_type in (#Promptmany('pInv')#)
 GROUP BY 
-	TO_CHAR(wm.orders.created_dttm + wh.TIME_ZONE, 'YYYY/MM/DD'),
-    CASE 
-        WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
-        ELSE 'Multi'
-    END,
     CASE 
         WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Milton'
         WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Mississauga'
@@ -167,5 +162,10 @@ GROUP BY
     CASE 
     WHEN WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09' THEN 'Footwear'
     ELSE 'Non Footwear'
-END
+END,
+    TO_CHAR(wm.orders.created_dttm + wh.TIME_ZONE, 'YYYY/MM/DD'),
+    CASE 
+        WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
+        ELSE 'Multi'
+    END
 ORDER BY Order_Create_Date_EST, Order_Type DESC;
