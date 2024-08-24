@@ -109,6 +109,16 @@ SELECT
             ELSE 0 
         END) AS "MIS_SHUNT",     
 
+                                        SUM(CASE 
+            WHEN --lh.work_grp IN ('SHLF') 
+                 oli.invn_type = wmi.inventory_type
+                AND lh.locn_brcd LIKE '%VAS%'
+                AND lh.locn_class = 'R'
+               -- AND wmi.ALLOCATABLE = 'Y' 
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) 
+            ELSE 0 
+        END) AS "VAS",    
+        
     SUM(CASE 
             WHEN lh.work_grp NOT IN ('CRAK', 'MRAK', 'SHLF', 'MFLW','MRPH','MACT','PRAK') 
                 AND oli.invn_type = wmi.inventory_type 
@@ -122,6 +132,7 @@ SELECT
                 AND NOT lh.dsp_locn = 'MIS-SH-UN-T01'
                 AND NOT lh.dsp_locn = 'MIL-SH-UN-T01'
                 AND NOT lh.dsp_locn LIKE 'ICA%'
+                
             THEN (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty) 
             ELSE 0 
         END) AS "Total Unallocatable",
@@ -415,6 +426,7 @@ TRIM(BOTH ',' FROM (
     MainTable."Needs Further Research",
     MainTable."MIL_SHUNT", 
     MainTable."MIS_SHUNT", 
+    MainTable."VAS", 
     MainTable."Total Unallocatable",
     MainTable."Total Required",
     MainTable."Waveable Quantity",
