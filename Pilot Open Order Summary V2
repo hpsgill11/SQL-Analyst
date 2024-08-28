@@ -165,7 +165,7 @@ FROM
     
     LEFT JOIN wm.task_dtl task_dtl_2 ON task_dtl_2.alloc_invn_dtl_id = wm.alloc_invn_dtl.alloc_invn_dtl_id AND task_dtl_2.line_item_id = wm.order_line_item.line_item_id AND task_dtl_2.task_cmpl_ref_code = '15'
     LEFT JOIN wm.alloc_invn_dtl alloc_invn_dtl_2 ON alloc_invn_dtl_2.carton_nbr = wm.task_dtl.carton_nbr AND wm.task_dtl.carton_seq_nbr = alloc_invn_dtl_2.carton_seq_nbr AND alloc_invn_dtl_2.invn_need_type = 52
-    LEFT JOIN wm.picking_short_item ON wm.task_dtl.line_item_id = wm.picking_short_item.line_item_id AND wm.task_dtl.tc_order_id = wm.picking_short_item.tc_order_id
+    LEFT JOIN wm.picking_short_item ON wm.task_dtl.line_item_id = wm.picking_short_item.line_item_id AND wm.task_dtl.tc_order_id = wm.picking_short_item.tc_order_id AND  wm.picking_short_item.locn_id = locn_hdr.locn_id AND wm.picking_short_item.ship_wave_nbr = task_dtl_2.TASK_GENRTN_REF_NBR
     
     LEFT JOIN wm.locn_hdr locn_lpn ON wm.lpn.curr_sub_locn_id = locn_lpn.locn_id
 WHERE
@@ -180,7 +180,7 @@ WHERE
 -- TEST
 --AND task_dtl_2.stat_code = '99'
 -- AND wm.order_line_item.invn_type = 'E'
---AND wm.orders.tc_order_id = 'c172385404695160_202408201531461321069070'
+AND wm.orders.tc_order_id = 'c172467208236515_202408260538121447657909'
 -- AND wm.task_hdr.STAT_CODE = '5'
 --AND wm.alloc_invn_dtl.task_cmpl_ref_nbr = '00000999990737154778'
 -- AND wm.alloc_invn_dtl.task_genrtn_ref_nbr = '202407200246'
@@ -190,4 +190,4 @@ WHERE
 -- AND WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09'
 
 ORDER BY
-Order_Create_Date_EST,wm.orders.tc_order_id,DO_Line_Number
+Order_Create_Date_EST,wm.orders.tc_order_id,wm.alloc_invn_dtl.task_cmpl_ref_nbr
