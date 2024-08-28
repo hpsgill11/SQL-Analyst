@@ -180,7 +180,7 @@ WHERE
 -- TEST
 --AND task_dtl_2.stat_code = '99'
 -- AND wm.order_line_item.invn_type = 'E'
-AND wm.orders.tc_order_id = 'c172467208236515_202408260538121447657909'
+AND wm.orders.tc_order_id = 'c171269290728758_202408260908131451196736'
 -- AND wm.task_hdr.STAT_CODE = '5'
 --AND wm.alloc_invn_dtl.task_cmpl_ref_nbr = '00000999990737154778'
 -- AND wm.alloc_invn_dtl.task_genrtn_ref_nbr = '202407200246'
