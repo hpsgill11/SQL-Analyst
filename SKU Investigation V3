@@ -88,6 +88,15 @@ SELECT
             ELSE 0 
         END) AS "MN Active Available", 
         
+                    SUM(CASE 
+            WHEN lh.work_grp NOT IN ('SHLF') 
+                AND oli.invn_type = wmi.inventory_type
+                AND lh.dsp_locn LIKE 'MH%'
+                AND lh.locn_class = 'A'
+                AND wmi.ALLOCATABLE = 'Y' 
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) 
+            ELSE 0 
+        END) AS "MH Active Available", 
         
                                 SUM(CASE 
             WHEN --lh.work_grp IN ('SHLF') 
@@ -423,6 +432,7 @@ TRIM(BOTH ',' FROM (
     MainTable."MIL Reserve Available", 
     MainTable."MIL Active Available", 
     MainTable."MN Active Available", 
+    MainTable."MH Active Available", 
     MainTable."Needs Further Research",
     MainTable."MIL_SHUNT", 
     MainTable."MIS_SHUNT", 
