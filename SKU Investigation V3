@@ -35,6 +35,7 @@ SELECT
         WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
         WHEN o.order_type = 'DCTRANSFER' THEN o.tc_order_id
         WHEN o.order_type = 'INTERCOMPANY' THEN o.tc_order_id
+        WHEN o.order_type = 'RETAIL' THEN o.tc_order_id
         WHEN o.order_type = 'COMM' THEN o.tc_order_id
         WHEN o.order_type = 'WAREHOUSE' THEN o.tc_order_id
         WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
@@ -122,6 +123,7 @@ SELECT
             WHEN --lh.work_grp IN ('SHLF') 
                  oli.invn_type = wmi.inventory_type
                 AND lh.locn_brcd LIKE '%VAS%'
+                AND lh.locn_brcd NOT LIKE '%ICA-%'
                 AND lh.locn_class = 'R'
                -- AND wmi.ALLOCATABLE = 'Y' 
             THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) 
@@ -171,6 +173,7 @@ CASE
                     WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
                     WHEN o.order_type = 'DCTRANSFER' THEN o.tc_order_id
                     WHEN o.order_type = 'INTERCOMPANY' THEN o.tc_order_id
+                    WHEN o.order_type = 'RETAIL' THEN o.tc_order_id
                     WHEN o.order_type = 'COMM' THEN o.tc_order_id
                     WHEN o.order_type = 'WAREHOUSE' THEN o.tc_order_id
                     WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
@@ -201,6 +204,7 @@ CASE
                     WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
                     WHEN o.order_type = 'DCTRANSFER' THEN o.tc_order_id
                     WHEN o.order_type = 'INTERCOMPANY' THEN o.tc_order_id
+                    WHEN o.order_type = 'RETAIL' THEN o.tc_order_id
                     WHEN o.order_type = 'COMM' THEN o.tc_order_id
                     WHEN o.order_type = 'WAREHOUSE' THEN o.tc_order_id
                     WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
@@ -208,6 +212,8 @@ CASE
                 END
                     )
         END
+        
+
     ELSE CASE 
             WHEN SUM(CASE 
                         WHEN lh.work_grp IN ('CRAK', 'SHLF','PRAK') 
@@ -226,6 +232,7 @@ CASE
                     WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
                     WHEN o.order_type = 'DCTRANSFER' THEN o.tc_order_id
                     WHEN o.order_type = 'INTERCOMPANY' THEN o.tc_order_id
+                    WHEN o.order_type = 'RETAIL' THEN o.tc_order_id
                     WHEN o.order_type = 'COMM' THEN o.tc_order_id
                     WHEN o.order_type = 'WAREHOUSE' THEN o.tc_order_id
                     WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
@@ -256,6 +263,7 @@ CASE
                     WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
                     WHEN o.order_type = 'DCTRANSFER' THEN o.tc_order_id
                     WHEN o.order_type = 'INTERCOMPANY' THEN o.tc_order_id
+                    WHEN o.order_type = 'RETAIL' THEN o.tc_order_id
                     WHEN o.order_type = 'COMM' THEN o.tc_order_id
                     WHEN o.order_type = 'WAREHOUSE' THEN o.tc_order_id
                     WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
@@ -317,7 +325,7 @@ WHERE
     o.do_status IN ('110','120')
     AND oli.DO_DTL_STATUS <= 120
     AND o.order_type = 'ECOMM'
-    AND NOT TRUNC(o.created_dttm) = TO_DATE('2024/08/23', 'YYYY/MM/DD')
+    AND TRUNC(o.created_dttm) = TO_DATE('2024/08/28', 'YYYY/MM/DD')
     AND oli.invn_type = 'E'
 GROUP BY 
     o.created_dttm,
@@ -440,5 +448,16 @@ TRIM(BOTH ',' FROM (
     MainTable."Total Unallocatable",
     MainTable."Total Required",
     MainTable."Waveable Quantity",
-    MainTable.Allocatable_Flag
+    MainTable.Allocatable_Flag,
+    CASE
+        WHEN SUM(
+                CASE 
+                    WHEN MainTable."Waveable Quantity" < 0 
+                    THEN 1 
+                    ELSE 0 
+                END
+            ) OVER (PARTITION BY MainTable.tc_order_id) > 0 
+        THEN 'Waving Issue'
+        ELSE 'Waveable'
+    END AS Waving_Issue
 FROM MainTable;
