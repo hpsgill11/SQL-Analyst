@@ -325,7 +325,7 @@ WHERE
     o.do_status IN ('110','120')
     AND oli.DO_DTL_STATUS <= 120
     AND o.order_type = 'ECOMM'
-    AND TRUNC(o.created_dttm) = TO_DATE('2024/08/29', 'YYYY/MM/DD')
+    AND TRUNC(o.created_dttm) = TO_DATE('2024/08/28', 'YYYY/MM/DD')
     AND oli.invn_type = 'E'
 GROUP BY 
     o.created_dttm,
