@@ -1,0 +1,164 @@
+SELECT
+    "User",
+    CI,
+    CO,
+    CICO,
+    "Date",
+    Dept,
+    Activity,
+    Activity_Name,
+    JF,
+    JF_Name,
+    Sort_Date,
+    Start_Time,
+    End_Time,
+    "Total_Time (min)",
+    CASE WHEN "Target_Time (min)" IS NULL OR "Target_Time (min)" = 0 THEN NULL ELSE "Target_Time (min)" END AS "Target_Time (min)",
+    CASE WHEN "Target_Time (min)" IS NULL OR "Target_Time (min)" = 0 THEN NULL ELSE "Target_Time (min)" - "Total_Time (min)" END AS Extra_Time,
+    CASE WHEN "Target_Time (min)" IS NULL OR "Target_Time (min)" = 0 THEN NULL ELSE ROUND((SUM("Target_Time (min)")/(SUM("Total_Time (min)")+0.000001)*100),0)-100 END AS EP,
+    Gap_Flag,
+    "Gap_Time (min)",
+    units,
+    ilpns,
+    olpns,
+    locns,
+    plts,
+    tran_nbr
+FROM
+(
+    SELECT
+        ee.login_user_id AS "User",
+        TO_CHAR(ep.clock_in_date + wh.TIME_ZONE,'HH24:MI:SS') AS CI,
+        TO_CHAR(ep.clock_out_date + wh.TIME_ZONE,'HH24:MI:SS') AS CO,
+        TO_CHAR(ep.clock_in_date + wh.TIME_ZONE,'HH24:MI:SS') || ' - ' || TO_CHAR(ep.clock_out_date + wh.TIME_ZONE,'HH24:MI:SS') AS CICO,
+        TO_CHAR(ep.clock_in_date + wh.TIME_ZONE, 'MM/DD') AS "Date",
+        ep.dept_code AS Dept,
+        la.name AS Activity,
+        la.description AS Activity_Name,
+        jf.name AS JF,
+        jf.description AS JF_Name,
+        TRUNC(ee.sched_start_date + wh.TIME_ZONE) AS Sort_Date,
+        TO_CHAR(ee.sched_start_date + wh.TIME_ZONE ,'HH24:MI:SS') AS Start_Time,
+        TO_CHAR(ee.actual_end_date + wh.TIME_ZONE ,'HH24:MI:SS') AS End_Time,
+        CASE 
+            WHEN (jf.functional_area_code = 'GAP' AND LEAD (jf.functional_area_code,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) = 'GAP') 
+            THEN ROUND((TRUNC(SYSDATE) + (LEAD (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) - ee.actual_end_date) - TRUNC(SYSDATE))*60*24,5)  
+            ELSE ee.actl_time 
+        END AS "Total_Time (min)",
+        la.Target_Time AS "Target_Time (min)",
+        CASE 
+            WHEN (jf.functional_area_code = 'GAP' AND LEAD (jf.functional_area_code,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) = 'GAP') 
+            THEN NULL
+            WHEN (LEAD (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) = ee.actual_end_date OR jf.functional_area_code <> 'GAP') OR ( ee.actual_end_date = ep.clock_out_date  )  
+            THEN NULL
+            WHEN LAG (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) IS NULL AND ep.clock_in_date <> ee.sched_start_date
+            THEN 'Gap - CI to first event'
+            WHEN LEAD (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) > ep.clock_out_date OR (LEAD (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) IS NULL) 
+            THEN 'Gap - Last event to CO'
+            ELSE 'Gap' 
+        END AS Gap_Flag,
+        LAG (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC)  AS Last_Event_Start,
+        CASE 
+            WHEN LEAD (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) > ep.clock_out_date OR (LEAD (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) IS NULL) 
+            THEN TO_CHAR(ep.clock_out_date + wh.TIME_ZONE,'HH24:MI:SS')  
+            ELSE LEAD (TO_CHAR(ee.sched_start_date + wh.TIME_ZONE,'HH24:MI:SS'),1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) 
+        END AS Next_Event_Start,
+        CASE 
+            WHEN LEAD (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) > ep.clock_out_date OR (LEAD (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) IS NULL) 
+            THEN 'Clock Out' 
+            ELSE LEAD (jf.name,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) 
+        END AS Next_Event_JF,
+        CASE 
+            WHEN LEAD (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) > ep.clock_out_date OR (LEAD (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) IS NULL) 
+            THEN NULL 
+            ELSE LEAD (jf.description,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) 
+        END AS Next_Event_JF_Name,
+        (CASE 
+            WHEN (jf.functional_area_code = 'GAP' AND LEAD (jf.functional_area_code,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) = 'GAP') 
+            THEN NULL
+            WHEN (LEAD (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) = ee.actual_end_date AND (LEAD (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) IS NOT NULL)) 
+            THEN NULL 
+            WHEN  LEAD (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) > ep.clock_out_date OR (LEAD (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) IS NULL) 
+            THEN ROUND((TRUNC(SYSDATE) + ( ep.clock_out_date - ee.actual_end_date ) - TRUNC(SYSDATE))*60*24,5)
+            ELSE ROUND((TRUNC(SYSDATE) + (LEAD (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) - ee.actual_end_date) - TRUNC(SYSDATE))*60*24,5) 
+        END ) 
+        + (CASE
+                WHEN LAG (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) IS NULL AND ep.clock_in_date <> ee.sched_start_date
+                THEN ROUND((TRUNC(SYSDATE) + ( ee.sched_start_date - ep.clock_in_date) - TRUNC(SYSDATE))*60*24,5) 
+                ELSE 0
+            END
+        ) AS "Gap_Time (min)",
+        la.Units,
+        la.iLPNs,
+        la.oLPNs,
+        la.Locns,
+        la.PLTs,
+        ee.tran_nbr
+    FROM
+        wm.e_emp_perf_smry ep        
+    LEFT OUTER JOIN wm.e_evnt_smry_hdr ee
+    ON ep.emp_perf_smry_id = ee.emp_perf_smry_id
+    INNER JOIN wm.e_act ea
+    ON ee.act_id = ea.act_id
+    INNER JOIN wm.e_job_function jf
+    ON ea.job_func_id = jf.job_func_id
+    INNER JOIN wm.labor_activity la
+    ON ea.labor_activity_id = la.labor_activity_id
+    LEFT OUTER JOIN (
+        SELECT
+            la.tran_nbr,
+            SUM(CASE WHEN la.uom = 'UNIT' THEN la.tot_units ELSE 0 END) AS Units,
+            COUNT(DISTINCT CASE WHEN la.uom = 'CASE' THEN la.LPN ELSE NULL END) AS iLPNs,
+            COUNT(DISTINCT CASE WHEN la.uom = 'CRTN' THEN la.LPN ELSE NULL END) AS oLPNs,
+            COUNT(DISTINCT CASE WHEN la.uom = 'LOCN' AND la.tot_units > 0 THEN la.Curr_Slot ELSE NULL END) AS LOCNs,
+            COUNT(CASE WHEN la.uom = 'PLT' THEN la.uom ELSE NULL END) AS PLTs,
+            SUM(la.tot_time) AS Target_Time
+        FROM
+            wm.e_aud_log la
+        INNER JOIN (
+            SELECT tran_nbr, misc_txt_1 FROM wm.labor_msg
+        ) lm
+        ON la.tran_nbr = lm.tran_nbr
+        GROUP BY
+            la.tran_nbr, lm.misc_txt_1
+    ) la
+    ON ee.tran_nbr = la.tran_nbr
+    , (
+        SELECT SUM(CASE WHEN pay_scale = 'TIME_ZONE' THEN TO_NUMBER(pay_scale_desc)/24 END) AS TIME_ZONE
+        FROM wm.e_pay_scale
+        WHERE pay_scale = 'TIME_ZONE'
+    ) wh
+    WHERE
+        ee.emp_perf_smry_id IS NOT NULL
+        AND ee.login_user_id = 'SANAMKAUR'
+        AND TRUNC(ep.clock_in_date + wh.TIME_ZONE) >= TRUNC(SYSDATE - 7)
+        AND TRUNC(ep.clock_in_date + wh.TIME_ZONE) <= TRUNC(SYSDATE)
+        AND la.description IN ('PLTZ OLPNS HSPTL','PLTZ OLPNS')
+)
+GROUP BY
+    "User",
+    CI,
+    CO,
+    CICO,
+    "Date",
+    Dept,
+    Activity,
+    Activity_Name,
+    JF,
+    JF_Name,
+    Sort_Date,
+    Start_Time,
+    End_Time,
+    "Total_Time (min)",
+    "Target_Time (min)",
+    Gap_Flag,
+    "Gap_Time (min)",
+    units,
+    ilpns,
+    olpns,
+    locns,
+    plts,
+    tran_nbr
+ORDER BY 
+    Sort_Date ASC,
+    Start_Time ASC;
