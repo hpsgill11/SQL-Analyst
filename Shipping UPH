@@ -13,6 +13,7 @@ SELECT
     Start_Time,
     End_Time,
     "Total_Time (min)",
+    "Total_Time (sec)",
     CASE WHEN "Target_Time (min)" IS NULL OR "Target_Time (min)" = 0 THEN NULL ELSE "Target_Time (min)" END AS "Target_Time (min)",
     CASE WHEN "Target_Time (min)" IS NULL OR "Target_Time (min)" = 0 THEN NULL ELSE "Target_Time (min)" - "Total_Time (min)" END AS Extra_Time,
     CASE WHEN "Target_Time (min)" IS NULL OR "Target_Time (min)" = 0 THEN NULL ELSE ROUND((SUM("Target_Time (min)")/(SUM("Total_Time (min)")+0.000001)*100),0)-100 END AS EP,
@@ -45,6 +46,12 @@ FROM
             THEN ROUND((TRUNC(SYSDATE) + (LEAD (ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) - ee.actual_end_date) - TRUNC(SYSDATE))*60*24,5)  
             ELSE ee.actl_time 
         END AS "Total_Time (min)",
+        CASE 
+    WHEN (jf.functional_area_code = 'GAP' AND LEAD(jf.functional_area_code,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) = 'GAP') 
+    THEN ROUND((TRUNC(SYSDATE) + (LEAD(ee.sched_start_date,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) - ee.actual_end_date) - TRUNC(SYSDATE)) * 60 * 24 * 60, 5)  
+    ELSE ee.actl_time * 60
+END AS "Total_Time (sec)",
+        
         la.Target_Time AS "Target_Time (min)",
         CASE 
             WHEN (jf.functional_area_code = 'GAP' AND LEAD (jf.functional_area_code,1) OVER (PARTITION BY ee.login_user_id ORDER BY  TRUNC(ee.sched_start_date + wh.TIME_ZONE) ASC, ee.sched_start_date  ASC, ee.actual_end_date ASC) = 'GAP') 
@@ -150,6 +157,7 @@ GROUP BY
     Start_Time,
     End_Time,
     "Total_Time (min)",
+    "Total_Time (sec)",
     "Target_Time (min)",
     Gap_Flag,
     "Gap_Time (min)",
