@@ -82,6 +82,7 @@ SELECT
     wm.alloc_invn_dtl.task_cmpl_ref_nbr as oLPN,
     lpn_facility_status.description AS oLPN_Status,
     locn_lpn.dsp_locn as oLPN_Current_Location,
+    
         CASE
         WHEN COUNT(CASE 
                     WHEN locn_lpn.dsp_locn LIKE 'HS%' OR locn_lpn.dsp_locn LIKE 'HM%' OR locn_lpn.dsp_locn = 'SH-P -L-26' OR locn_lpn.dsp_locn = 'SHP-S2-28' THEN 1
@@ -90,6 +91,7 @@ SELECT
         THEN 'Yes'
         ELSE 'No'
     END AS Hospital_Flag,
+    
 CASE
     WHEN 
         (COUNT(CASE 
@@ -107,13 +109,17 @@ CASE
            WHEN wm.lpn.lpn_facility_status = '10' AND wm.lpn.ref_field_3 IS NULL AND wm.lpn.ref_field_4 IS NULL THEN 'Chase Task created'
            WHEN wm.lpn.lpn_facility_status = '15' AND wm.lpn.ref_field_3 IS NOT NULL AND wm.lpn.ref_field_4 IS NOT NULL THEN 'Partially in Putwall'
            WHEN wm.lpn.lpn_facility_status = '20' AND wm.lpn.ref_field_3 IS NOT NULL AND wm.lpn.ref_field_4 IS NOT NULL AND (wm.locn_hdr.dsp_locn NOT LIKE 'HS%' OR wm.locn_hdr.dsp_locn NOT LIKE 'HM%' OR locn_lpn.dsp_locn LIKE 'SH-P -L-26' OR locn_lpn.dsp_locn LIKE 'SHP-S2-28' OR wm.locn_hdr.dsp_locn IS NULL) THEN 'In Putwall'
-           WHEN wm.lpn.lpn_facility_status = 30 AND wm.lpn.ref_field_3 IS NOT NULL AND wm.lpn.ref_field_4 IS NOT NULL THEN 'Packed from Putwall'
-           WHEN wm.lpn.lpn_facility_status > 30 AND wm.lpn.ref_field_3 IS NOT NULL AND wm.lpn.ref_field_4 IS NOT NULL THEN 'Packed out from Hospital'
+           WHEN wm.lpn.lpn_facility_status = 30  THEN 'Packed from Putwall'
+           WHEN wm.lpn.lpn_facility_status > 30 AND wm.lpn.lpn_facility_status < 90 THEN 'Packed out from Hospital'
+           WHEN wm.lpn.lpn_facility_status = 99 THEN 'Shorted'
            ELSE NULL
         END
     ELSE
         NULL
 END AS Hospital_Status,
+
+wm.lpn.ref_field_3,
+wm.lpn.ref_field_4,
     
     wm.lpn.last_updated_dttm + INTERVAL '3' HOUR AS oLPN_Last_Updated_DTTM,
     wm.lpn.created_DTTM + INTERVAL '3' HOUR AS oLPN_Create_DTTM,
@@ -202,7 +208,7 @@ FROM
     LEFT JOIN wm.locn_hdr locn_lpn ON wm.lpn.curr_sub_locn_id = locn_lpn.locn_id
 WHERE
    wm.orders.order_type = 'ECOMM'
-  AND wm.do_status.order_status < 181
+  AND wm.do_status.order_status = 160
  AND wm.order_line_item.DO_DTL_STATUS NOT IN ('200','190')
    AND (
         wm.alloc_invn_dtl.task_cmpl_ref_nbr = wm.lpn.tc_lpn_id
@@ -213,7 +219,7 @@ WHERE
 -- TEST
 --AND task_dtl_2.stat_code = '99'
 -- AND wm.order_line_item.invn_type = 'E'
---AND wm.orders.tc_order_id = 'c172486296525018_202408290807551519651599'
+--AND wm.orders.tc_order_id = 'c172548498373222_202409041531141652405985'
 -- AND wm.task_hdr.STAT_CODE = '5'
 --AND wm.alloc_invn_dtl.task_cmpl_ref_nbr = '00000999990737154778'
 -- AND wm.alloc_invn_dtl.task_genrtn_ref_nbr = '202407200246'
