@@ -7,7 +7,19 @@ SELECT
         WHEN wm.locn_hdr.work_grp = 'SHLF' THEN 'Mississauga'
         WHEN wm.locn_hdr.work_grp IN ('MFLW', 'MRPH', 'MACT', 'MRAK')  THEN 'Milton'
         ELSE wm.locn_hdr.work_grp
+        
     END AS facility,
+        CASE 
+        WHEN COUNT(DISTINCT CASE 
+                            WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp IN ('GIFT', 'MFLW', 'MRPH', 'MACT', 'MRAK') THEN 'Milton'
+                            WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp IN ('GIFT', 'SHLF') THEN 'Mississauga'
+                            ELSE wm.locn_hdr.work_grp
+                        END) 
+             OVER (PARTITION BY wm.orders.tc_order_id) > 2 
+        THEN 'Multi Building'
+        ELSE 'Single Building'
+    END AS Building_Type,
+    
     wm.orders.created_dttm + INTERVAL '3' HOUR AS Order_Create_Date_EST,
     wm.orders.tc_order_id,
     wm.order_line_item.tc_order_line_id as DO_Line_Number,
@@ -219,7 +231,7 @@ WHERE
 -- TEST
 --AND task_dtl_2.stat_code = '99'
 -- AND wm.order_line_item.invn_type = 'E'
---AND wm.orders.tc_order_id = 'c172548498373222_202409041531141652405985'
+--AND wm.orders.tc_order_id = 'c172549153936487_202409041728131654469271'
 -- AND wm.task_hdr.STAT_CODE = '5'
 --AND wm.alloc_invn_dtl.task_cmpl_ref_nbr = '00000999990737154778'
 -- AND wm.alloc_invn_dtl.task_genrtn_ref_nbr = '202407200246'
