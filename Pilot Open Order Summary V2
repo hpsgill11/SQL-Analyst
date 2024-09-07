@@ -116,22 +116,33 @@ CASE
         CASE
            WHEN locn_lpn.dsp_locn LIKE 'HS%' THEN 'Mississauga Hospital'
            WHEN locn_lpn.dsp_locn LIKE 'HM%' THEN 'Milton Hospital'
-           WHEN locn_lpn.dsp_locn LIKE 'SH-P -L-26' THEN 'Diverted to Hospital'
-           WHEN locn_lpn.dsp_locn LIKE 'SHP-S2-28' THEN 'Diverted to Hospital'   
+           
+           
+           WHEN locn_lpn.dsp_locn LIKE 'SH-P -L-26'  AND NOT wm.prod_trkg_tran.ref_field_2 IS NULL THEN 'Diverted to Hospital'
+           WHEN locn_lpn.dsp_locn LIKE 'SHP-S2-28'   AND NOT wm.prod_trkg_tran.ref_field_2 IS NULL THEN 'Diverted to Hospital'
+           
+           WHEN locn_lpn.dsp_locn LIKE 'SH-P -L-26'  AND wm.prod_trkg_tran.ref_field_2 > 0 THEN 'Split Combine'
+           WHEN locn_lpn.dsp_locn LIKE 'SHP-S2-28'   AND wm.prod_trkg_tran.ref_field_2 > 0 THEN 'Split Combine'
+           
+           
+           
            WHEN wm.lpn.lpn_facility_status = '10' AND wm.lpn.ref_field_3 IS NULL AND wm.lpn.ref_field_4 IS NULL THEN 'Chase Task created'
            WHEN wm.lpn.lpn_facility_status = '15' AND wm.lpn.ref_field_3 IS NOT NULL AND wm.lpn.ref_field_4 IS NOT NULL THEN 'Partially in Putwall'
            WHEN wm.lpn.lpn_facility_status = '20' AND wm.lpn.ref_field_3 IS NOT NULL AND wm.lpn.ref_field_4 IS NOT NULL AND (wm.locn_hdr.dsp_locn NOT LIKE 'HS%' OR wm.locn_hdr.dsp_locn NOT LIKE 'HM%' OR locn_lpn.dsp_locn LIKE 'SH-P -L-26' OR locn_lpn.dsp_locn LIKE 'SHP-S2-28' OR wm.locn_hdr.dsp_locn IS NULL) THEN 'In Putwall'
            WHEN wm.lpn.lpn_facility_status = 30  THEN 'Packed from Putwall'
            WHEN wm.lpn.lpn_facility_status > 30 AND wm.lpn.lpn_facility_status < 90 THEN 'Packed out from Hospital'
-           WHEN wm.lpn.lpn_facility_status = 99 THEN 'Shorted'
+           WHEN wm.lpn.lpn_facility_status = 99 AND wm.prod_trkg_tran.ref_field_2 < 0 THEN 'Split Cancelled'
+           
+        --   WHEN wm.prod_trkg_tran.ref_field_2 < 0 THEN 'Split Cancelled'
+           
+           WHEN wm.prod_trkg_tran.ref_field_2 > 0 THEN 'Split Combined'
+           
            ELSE NULL
         END
     ELSE
         NULL
 END AS Hospital_Status,
-
-wm.lpn.ref_field_3,
-wm.lpn.ref_field_4,
+wm.prod_trkg_tran.ref_field_2,
     
     wm.lpn.last_updated_dttm + INTERVAL '3' HOUR AS oLPN_Last_Updated_DTTM,
     wm.lpn.created_DTTM + INTERVAL '3' HOUR AS oLPN_Create_DTTM,
@@ -218,6 +229,11 @@ FROM
     LEFT JOIN wm.picking_short_item ON wm.task_dtl.line_item_id = wm.picking_short_item.line_item_id AND wm.task_dtl.tc_order_id = wm.picking_short_item.tc_order_id AND  wm.picking_short_item.locn_id = locn_hdr.locn_id AND wm.picking_short_item.ship_wave_nbr = task_dtl_2.TASK_GENRTN_REF_NBR
     
     LEFT JOIN wm.locn_hdr locn_lpn ON wm.lpn.curr_sub_locn_id = locn_lpn.locn_id
+    
+    LEFT JOIN wm.prod_trkg_tran ON wm.prod_trkg_tran.cntr_nbr = wm.lpn.tc_lpn_id AND wm.prod_trkg_tran.menu_optn_name = 'Split Cmbne All oLPN' and wm.prod_trkg_tran.module_name = 'Modify'
+    
+    
+    
 WHERE
    wm.orders.order_type = 'ECOMM'
   AND wm.do_status.order_status = 160
