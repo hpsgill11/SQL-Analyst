@@ -81,7 +81,7 @@ SELECT
     
         CASE
         WHEN COUNT(CASE 
-                    WHEN locn_lpn.dsp_locn LIKE 'HS%' OR locn_lpn.dsp_locn LIKE 'HM%' OR locn_lpn.dsp_locn = 'SH-P -L-26' OR locn_lpn.dsp_locn = 'SHP-S2-28' THEN 1
+                    WHEN locn_lpn.dsp_locn LIKE 'HS%' OR locn_lpn.dsp_locn LIKE 'HM%' OR locn_lpn.dsp_locn = 'SH-P -L-26' OR locn_lpn.dsp_locn = 'SHP-S2-28' OR wm.prod_trkg_tran.ref_field_2 IS NOT NULL THEN 1
                  END) 
              OVER (PARTITION BY wm.orders.tc_order_id) > 0 
         THEN 'Yes'
@@ -92,7 +92,7 @@ CASE
     WHEN 
         (COUNT(CASE 
                 WHEN locn_lpn.dsp_locn LIKE 'HS%' OR locn_lpn.dsp_locn LIKE 'HM%' 
-                     OR locn_lpn.dsp_locn = 'SH-P -L-26' OR locn_lpn.dsp_locn = 'SHP-S2-28' 
+                     OR locn_lpn.dsp_locn = 'SH-P -L-26' OR locn_lpn.dsp_locn = 'SHP-S2-28' OR wm.prod_trkg_tran.ref_field_2 IS NOT NULL
                 THEN 1
              END) 
          OVER (PARTITION BY wm.orders.tc_order_id)) > 0 
@@ -211,7 +211,7 @@ FROM
     
  --   LEFT JOIN wm.locn_hdr locn_lpn2 ON wm.lpn.prev_sub_locn_id = locn_lpn.locn_id
     
-    LEFT JOIN wm.prod_trkg_tran ON wm.prod_trkg_tran.cntr_nbr = wm.lpn.tc_lpn_id AND wm.prod_trkg_tran.menu_optn_name = 'Split Cmbne All oLPN' and wm.prod_trkg_tran.module_name = 'Modify' AND wm.prod_trkg_tran.line_item_id = wm.alloc_invn_dtl.line_item_ID AND wm.prod_trkg_tran.tc_order_id = wm.orders.tc_order_id
+    LEFT JOIN wm.prod_trkg_tran ON wm.prod_trkg_tran.cntr_nbr = wm.lpn.tc_lpn_id AND wm.prod_trkg_tran.menu_optn_name = 'Split Cmbne All oLPN' and wm.prod_trkg_tran.module_name = 'Modify' --AND wm.prod_trkg_tran.line_item_id = wm.alloc_invn_dtl.line_item_ID AND wm.prod_trkg_tran.tc_order_id = wm.orders.tc_order_id
     
     
     
@@ -227,7 +227,7 @@ WHERE
 --AND locn_lpn.dsp_locn LIKE 'SHP-S2-28'
 --AND task_dtl_2.stat_code = '99'
 -- AND wm.order_line_item.invn_type = 'E'
-AND wm.orders.tc_order_id = 'c172424104198021_202409080141051729762077'
+--AND wm.orders.tc_order_id = 'c172424104198021_202409080141051729762077'
 -- AND wm.task_hdr.STAT_CODE = '5'
 --AND wm.alloc_invn_dtl.task_cmpl_ref_nbr = '00000999990745739936'
 -- AND wm.alloc_invn_dtl.task_genrtn_ref_nbr = '202407200246'
