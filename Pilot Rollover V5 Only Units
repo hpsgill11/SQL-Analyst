@@ -1,0 +1,176 @@
+SELECT
+    CASE 
+        WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Milton'
+        WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Mississauga'
+        WHEN wm.locn_hdr.work_grp IN ('MFLW', 'MRPH', 'MACT', 'MRAK') THEN 'Milton'
+        WHEN wm.locn_hdr.work_grp = 'SHLF' THEN 'Mississauga'
+        WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp IS NULL THEN 'Milton'
+        WHEN wm.order_line_item.invn_type = 'E' AND  wm.locn_hdr.work_grp IS NULL AND
+             (SUBSTR(wm.item_cbo.item_style, 1, 2) = 'LM' OR 
+              wm.item_facility_mapping_wms.pick_locn_assign_type IN ('P09','P06','PRK') OR 
+              wm.item_cbo.PRODUCT_CLASS_ID = '172') THEN 'Milton'
+        ELSE 'Mississauga'
+    END AS facility,
+    wm.order_line_item.invn_type,
+    CASE 
+    WHEN WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09' THEN 'Footwear'
+    ELSE 'Non Footwear'
+END AS Footwear_Indicator,
+    TO_CHAR(wm.orders.created_dttm + wh.TIME_ZONE, 'YYYY/MM/DD') AS Order_Create_Date_EST,
+    CASE 
+        WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
+        ELSE 'Multi'
+    END AS Order_Type,
+    
+    SUM(
+        CASE
+            WHEN wm.do_status.order_status = 100 THEN wm.order_line_item.order_qty
+            ELSE 0
+        END
+    )AS Draft,
+        
+    SUM(
+        CASE
+            WHEN wm.do_status.order_status = 110 THEN wm.order_line_item.order_qty
+            ELSE 0
+        END
+    ) AS Release,
+        
+    SUM(
+        CASE
+            WHEN wm.task_hdr.STAT_CODE = 5 AND wm.lpn.lpn_facility_status = '10' THEN task_dtl.qty_alloc
+            ELSE 0
+        END
+    )  AS Pending_FA,
+    SUM(
+        CASE
+            WHEN wm.task_hdr.STAT_CODE = 10 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NULL THEN task_dtl.qty_alloc
+            ELSE 0
+        END
+    )  AS Ready_To_Carton_Start,
+    SUM(
+        CASE
+            WHEN wm.task_hdr.STAT_CODE = 10 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NOT NULL THEN task_dtl.qty_alloc
+            ELSE 0
+        END
+    )  AS Carton_Started,
+    SUM(
+        CASE
+            WHEN wm.task_hdr.STAT_CODE = 30 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NOT NULL THEN (task_dtl.qty_alloc - NVL(task_dtl_2.qty_pulld, 0) - NVL(picking_short_item.short_qty, 0))
+            ELSE 0
+        END
+    )  AS Pending_Picks,
+    SUM(
+        CASE
+            WHEN wm.task_hdr.STAT_CODE = 30 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NOT NULL THEN task_dtl_2.qty_pulld
+            ELSE 0
+        END
+    )  AS Pick_Complete,
+    SUM(
+        CASE
+            WHEN wm.task_hdr.STAT_CODE = 99 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NOT NULL THEN NVL(alloc_invn_dtl_2.qty_alloc, 0)
+            ELSE 0
+        END
+    )  AS Pending_Packs,
+        
+        SUM(
+        CASE
+            WHEN wm.lpn.lpn_facility_status = '15' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
+            ELSE 0
+        END
+    )  AS In_Packing,
+    SUM(
+        CASE
+            WHEN wm.lpn.lpn_facility_status = '20' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
+            ELSE 0
+        END
+    ) AS Packed,
+    SUM(
+        CASE
+            WHEN wm.lpn.lpn_facility_status = '30' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
+            ELSE 0
+        END
+    )  AS Weighed,
+    SUM(
+        CASE
+            WHEN wm.lpn.lpn_facility_status = '50' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
+            ELSE 0
+        END
+    ) AS Loaded
+    
+FROM
+    wm.orders
+    LEFT JOIN wm.order_line_item ON wm.orders.order_id = wm.order_line_item.order_id
+    LEFT JOIN wm.do_status ON wm.orders.do_status = wm.do_status.order_status
+    LEFT JOIN WM.item_cbo ON wm.order_line_item.item_name = WM.item_cbo.item_name
+    LEFT JOIN WM.item_facility_mapping_wms ON wm.order_line_item.item_id = WM.item_facility_mapping_wms.item_id
+    LEFT JOIN wm.alloc_invn_dtl ON wm.order_line_item.line_item_ID = wm.alloc_invn_dtl.line_item_ID
+    AND wm.alloc_invn_dtl.tc_order_id = wm.orders.tc_order_id
+    AND wm.alloc_invn_dtl.task_cmpl_ref_code = 6 AND wm.alloc_invn_dtl.task_genrtn_ref_code = 1
+    
+    LEFT JOIN wm.task_dtl ON wm.alloc_invn_dtl.alloc_invn_dtl_id = wm.task_dtl.alloc_invn_dtl_id
+    AND wm.task_dtl.carton_nbr = wm.alloc_invn_dtl.carton_nbr
+    AND wm.task_dtl.task_genrtn_ref_code = '1'
+    
+    LEFT JOIN wm.task_hdr ON wm.task_dtl.task_id = wm.task_hdr.task_id
+    LEFT JOIN wm.wave_parm ON wm.wave_parm.wave_nbr = wm.alloc_invn_dtl.task_genrtn_ref_nbr
+    LEFT JOIN wm.locn_hdr ON wm.alloc_invn_dtl.pull_locn_id = locn_hdr.locn_id
+    LEFT JOIN wm.lpn ON wm.alloc_invn_dtl.task_cmpl_ref_nbr = wm.lpn.tc_lpn_id 
+    LEFT JOIN wm.lpn_facility_status ON lpn.lpn_facility_status = lpn_facility_status.lpn_facility_status
+    AND lpn_facility_status.inbound_outbound_indicator = 'O'
+    
+    LEFT JOIN wm.task_dtl task_dtl_2 ON task_dtl_2.alloc_invn_dtl_id = wm.alloc_invn_dtl.alloc_invn_dtl_id
+    AND task_dtl_2.line_item_id = wm.order_line_item.line_item_id
+    AND task_dtl_2.task_cmpl_ref_code = '15'
+    
+    LEFT JOIN wm.alloc_invn_dtl alloc_invn_dtl_2 ON alloc_invn_dtl_2.carton_nbr = wm.task_dtl.carton_nbr
+    AND wm.task_dtl.carton_seq_nbr = alloc_invn_dtl_2.carton_seq_nbr
+    AND alloc_invn_dtl_2.invn_need_type = 52
+    
+    LEFT JOIN wm.picking_short_item ON wm.task_dtl.line_item_id = wm.picking_short_item.line_item_id
+    AND wm.task_dtl.tc_order_id = wm.picking_short_item.tc_order_id
+    AND  wm.picking_short_item.locn_id = locn_hdr.locn_id
+    AND wm.picking_short_item.ship_wave_nbr = task_dtl_2.TASK_GENRTN_REF_NBR
+    
+    LEFT JOIN wm.locn_hdr locn_lpn ON wm.lpn.curr_sub_locn_id = locn_lpn.locn_id 
+    
+    LEFT JOIN wm.prod_trkg_tran ON wm.prod_trkg_tran.cntr_nbr = wm.lpn.tc_lpn_id
+    AND wm.prod_trkg_tran.menu_optn_name = 'Split Cmbne All oLPN' and wm.prod_trkg_tran.module_name = 'Modify'
+    AND wm.prod_trkg_tran.line_item_id = wm.alloc_invn_dtl.line_item_ID
+    
+-- ADJ TIMES
+, (select sum(case when pay_scale = 'UTC_ADJ' then to_number(pay_scale_desc)/24 end) as UTC_ADJ
+    , sum(case when pay_scale = 'TIME_ZONE' then to_number(pay_scale_desc)/24 end) as TIME_ZONE
+    , sum(case when pay_scale = 'SHIFT_ADJ' then to_number(pay_scale_desc)/24 end) as SHIFT_ADJ 
+from wm.e_pay_scale 
+where pay_scale in ('UTC_ADJ','TIME_ZONE','SHIFT_ADJ') ) wh
+
+WHERE wm.orders.order_type = 'ECOMM'
+ AND wm.do_status.order_status < 181
+ AND wm.order_line_item.DO_DTL_STATUS NOT IN ('200','190')
+ --AND wm.order_line_item.invn_type = 'E'
+-- AND wm.order_line_item.invn_type in (#Promptmany('pInv')#)
+GROUP BY 
+    CASE 
+        WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Milton'
+        WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Mississauga'
+        WHEN wm.locn_hdr.work_grp IN ('MFLW', 'MRPH', 'MACT', 'MRAK') THEN 'Milton'
+        WHEN wm.locn_hdr.work_grp = 'SHLF' THEN 'Mississauga'
+        WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp IS NULL THEN 'Milton'
+        WHEN wm.order_line_item.invn_type = 'E' AND  wm.locn_hdr.work_grp IS NULL AND
+             (SUBSTR(wm.item_cbo.item_style, 1, 2) = 'LM' OR 
+              wm.item_facility_mapping_wms.pick_locn_assign_type IN ('P09','P06','PRK') OR 
+              wm.item_cbo.PRODUCT_CLASS_ID = '172') THEN 'Milton'
+        ELSE 'Mississauga'
+    END,
+    wm.order_line_item.invn_type,
+    CASE 
+    WHEN WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09' THEN 'Footwear'
+    ELSE 'Non Footwear'
+END,
+    TO_CHAR(wm.orders.created_dttm + wh.TIME_ZONE, 'YYYY/MM/DD'),
+    CASE 
+        WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
+        ELSE 'Multi'
+    END
+ORDER BY Order_Create_Date_EST, Order_Type DESC;
