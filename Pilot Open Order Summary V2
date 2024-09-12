@@ -1,5 +1,5 @@
 SELECT
-    CASE 
+CASE 
         WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Milton'
         WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Mississauga'
         WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp IS NULL THEN 'Milton'
@@ -7,20 +7,20 @@ SELECT
         WHEN wm.locn_hdr.work_grp = 'SHLF' THEN 'Mississauga'
         WHEN wm.locn_hdr.work_grp IN ('MFLW', 'MRPH', 'MACT', 'MRAK')  THEN 'Milton'
         ELSE wm.locn_hdr.work_grp
-    END AS Facility,
+END AS Facility,
     wm.orders.created_dttm + INTERVAL '3' HOUR AS Order_Create_Date_EST,
     wm.orders.tc_order_id,
     wm.order_line_item.tc_order_line_id as DO_Line_Number,
-    CASE 
+CASE 
         WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
     ELSE 'Multi'
-    END AS Order_Type,
+END AS Order_Type,
     wm.orders.RTE_TYPE_1 AS LANE_NAME,
     wm.orders.REF_FIELD_1,
     wm.orders.d_name as Customer_Name,
     wm.orders.bill_to_email AS Email,
     wm.orders.do_status || ' - ' ||  wm.do_status.description AS Order_Status,
-    CASE 
+CASE 
         WHEN wm.order_line_item.DO_DTL_STATUS = 112 THEN 'Special Processing Pending'
         WHEN wm.order_line_item.DO_DTL_STATUS = 100 THEN 'Draft'
         WHEN wm.order_line_item.DO_DTL_STATUS = 105 THEN 'Pre-Released'
@@ -39,9 +39,9 @@ SELECT
         WHEN wm.order_line_item.DO_DTL_STATUS = 165 THEN 'Staged'
         WHEN wm.order_line_item.DO_DTL_STATUS = 195 THEN 'Delivered'
         ELSE 'Unknown'
-    END AS Order_Line_Status,
+END AS Order_Line_Status,
     wm.order_line_item.invn_type as Order_Line_Inv_Type,
-    CASE 
+CASE 
         WHEN wm.order_line_item.DO_DTL_STATUS = '100' THEN 'Waiting to be Waved'
         WHEN wm.order_line_item.DO_DTL_STATUS = '110' THEN 'Waiting to be Waved'
         WHEN wm.task_hdr.STAT_CODE = 5 AND wm.lpn.lpn_facility_status = '10' THEN 'Pending FA'
@@ -59,7 +59,7 @@ SELECT
    --     WHEN wm.lpn.lpn_facility_status = '89' THEN 'Completed VAS'
    --     WHEN wm.lpn.lpn_facility_status = '90' THEN 'Shipped'
    --     WHEN wm.lpn.lpn_facility_status = '99' THEN 'Shorted'
-    END AS Pick_and_Pack_Status,
+END AS Pick_and_Pack_Status,
     wm.alloc_invn_dtl.task_genrtn_ref_nbr AS Wave_Number,
     wm.wave_parm.wave_desc,
   --  CASE
@@ -72,20 +72,17 @@ SELECT
     wm.order_line_item.ALLOCATED_QTY,
     task_dtl.qty_alloc AS Task_qty_allocated,
     wm.lpn.total_LPN_QTY as oLPN_Quantity,
-    
     wm.alloc_invn_dtl.task_cmpl_ref_nbr as oLPN,
     lpn_facility_status.description AS oLPN_Status,
     locn_lpn.dsp_locn as oLPN_Current_Location,
-    
-        CASE
+CASE
         WHEN COUNT(CASE 
                     WHEN locn_lpn.dsp_locn LIKE 'HS%' OR locn_lpn.dsp_locn LIKE 'HM%' OR locn_lpn.dsp_locn = 'SH-P -L-26' OR locn_lpn.dsp_locn = 'SHP-S2-28' OR wm.prod_trkg_tran.ref_field_2 IS NOT NULL THEN 1
                  END) 
              OVER (PARTITION BY wm.orders.tc_order_id) > 0 
         THEN 'Yes'
         ELSE 'No'
-    END AS Hospital_Flag,
-    
+END AS Hospital_Flag,
 CASE
     WHEN 
         (COUNT(CASE 
@@ -114,47 +111,39 @@ CASE
     ELSE
         NULL
 END AS Hospital_Status,
-
-
     wm.lpn.TRACKING_NBR,
     wm.lpn.TC_parent_LPN_id as Pallet_ID,
     wm.lpn.TC_shipment_id as Shipment_ID,
     
     wm.lpn.last_updated_dttm + INTERVAL '3' HOUR AS oLPN_Last_Updated_DTTM,
     wm.lpn.created_DTTM + INTERVAL '3' HOUR AS oLPN_Create_DTTM,
-
-
-task_dtl.task_id as Pick_Task_ID,
-        CASE wm.task_hdr.STAT_CODE
+    task_dtl.task_id as Pick_Task_ID,
+CASE wm.task_hdr.STAT_CODE
         WHEN 5 THEN 'Locked Disabled'
         WHEN 10 THEN 'Released'
         WHEN 30 THEN 'Assigned'
         WHEN 99 THEN 'Cancelled'
     ELSE TO_CHAR(wm.task_hdr.STAT_CODE)
-    END AS Task_Header_Status,
-    
-    CASE
+END AS Task_Header_Status,
+CASE
     WHEN task_dtl.task_type IS NOT NULL OR task_hdr.task_desc IS NOT NULL THEN task_dtl.task_type || '-' || task_hdr.task_desc
     ELSE NULL
-    END AS Tote_Type,
-    
-        CASE 
+END AS Tote_Type,
+CASE 
         WHEN (wm.task_hdr.STAT_CODE IN (10) AND (wm.task_dtl.MISC_ALPHA_FIELD_2 IS NULL OR wm.task_dtl.MISC_ALPHA_FIELD_2 = '')) THEN 'Ready to Induct'
         ELSE wm.task_dtl.MISC_ALPHA_FIELD_2
-    END AS Tote_Number,
+END AS Tote_Number,
     locn_hdr.dsp_locn AS pull_locn,
-    CASE
+CASE
         WHEN locn_hdr.dsp_locn IS NOT NULL THEN
             CASE
                 WHEN task_dtl.pikr_nbr IS NOT NULL THEN TO_CHAR(task_dtl.pikr_nbr)
                 ELSE wm.locn_hdr.travel_zone
             END
         ELSE NULL
-    END AS Zone,
-    
+END AS Zone,
     task_dtl_2.task_id AS cart_task_ID,
     task_dtl_2.TASK_GENRTN_REF_NBR AS Cart_Number,
-
     task_dtl_2.qty_pulld AS qty_picked,
     NVL(picking_short_item.short_qty, 0) AS qty_shorted,
     NVL(alloc_invn_dtl_2.qty_alloc, 0) AS Qty_To_Be_Put,
@@ -204,8 +193,6 @@ FROM
     LEFT JOIN wm.prod_trkg_tran ON wm.prod_trkg_tran.cntr_nbr = wm.lpn.tc_lpn_id
     AND wm.prod_trkg_tran.menu_optn_name = 'Split Cmbne All oLPN' and wm.prod_trkg_tran.module_name = 'Modify'
     AND wm.prod_trkg_tran.line_item_id = wm.alloc_invn_dtl.line_item_ID
-    
-    
 WHERE
    wm.orders.order_type = 'ECOMM'
   AND wm.do_status.order_status < 181
