@@ -148,6 +148,12 @@ where pay_scale in ('UTC_ADJ','TIME_ZONE','SHIFT_ADJ') ) wh
 WHERE wm.orders.order_type = 'ECOMM'
  AND wm.do_status.order_status < 181
  AND wm.order_line_item.DO_DTL_STATUS NOT IN ('200','190')
+ 
+   AND (
+        wm.alloc_invn_dtl.task_cmpl_ref_nbr = wm.lpn.tc_lpn_id
+        OR (wm.alloc_invn_dtl.task_cmpl_ref_nbr IS NULL AND wm.lpn.tc_lpn_id IS NULL)
+   ) 
+
  --AND wm.order_line_item.invn_type = 'E'
 -- AND wm.order_line_item.invn_type in (#Promptmany('pInv')#)
 GROUP BY 
