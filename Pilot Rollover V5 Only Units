@@ -56,6 +56,7 @@ END AS Footwear_Indicator,
     )  AS Carton_Started,
     SUM(
         CASE
+            WHEN WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09' AND wm.lpn.lpn_facility_status = '10' AND task_dtl_2.qty_pulld <= 0 OR task_dtl_2.qty_pulld IS NULL THEN wm.order_line_item.ALLOCATED_QTY
             WHEN wm.task_hdr.STAT_CODE = 30 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NOT NULL THEN (task_dtl.qty_alloc - NVL(task_dtl_2.qty_pulld, 0) - NVL(picking_short_item.short_qty, 0))
             ELSE 0
         END
@@ -68,6 +69,7 @@ END AS Footwear_Indicator,
     )  AS Pick_Complete,
     SUM(
         CASE
+            WHEN WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09' AND wm.lpn.lpn_facility_status = '10' AND task_dtl_2.qty_pulld > 0 OR task_dtl_2.qty_pulld IS NOT NULL THEN task_dtl_2.qty_pulld
             WHEN wm.task_hdr.STAT_CODE = 99 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NOT NULL THEN NVL(alloc_invn_dtl_2.qty_alloc, 0)
             ELSE 0
         END
@@ -75,24 +77,28 @@ END AS Footwear_Indicator,
         
         SUM(
         CASE
+            WHEN WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09' AND wm.lpn.lpn_facility_status = '15' THEN wm.order_line_item.ALLOCATED_QTY
             WHEN wm.lpn.lpn_facility_status = '15' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
             ELSE 0
         END
     )  AS In_Packing,
     SUM(
         CASE
+            WHEN WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09' AND wm.lpn.lpn_facility_status = '20' THEN wm.order_line_item.ALLOCATED_QTY
             WHEN wm.lpn.lpn_facility_status = '20' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
             ELSE 0
         END
     ) AS Packed,
     SUM(
         CASE
+            WHEN WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09' AND wm.lpn.lpn_facility_status = '30' THEN wm.order_line_item.ALLOCATED_QTY
             WHEN wm.lpn.lpn_facility_status = '30' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
             ELSE 0
         END
     )  AS Weighed,
     SUM(
         CASE
+            WHEN WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09' AND wm.lpn.lpn_facility_status = '50' THEN wm.order_line_item.ALLOCATED_QTY
             WHEN wm.lpn.lpn_facility_status = '50' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
             ELSE 0
         END
@@ -153,7 +159,6 @@ WHERE wm.orders.order_type = 'ECOMM'
         wm.alloc_invn_dtl.task_cmpl_ref_nbr = wm.lpn.tc_lpn_id
         OR (wm.alloc_invn_dtl.task_cmpl_ref_nbr IS NULL AND wm.lpn.tc_lpn_id IS NULL)
    ) 
-
  --AND wm.order_line_item.invn_type = 'E'
 -- AND wm.order_line_item.invn_type in (#Promptmany('pInv')#)
 GROUP BY 
