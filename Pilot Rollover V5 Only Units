@@ -92,10 +92,18 @@ END AS Footwear_Indicator,
     SUM(
         CASE
             WHEN WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09' AND wm.lpn.lpn_facility_status = '30' THEN wm.order_line_item.ALLOCATED_QTY
-            WHEN wm.lpn.lpn_facility_status = '30' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
+            WHEN wm.lpn.lpn_facility_status = '30' AND NOT (locn_lpn.dsp_locn LIKE 'HS%' OR locn_lpn.dsp_locn LIKE 'HM%' OR locn_lpn.dsp_locn = 'SH-P -L-26' OR locn_lpn.dsp_locn = 'SHP-S2-28') THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
             ELSE 0
         END
     )  AS Weighed,
+    
+    SUM(
+        CASE
+            WHEN wm.lpn.lpn_facility_status = 30 AND locn_lpn.dsp_locn LIKE 'HS%' OR locn_lpn.dsp_locn LIKE 'HM%' OR locn_lpn.dsp_locn = 'SH-P -L-26' OR locn_lpn.dsp_locn = 'SHP-S2-28'
+            THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
+            ELSE 0
+        END
+    )  AS Hospital,
     SUM(
         CASE
             WHEN WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09' AND wm.lpn.lpn_facility_status = '50' THEN wm.order_line_item.ALLOCATED_QTY
