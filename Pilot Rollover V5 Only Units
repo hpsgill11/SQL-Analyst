@@ -99,7 +99,6 @@ END AS Footwear_Indicator,
         ELSE 0
     END
 )  AS Weighed,
-    
     SUM(
         CASE
             WHEN wm.lpn.lpn_facility_status = 30 AND (locn_lpn.dsp_locn LIKE 'HS%' OR locn_lpn.dsp_locn LIKE 'HM%' OR locn_lpn.dsp_locn = 'SH-P -L-26' OR locn_lpn.dsp_locn = 'SHP-S2-28')
@@ -113,7 +112,7 @@ END AS Footwear_Indicator,
             WHEN wm.lpn.lpn_facility_status = '50' THEN NVL(alloc_invn_dtl_2.qty_pulld, 0)
             ELSE 0
         END
-    ) AS Loaded
+    ) AS Loaded_on_Truck
 FROM
     wm.orders
     LEFT JOIN wm.order_line_item ON wm.orders.order_id = wm.order_line_item.order_id
@@ -169,9 +168,9 @@ WHERE wm.orders.order_type = 'ECOMM'
         wm.alloc_invn_dtl.task_cmpl_ref_nbr = wm.lpn.tc_lpn_id
         OR (wm.alloc_invn_dtl.task_cmpl_ref_nbr IS NULL AND wm.lpn.tc_lpn_id IS NULL)
    ) 
+-- TEST   
 --AND task_hdr.task_desc  = 'Lulu Pick and Pass'
 --AND wm.order_line_item.invn_type = 'R'
-
 --AND TO_CHAR(wm.orders.created_dttm + wh.TIME_ZONE, 'YYYY/MM/DD') = '2024/09/10'
 
 -- AND wm.order_line_item.invn_type in (#Promptmany('pInv')#)
