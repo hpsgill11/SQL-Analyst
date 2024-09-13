@@ -111,7 +111,6 @@ END AS Footwear_Indicator,
             ELSE 0
         END
     ) AS Loaded
-    
 FROM
     wm.orders
     LEFT JOIN wm.order_line_item ON wm.orders.order_id = wm.order_line_item.order_id
@@ -167,7 +166,7 @@ WHERE wm.orders.order_type = 'ECOMM'
         wm.alloc_invn_dtl.task_cmpl_ref_nbr = wm.lpn.tc_lpn_id
         OR (wm.alloc_invn_dtl.task_cmpl_ref_nbr IS NULL AND wm.lpn.tc_lpn_id IS NULL)
    ) 
-
+--AND task_hdr.task_desc  = 'Lulu Pick and Pass'
 -- AND wm.order_line_item.invn_type = 'E'
 -- AND wm.order_line_item.invn_type in (#Promptmany('pInv')#)
 GROUP BY 
