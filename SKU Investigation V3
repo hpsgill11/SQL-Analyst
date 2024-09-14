@@ -310,7 +310,18 @@ END AS "Waveable Quantity",
             END) = 0
         THEN 'Zero Allocatable'
         ELSE 'Allocatable'
-    END AS Allocatable_Flag
+    END AS Allocatable_Flag,
+CASE 
+    WHEN ifm.pick_locn_assign_type IN ('P06', 'PRK') 
+         OR ic.PRODUCT_CLASS_ID = 172 THEN 'Milton - Shipalone'
+         WHEN ifm.pick_locn_assign_type IN ('P09') THEN 'Milton - Footwear'
+         WHEN ic.item_style LIKE 'LM%' 
+         OR oli.invn_type = 'R'
+         OR oli.invn_type = 'S'
+         OR oli.invn_type = 'B'
+         OR oli.invn_type = 'C'
+    THEN 'Milton'
+    ELSE 'Mississauga' END AS Building
 FROM 
     WM.orders o 
     LEFT JOIN WM.order_line_item oli ON o.order_id = oli.order_id
@@ -324,8 +335,9 @@ FROM
 WHERE 
     o.do_status IN ('110','120')
     AND oli.DO_DTL_STATUS <= 120
-    AND o.order_type = 'ECOMM'
-    AND TRUNC(o.created_dttm) = TO_DATE('2024/08/28', 'YYYY/MM/DD')
+    AND o.order_type IN ('ECOMM','123')
+   -- AND o.tc_order_id = '516780557'
+   AND  NOT TRUNC(o.created_dttm) = TO_DATE('2024/09/14', 'YYYY/MM/DD')
     AND oli.invn_type = 'E'
 GROUP BY 
     o.created_dttm,
@@ -424,6 +436,7 @@ TRIM(BOTH ',' FROM (
         ELSE ''
     END
 )) AS Order_Inventory_Flags,
+    MainTable.Building,
     MainTable.item_name,
     MainTable.order_qty,
     MainTable.ALLOCATED_QTY,
