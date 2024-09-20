@@ -48,8 +48,10 @@ LEFT JOIN  WM.lpn_lock on wm.wm_inventory.TC_LPN_ID = WM.lpn_lock.TC_LPN_ID
 LEFT JOIN  wm.resv_locn_hdr on wm.resv_locn_hdr.locn_id = wm.locn_hdr.locn_id
 LEFT JOIN  WM.pick_locn_hdr on WM.pick_locn_hdr.locn_id = wm.locn_hdr.locn_id
 
-
+ 
 --WHERE 
+  --  (WM.lpn_lock.inventory_lock_code NOT IN ('SE', 'SI','ER','RI','ED','DM','RE','DN') OR WM.lpn_lock.inventory_lock_code IS NULL)
+   -- AND (wm.resv_locn_hdr.invn_lock_code NOT IN ('SE', 'SI','ER','RI','ED','DM','RE','DN') OR wm.resv_locn_hdr.invn_lock_code IS NULL)
 --wm.wm_inventory.tc_lpn_id IS NULL
    -- wm.wm_inventory.on_hand_qty > 0
  --wm.wm_inventory.inbound_outbound_indicator IS NULL
