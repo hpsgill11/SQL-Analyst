@@ -1,0 +1,67 @@
+SELECT
+
+CASE 
+    WHEN WM.item_facility_mapping_wms.pick_locn_assign_type IN ('P06', 'PRK') 
+         OR wm.item_cbo.PRODUCT_CLASS_ID = 172 THEN 'Milton - Shipalone'
+         WHEN WM.item_facility_mapping_wms.pick_locn_assign_type IN ('P09') THEN 'Milton - Footwear'
+         WHEN wm.item_cbo.item_style LIKE 'LM%' 
+         OR wm.wm_inventory.inventory_type = 'R'
+         OR wm.wm_inventory.inventory_type = 'S'
+         OR wm.wm_inventory.inventory_type = 'B'
+         OR wm.wm_inventory.inventory_type = 'C'
+    THEN 'Milton'
+    ELSE 'Mississauga' END AS Wave_Building,
+    
+    wm.wm_inventory.inventory_type,
+    wm.locn_hdr.locn_class,
+    wm.item_cbo.item_name,
+    wm.locn_hdr.dsp_locn AS Current_LOCATION, 
+    wm.wm_inventory.tc_lpn_id AS LPN, 
+    wm.wm_inventory.cntry_of_orgn,
+    wm.wm_inventory.inbound_outbound_indicator AS "LPN I/O",
+    CASE
+    WHEN wm.locn_hdr.dsp_locn = 'MIL-SH-UN-T01' THEN 'MILSHUNT'
+    WHEN wm.locn_hdr.dsp_locn = 'MIS-SH-UN-T01' THEN 'MISSHUNT'
+    ELSE NULL
+    END as Shunt,
+    WM.pick_locn_hdr.invn_lock_code AS Active_LocK_Location,
+    WM.lpn_lock.inventory_lock_code AS LPN_Lock,
+    wm.resv_locn_hdr.invn_lock_code AS Reserve_Lock_Location,
+    (wm.wm_inventory.on_hand_qty + wm.wm_inventory.to_be_filled_qty - wm.wm_inventory.wm_allocated_qty) AS "Allocatable Qty",
+    wm.wm_inventory.on_hand_qty, 
+    wm.wm_inventory.wm_allocated_qty, 
+    wm.wm_inventory.to_be_filled_qty,
+    wm.wm_inventory.allocatable,
+  --  wm.locn_hdr.work_grp,
+    wm.item_cbo.description AS ITEM_DESC, 
+    wm.item_cbo.REF_FIELD3,
+    wm.item_cbo.item_style,
+   -- wm.item_cbo.Unit_Volume,
+    WM.item_facility_mapping_wms.pick_locn_assign_type,
+    wm.item_cbo.PRODUCT_CLASS_ID
+FROM
+    wm.wm_inventory
+LEFT JOIN  wm.locn_hdr ON wm.locn_hdr.locn_id = wm.wm_inventory.location_id
+LEFT JOIN  wm.item_cbo ON wm.wm_inventory.item_id = wm.item_cbo.item_id
+LEFT JOIN WM.item_facility_mapping_wms ON WM.item_facility_mapping_wms.item_id = wm.item_cbo.item_id
+LEFT JOIN  WM.lpn_lock on wm.wm_inventory.TC_LPN_ID = WM.lpn_lock.TC_LPN_ID
+LEFT JOIN  wm.resv_locn_hdr on wm.resv_locn_hdr.locn_id = wm.locn_hdr.locn_id
+LEFT JOIN  WM.pick_locn_hdr on WM.pick_locn_hdr.locn_id = wm.locn_hdr.locn_id
+
+
+--WHERE 
+--wm.wm_inventory.tc_lpn_id IS NULL
+   -- wm.wm_inventory.on_hand_qty > 0
+ --wm.wm_inventory.inbound_outbound_indicator IS NULL
+  --   wm.locn_hdr.locn_class NOT IN ('A','R')
+   -- AND wm.wm_inventory.ON_HAND_QTY <> wm.wm_inventory.WM_ALLOCATED_QTY
+  --  AND wm.wm_inventory.allocatable = 'Y'
+    --AND wm.wm_inventory.inventory_type = 'E'
+ -- AND wm.locn_hdr.dsp_locn LIKE 'ICA%'
+  --AND wm.locn_hdr.dsp_locn = 'MIS-SH-UN-T01'
+   --  AND wm.item_cbo.item_name IN (
+--'146052966','114801914','117401368','149505890','148230811','148307472','148500927','127575392','143625201','147030385','152250151','104458472','153885298','132177012','104458285','146377567','104458286','146404921','117377709','145333969','145351485','123050845','153879633','146407565','148250239','118750046','153026646','3821552','118750048','118750068','151675632','104700076','142153853','144407849','145451674','148251730','3821559','153833604','3821558','127575406','153825640','147008114','107378133','3821551','117401342','3779861','144362789','142153847','3821557','144125143','147004907','139551790','149451472','146407556','147007929','153841527','144525676','153125746','148303638','107378183','142201129','151655852','146050951','149450533','142159369','146408230','146407188','150050161','3598591','141400118','146050908','154375151','149508317','153104667','151503291','137250050','148200600','151601945','107403027','146408221','146377576','149507016','149451841','146079617','151606653','153839000','146403874','117375280','153102031')
+ORDER BY 
+    wm.item_cbo.item_name, 
+    wm.locn_hdr.locn_class, 
+    wm.locn_hdr.dsp_locn;
