@@ -216,12 +216,13 @@ LEFT JOIN  WM.pick_locn_hdr on WM.pick_locn_hdr.locn_id = wm.locn_hdr.locn_id
 
 
 WHERE
-  NOT (WM.lpn_lock.inventory_lock_code NOT IN ('SE', 'SI','ER','RI','ED','DM','RE','DN','RD') OR WM.lpn_lock.inventory_lock_code IS NULL)
-    AND NOT (wm.resv_locn_hdr.invn_lock_code NOT IN ('SE', 'SI','ER','RI','ED','DM','RE','DN','RD') OR wm.resv_locn_hdr.invn_lock_code IS NULL)
---AND (wm.wm_inventory.tc_lpn_id IS NULL AND wm.wm_inventory.inbound_outbound_indicator IS NULL AND wm.locn_hdr.locn_class IS NULL)
+   (WM.lpn_lock.inventory_lock_code NOT IN ('SE', 'SI','ER','RI','ED','DM','RE','DN','RD') OR WM.lpn_lock.inventory_lock_code IS NULL)
+    AND (wm.resv_locn_hdr.invn_lock_code NOT IN ('SE', 'SI','ER','RI','ED','DM','RE','DN','RD') OR wm.resv_locn_hdr.invn_lock_code IS NULL)
+    AND NOT (wm.wm_inventory.tc_lpn_id IS NULL AND wm.wm_inventory.inbound_outbound_indicator IS NULL AND wm.locn_hdr.locn_class IS NULL)
    -- AND wm.wm_inventory.ON_HAND_QTY <> wm.wm_inventory.WM_ALLOCATED_QTY
       -- wm.wm_inventory.on_hand_qty > 0
   --  AND wm.wm_inventory.allocatable = 'Y'
+  AND NOT (wm.locn_hdr.locn_class IS NULL AND wm.wm_inventory.inbound_outbound_indicator = 'O')
     --AND wm.wm_inventory.inventory_type = 'E'
  -- AND wm.locn_hdr.dsp_locn LIKE 'ICA%'
   --AND wm.locn_hdr.dsp_locn = 'MIS-SH-UN-T01'
