@@ -24,9 +24,11 @@ CASE
     WHEN wm.locn_hdr.dsp_locn = 'MIS-SH-UN-T01' THEN 'MISSHUNT'
     ELSE NULL
     END as Shunt,
+    wm.sys_code.code_desc,
     WM.pick_locn_hdr.invn_lock_code AS Active_LocK_Location,
     WM.lpn_lock.inventory_lock_code AS LPN_Lock,
     wm.resv_locn_hdr.invn_lock_code AS Reserve_Lock_Location,
+
     (wm.wm_inventory.on_hand_qty + wm.wm_inventory.to_be_filled_qty - wm.wm_inventory.wm_allocated_qty) AS "Allocatable Qty",
     wm.wm_inventory.on_hand_qty, 
     wm.wm_inventory.wm_allocated_qty, 
@@ -47,16 +49,16 @@ LEFT JOIN WM.item_facility_mapping_wms ON WM.item_facility_mapping_wms.item_id =
 LEFT JOIN  WM.lpn_lock on wm.wm_inventory.TC_LPN_ID = WM.lpn_lock.TC_LPN_ID
 LEFT JOIN  wm.resv_locn_hdr on wm.resv_locn_hdr.locn_id = wm.locn_hdr.locn_id
 LEFT JOIN  WM.pick_locn_hdr on WM.pick_locn_hdr.locn_id = wm.locn_hdr.locn_id
+LEFT JOIN wm.sys_code ON WM.lpn_lock.inventory_lock_code = wm.sys_code.code_id  AND wm.sys_code.code_type = '527' and wm.sys_code.rec_type = 'B'
 
- 
---WHERE 
-  --  (WM.lpn_lock.inventory_lock_code NOT IN ('SE', 'SI','ER','RI','ED','DM','RE','DN') OR WM.lpn_lock.inventory_lock_code IS NULL)
-   -- AND (wm.resv_locn_hdr.invn_lock_code NOT IN ('SE', 'SI','ER','RI','ED','DM','RE','DN') OR wm.resv_locn_hdr.invn_lock_code IS NULL)
---wm.wm_inventory.tc_lpn_id IS NULL
-   -- wm.wm_inventory.on_hand_qty > 0
- --wm.wm_inventory.inbound_outbound_indicator IS NULL
-  --   wm.locn_hdr.locn_class NOT IN ('A','R')
+
+
+WHERE
+  NOT (WM.lpn_lock.inventory_lock_code NOT IN ('SE', 'SI','ER','RI','ED','DM','RE','DN','RD') OR WM.lpn_lock.inventory_lock_code IS NULL)
+    AND NOT (wm.resv_locn_hdr.invn_lock_code NOT IN ('SE', 'SI','ER','RI','ED','DM','RE','DN','RD') OR wm.resv_locn_hdr.invn_lock_code IS NULL)
+--AND (wm.wm_inventory.tc_lpn_id IS NULL AND wm.wm_inventory.inbound_outbound_indicator IS NULL AND wm.locn_hdr.locn_class IS NULL)
    -- AND wm.wm_inventory.ON_HAND_QTY <> wm.wm_inventory.WM_ALLOCATED_QTY
+      -- wm.wm_inventory.on_hand_qty > 0
   --  AND wm.wm_inventory.allocatable = 'Y'
     --AND wm.wm_inventory.inventory_type = 'E'
  -- AND wm.locn_hdr.dsp_locn LIKE 'ICA%'
