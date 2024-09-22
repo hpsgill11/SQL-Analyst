@@ -223,7 +223,7 @@ WHERE
  AND NOT ( wm.wm_inventory.inbound_outbound_indicator = 'O')
 
 -- TEST AND wm.locn_hdr.locn_class IS NULL
- AND NOT wm.lpn.lpn_facility_status IN ('50','64','95','99')
+ AND NOT wm.lpn.lpn_facility_status IN ('50','64','95','99','0','1','2','3','4','6','96','45')
    -- AND wm.wm_inventory.ON_HAND_QTY <> wm.wm_inventory.WM_ALLOCATED_QTY
    
       -- wm.wm_inventory.on_hand_qty > 0
@@ -236,6 +236,8 @@ WHERE
   AND NOT wm.locn_hdr.dsp_locn LIKE 'SRT%'
   AND NOT wm.locn_hdr.dsp_locn LIKE 'STG-DK%'
 AND NOT wm.locn_hdr.dsp_locn LIKE 'MP%'
+AND NOT wm.locn_hdr.dsp_locn LIKE 'DON-AT-IO-NS'
+
   --AND wm.locn_hdr.dsp_locn = 'MIS-SH-UN-T01'
 --    AND wm.item_cbo.item_name IN ('132200649')
  
