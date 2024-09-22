@@ -233,8 +233,6 @@ WHERE
   AND NOT wm.locn_hdr.dsp_locn LIKE 'ICA%'
   AND NOT wm.locn_hdr.dsp_locn LIKE 'DAM%'
   AND NOT wm.locn_hdr.dsp_locn LIKE 'DKE%'
-  AND NOT wm.locn_hdr.dsp_locn LIKE 'SRT%'
-  AND NOT wm.locn_hdr.dsp_locn LIKE 'STG-DK%'
 AND NOT wm.locn_hdr.dsp_locn LIKE 'MP%'
 AND NOT wm.locn_hdr.dsp_locn LIKE 'DON-AT-IO-NS'
 
