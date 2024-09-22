@@ -207,29 +207,30 @@ CASE
     wm.item_cbo.PRODUCT_CLASS_ID
 FROM
     wm.wm_inventory
-LEFT JOIN  wm.locn_hdr ON wm.locn_hdr.locn_id = wm.wm_inventory.location_id
+LEFT JOIN  wm.locn_hdr ON wm.wm_inventory.location_id = wm.locn_hdr.locn_id
 LEFT JOIN  wm.item_cbo ON wm.wm_inventory.item_id = wm.item_cbo.item_id
-LEFT JOIN WM.item_facility_mapping_wms ON WM.item_facility_mapping_wms.item_id = wm.item_cbo.item_id
+LEFT JOIN WM.item_facility_mapping_wms ON  wm.item_cbo.item_id = WM.item_facility_mapping_wms.item_id
 LEFT JOIN  WM.lpn_lock on wm.wm_inventory.TC_LPN_ID = WM.lpn_lock.TC_LPN_ID
-LEFT JOIN  wm.resv_locn_hdr on wm.resv_locn_hdr.locn_id = wm.locn_hdr.locn_id
-LEFT JOIN  WM.pick_locn_hdr on WM.pick_locn_hdr.locn_id = wm.locn_hdr.locn_id
+LEFT JOIN  wm.resv_locn_hdr on wm.locn_hdr.locn_id = wm.resv_locn_hdr.locn_id 
+LEFT JOIN  WM.pick_locn_hdr on wm.locn_hdr.locn_id = WM.pick_locn_hdr.locn_id 
 LEFT JOIN wm.lpn ON wm.wm_inventory.tc_lpn_id = wm.lpn.tc_lpn_id AND wm.lpn.inbound_outbound_indicator = 'I'
 LEFT JOIN wm.lpn_facility_status ON wm.lpn.lpn_facility_status = wm.lpn_facility_status.lpn_facility_status AND wm.lpn_facility_status.inbound_outbound_indicator = 'I'
 
 WHERE
-    (WM.lpn_lock.inventory_lock_code NOT IN ('SE', 'SI','ER','RI','ED','DM','RE','DN','RD') OR WM.lpn_lock.inventory_lock_code IS NULL)
-  AND (wm.resv_locn_hdr.invn_lock_code NOT IN ('SE', 'SI','ER','RI','ED','DM','RE','DN','RD') OR wm.resv_locn_hdr.invn_lock_code IS NULL)
- AND NOT (wm.wm_inventory.tc_lpn_id IS NULL AND wm.wm_inventory.inbound_outbound_indicator IS NULL AND wm.locn_hdr.locn_class IS NULL)
-AND NOT (wm.locn_hdr.locn_class IS NULL AND wm.wm_inventory.inbound_outbound_indicator = 'O')
+--wm.wm_inventory.inbound_outbound_indicator NOT IN ( 'O')
+  --  (WM.lpn_lock.inventory_lock_code NOT IN ('SE', 'SI','ER','RI','ED','DM','RE','DN','RD') OR WM.lpn_lock.inventory_lock_code IS NULL)
+--  AND (wm.resv_locn_hdr.invn_lock_code NOT IN ('SE', 'SI','ER','RI','ED','DM','RE','DN','RD') OR wm.resv_locn_hdr.invn_lock_code IS NULL)
+--  NOT (wm.wm_inventory.tc_lpn_id IS NULL AND wm.wm_inventory.inbound_outbound_indicator IS NULL AND wm.locn_hdr.locn_class IS NULL)
+-- AND (wm.locn_hdr.locn_class IS NULL AND wm.wm_inventory.inbound_outbound_indicator = 'O')
 
 -- TEST AND wm.locn_hdr.locn_class IS NULL
 
-AND NOT wm.lpn.lpn_facility_status IN ('50','64','95','99')
+--AND NOT wm.lpn.lpn_facility_status IN ('50','64','95','99')
    -- AND wm.wm_inventory.ON_HAND_QTY <> wm.wm_inventory.WM_ALLOCATED_QTY
    
       -- wm.wm_inventory.on_hand_qty > 0
   --  AND wm.wm_inventory.allocatable = 'Y'
-
+ wm.locn_hdr.locn_class = 'A'
     --AND wm.wm_inventory.inventory_type = 'E'
  -- AND wm.locn_hdr.dsp_locn LIKE 'ICA%'
   --AND wm.locn_hdr.dsp_locn = 'MIS-SH-UN-T01'
