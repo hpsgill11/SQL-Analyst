@@ -222,10 +222,11 @@ WHERE
  AND NOT (wm.wm_inventory.tc_lpn_id IS NULL AND wm.wm_inventory.inbound_outbound_indicator IS NULL AND wm.locn_hdr.locn_class IS NULL)
 AND NOT (wm.locn_hdr.locn_class IS NULL AND wm.wm_inventory.inbound_outbound_indicator = 'O')
 
-AND wm.locn_hdr.locn_class IS NULL
+-- TEST AND wm.locn_hdr.locn_class IS NULL
 
-AND NOT wm.lpn.lpn_facility_status IN ('50','64','95')
+AND NOT wm.lpn.lpn_facility_status IN ('50','64','95','99')
    -- AND wm.wm_inventory.ON_HAND_QTY <> wm.wm_inventory.WM_ALLOCATED_QTY
+   
       -- wm.wm_inventory.on_hand_qty > 0
   --  AND wm.wm_inventory.allocatable = 'Y'
 
