@@ -24,10 +24,7 @@ SELECT
     wm.order_line_item.invn_type AS Order_Line_Inv_Type,
     COUNT(DISTINCT wm.orders.tc_order_id) AS Total_orders,
     SUM(wm.order_line_item.order_qty) AS Total_Units,
-    CASE 
-        WHEN WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09' THEN 'Footwear'
-        ELSE 'Non Footwear'
-    END AS Footwear_Indicator,
+
     
                 SUM(CASE 
         WHEN wm.do_status.order_status < 160 THEN wm.order_line_item.order_qty 
@@ -47,7 +44,11 @@ SELECT
     CONCAT(TO_CHAR(ROUND((SUM(CASE 
         WHEN wm.do_status.order_status = 190 THEN wm.order_line_item.order_qty 
         ELSE 0 
-    END) / SUM(wm.order_line_item.order_qty)) * 100, 2), 'FM9999999990.00'), '%') AS Shipped_Percentage
+    END) / SUM(wm.order_line_item.order_qty)) * 100, 2), 'FM9999999990.00'), '%') AS Shipped_Percentage,
+        CASE 
+        WHEN WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09' THEN 'Footwear'
+        ELSE 'Non Footwear'
+    END AS Footwear_Indicator
 FROM
     wm.orders
     LEFT JOIN wm.order_line_item ON wm.orders.order_id = wm.order_line_item.order_id
