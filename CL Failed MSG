@@ -1,8 +1,11 @@
-SELECT wm.CL_MESSAGE.EVENT_ID, wm.CL_ENDPOINT_QUEUE.ENDPOINT_ID, wm.CL_ENDPOINT_QUEUE.STATUS, COUNT(wm.CL_MESSAGE.MSG_ID),wm.cl_endpoint.name,wm.cl_endpoint.description
+SELECT wm.CL_MESSAGE.EVENT_ID, wm.CL_ENDPOINT_QUEUE.ENDPOINT_ID, wm.CL_ENDPOINT_QUEUE.STATUS,wm.cl_message_status.status_name,COUNT(wm.CL_MESSAGE.MSG_ID),wm.cl_endpoint.name,wm.cl_endpoint.description
 FROM wm.CL_MESSAGE
 INNER JOIN wm.CL_ENDPOINT_QUEUE ON wm.CL_MESSAGE.MSG_ID = wm.CL_ENDPOINT_QUEUE.MSG_ID
 INNER JOIN wm.CL_ENDPOINT ON wm.CL_ENDPOINT_QUEUE.ENDPOINT_ID = wm.CL_ENDPOINT.ENDPOINT_ID
+INNER JOIN wm.cl_message_status
+
+ON wm.CL_ENDPOINT_QUEUE.status = wm.cl_message_status.status_id
 WHERE TRUNC(wm.CL_MESSAGE.WHEN_CREATED) = TRUNC(SYSDATE)
   AND wm.CL_ENDPOINT_QUEUE.STATUS <> '5'
 --AND wm.CL_MESSAGE.EVENT_ID = '1640000'
-GROUP BY wm.CL_MESSAGE.EVENT_ID, wm.CL_ENDPOINT_QUEUE.ENDPOINT_ID, wm.CL_ENDPOINT_QUEUE.STATUS,wm.cl_endpoint.name,wm.cl_endpoint.description;
+GROUP BY wm.CL_MESSAGE.EVENT_ID, wm.CL_ENDPOINT_QUEUE.ENDPOINT_ID, wm.CL_ENDPOINT_QUEUE.STATUS,wm.cl_message_status.status_name,wm.cl_endpoint.name,wm.cl_endpoint.description;
