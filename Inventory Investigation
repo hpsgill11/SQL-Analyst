@@ -15,8 +15,9 @@ CASE
     wm.wm_inventory.inventory_type,
     wm.locn_hdr.locn_class,
     wm.item_cbo.item_name,
-    wm.locn_hdr.dsp_locn AS Current_LOCATION,
+    wm.locn_hdr.dsp_locn AS Current_Location,
     prev.dsp_locn AS Prev_Location,
+    dest.dsp_locn AS Destination_Location,
     wm.wm_inventory.tc_lpn_id AS LPN, 
     wm.wm_inventory.cntry_of_orgn,
     wm.wm_inventory.inbound_outbound_indicator AS "LPN I/O",
@@ -216,9 +217,9 @@ LEFT JOIN WM.item_facility_mapping_wms ON  wm.item_cbo.item_id = WM.item_facilit
 LEFT JOIN  WM.lpn_lock on wm.wm_inventory.TC_LPN_ID = WM.lpn_lock.TC_LPN_ID
 LEFT JOIN  wm.resv_locn_hdr on wm.locn_hdr.locn_id = wm.resv_locn_hdr.locn_id 
 LEFT JOIN  WM.pick_locn_hdr on wm.locn_hdr.locn_id = WM.pick_locn_hdr.locn_id 
-
 LEFT JOIN wm.lpn ON wm.wm_inventory.tc_lpn_id = wm.lpn.tc_lpn_id AND wm.lpn.inbound_outbound_indicator = 'I'
 LEFT JOIN wm.locn_hdr prev ON wm.lpn.prev_sub_locn_id = prev.locn_id
+LEFT JOIN wm.locn_hdr dest ON wm.lpn.dest_sub_locn_id = dest.locn_id
 LEFT JOIN wm.lpn_facility_status ON wm.lpn.lpn_facility_status = wm.lpn_facility_status.lpn_facility_status AND wm.lpn_facility_status.inbound_outbound_indicator = 'I'
 
 WHERE
@@ -227,7 +228,7 @@ WHERE
 
  NOT (wm.wm_inventory.tc_lpn_id IS NULL AND wm.wm_inventory.inbound_outbound_indicator IS NULL AND wm.locn_hdr.locn_class IS NULL)
 -- AND NOT ( wm.wm_inventory.inbound_outbound_indicator = 'O')
-AND wm.lpn.ref_field_1 = 'MIS_TO_MIL_TRUCK_15'
+--AND wm.lpn.ref_field_1 = 'MIS_TO_MIL_TRUCK_15'
 -- TEST AND wm.locn_hdr.locn_class IS NULL
 -- AND NOT wm.lpn.lpn_facility_status IN ('50','64','95','99','0','1','2','3','4','6','96','45')
  
@@ -237,10 +238,10 @@ AND wm.lpn.ref_field_1 = 'MIS_TO_MIL_TRUCK_15'
   --  AND wm.wm_inventory.allocatable = 'Y
 --  AND wm.locn_hdr.locn_class = 'R'
 
-  --AND wm.locn_hdr.dsp_locn = 'MIS-SH-UN-T01'
+AND wm.locn_hdr.dsp_locn = 'ZONE11'
     
     
-   -- AND wm.item_cbo.item_name IN ('104458302')
+  --  AND wm.item_cbo.item_name IN ('104458302')
  
  Order By
     wm.item_cbo.item_name, 
