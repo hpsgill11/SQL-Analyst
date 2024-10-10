@@ -1,0 +1,58 @@
+SELECT
+    wm.task_dtl.task_seq_nbr,
+    wm.task_dtl.task_id,
+    SysHeader.code_desc AS task_header_status,
+    wm.INT_MASTER.int_desc AS Inventory_Need_Type,
+    wm.task_hdr.task_type,
+    SysTaskType.code_desc AS Task_Type,
+    wm.task_dtl.cntry_of_orgn,
+    SysInv_Type.code_desc AS Inv_Type,
+    current_locn.dsp_locn AS Current_Location,
+    destination_locn.dsp_locn AS Destination_Location,
+    wm.task_dtl.task_genrtn_ref_nbr,
+     wm.task_dtl.orig_reqmt AS Required_QTY,
+    wm.task_dtl.qty_alloc,
+    wm.task_dtl.qty_pulld,
+    SysDetailHeader.code_desc AS Detail_Header,
+    
+    CASE
+    WHEN wm.task_dtl.cntr_nbr IS NULL THEN wm.task_dtl.carton_nbr
+    ELSE wm.task_dtl.cntr_nbr
+    END AS LPN,
+    wm.task_dtl.pikr_nbr,
+    wm.task_dtl.misc_alpha_field_2,
+    wm.item_cbo.item_name,
+    wm.item_cbo.description AS Item_Description,
+    wm.item_cbo.unit_weight,
+    
+    wm.item_cbo.product_class_id,
+    wm.task_dtl.tc_order_id,
+    CASE 
+        WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
+    ELSE 'Multi'
+END AS Order_Type,
+    wm.orders.lane_name
+FROM
+    wm.task_dtl
+    LEFT JOIN wm.task_hdr ON wm.task_dtl.task_id = wm.task_hdr.task_id
+        LEFT JOIN wm.item_cbo ON wm.task_dtl.item_id = wm.item_cbo.item_id
+    LEFT JOIN wm.locn_hdr current_locn ON wm.task_dtl.pull_locn_id = current_locn.locn_id
+    LEFT JOIN wm.locn_hdr destination_locn ON wm.task_dtl.pull_locn_id = destination_locn.locn_id
+    
+    LEFT JOIN wm.sys_code SysHeader ON wm.task_hdr.stat_code = SysHeader.code_id
+                             AND SysHeader.code_type = '552'
+    LEFT JOIN  wm.INT_MASTER ON wm.task_dtl.invn_need_type = wm.INT_MASTER.invn_need_type and  wm.INT_MASTER.WHSE = 'TOR'
+    
+    LEFT JOIN wm.sys_code SysTaskType ON wm.task_hdr.task_type = SysTaskType.code_id
+                             AND SysTaskType.code_type = '590'
+    LEFT JOIN wm.sys_code SysDetailHeader ON wm.task_dtl.stat_code = SysDetailHeader.code_id
+                             AND SysDetailHeader.code_type = '553'
+                             
+    LEFT JOIN wm.sys_code SysInv_Type ON wm.task_dtl.invn_type = SysInv_Type.code_id
+                             AND SysInv_Type.code_type = '064' and SysInv_Type.misc_flags IS NOT NULL
+    LEFT JOIN wm.orders ON wm.task_dtl.tc_order_id = wm.orders.tc_order_id
+                             
+where  wm.task_hdr.invn_need_type = '50'
+
+Order By
+wm.task_dtl.task_id,wm.task_dtl.task_seq_nbr
