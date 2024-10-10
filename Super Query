@@ -5,8 +5,8 @@ SELECT
     wm.INT_MASTER.int_desc AS Inventory_Need_Type,
     wm.task_hdr.task_type,
     SysTaskType.code_desc AS Task_Type,
-    wm.task_dtl.cntry_of_orgn,
     SysInv_Type.code_desc AS Inv_Type,
+
     current_locn.dsp_locn AS Current_Location,
     destination_locn.dsp_locn AS Destination_Location,
     wm.task_dtl.task_genrtn_ref_nbr,
@@ -19,13 +19,15 @@ SELECT
     WHEN wm.task_dtl.cntr_nbr IS NULL THEN wm.task_dtl.carton_nbr
     ELSE wm.task_dtl.cntr_nbr
     END AS LPN,
-    wm.task_dtl.pikr_nbr,
+    wm.task_dtl.pikr_nbr AS Zone,
+    wm.task_dtl.tote_nbr AS Pick_Cart_Tote_Number,
+    wm.task_dtl.slot_nbr AS Slot_Number,
     wm.task_dtl.misc_alpha_field_2,
     wm.item_cbo.item_name,
+            wm.task_dtl.cntry_of_orgn,
     wm.item_cbo.description AS Item_Description,
+        wm.item_cbo.product_class_id,
     wm.item_cbo.unit_weight,
-    
-    wm.item_cbo.product_class_id,
     wm.task_dtl.tc_order_id,
     CASE 
         WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
@@ -52,7 +54,7 @@ FROM
                              AND SysInv_Type.code_type = '064' and SysInv_Type.misc_flags IS NOT NULL
     LEFT JOIN wm.orders ON wm.task_dtl.tc_order_id = wm.orders.tc_order_id
                              
-where  wm.task_hdr.invn_need_type = '50'
+--where  wm.task_hdr.task_id = '20036166'
 
 Order By
 wm.task_dtl.task_id,wm.task_dtl.task_seq_nbr
