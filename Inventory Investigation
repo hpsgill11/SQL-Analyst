@@ -210,18 +210,15 @@ CASE
 FROM
     wm.wm_inventory
 LEFT JOIN  wm.locn_hdr ON wm.wm_inventory.location_id = wm.locn_hdr.locn_id
-
-
 LEFT JOIN  wm.item_cbo ON wm.wm_inventory.item_id = wm.item_cbo.item_id
 LEFT JOIN WM.item_facility_mapping_wms ON  wm.item_cbo.item_id = WM.item_facility_mapping_wms.item_id
 LEFT JOIN  WM.lpn_lock on wm.wm_inventory.TC_LPN_ID = WM.lpn_lock.TC_LPN_ID
 LEFT JOIN  wm.resv_locn_hdr on wm.locn_hdr.locn_id = wm.resv_locn_hdr.locn_id 
-LEFT JOIN  WM.pick_locn_hdr on wm.locn_hdr.locn_id = WM.pick_locn_hdr.locn_id 
-LEFT JOIN wm.lpn ON wm.wm_inventory.tc_lpn_id = wm.lpn.tc_lpn_id AND wm.lpn.inbound_outbound_indicator = 'I'
+LEFT JOIN  WM.pick_locn_hdr on wm.locn_hdr.locn_id = WM.pick_locn_hdr.locn_id
+LEFT JOIN wm.lpn ON wm.wm_inventory.tc_lpn_id = wm.lpn.tc_lpn_id --AND wm.lpn.inbound_outbound_indicator = 'I'
 LEFT JOIN wm.locn_hdr prev ON wm.lpn.prev_sub_locn_id = prev.locn_id
 LEFT JOIN wm.locn_hdr dest ON wm.lpn.dest_sub_locn_id = dest.locn_id
-LEFT JOIN wm.lpn_facility_status ON wm.lpn.lpn_facility_status = wm.lpn_facility_status.lpn_facility_status AND wm.lpn_facility_status.inbound_outbound_indicator = 'I'
-
+LEFT JOIN wm.lpn_facility_status ON wm.lpn.lpn_facility_status = wm.lpn_facility_status.lpn_facility_status AND wm.lpn_facility_status.inbound_outbound_indicator = wm.wm_inventory.inbound_outbound_indicator
 WHERE
   --  (WM.lpn_lock.inventory_lock_code NOT IN ('SE', 'SI','ER','RI','ED','DM','RE','DN','RD') OR WM.lpn_lock.inventory_lock_code IS NULL)
 --  AND (wm.resv_locn_hdr.invn_lock_code NOT IN ('SE', 'SI','ER','RI','ED','DM','RE','DN','RD') OR wm.resv_locn_hdr.invn_lock_code IS NULL)
@@ -238,10 +235,10 @@ WHERE
   --  AND wm.wm_inventory.allocatable = 'Y
 --  AND wm.locn_hdr.locn_class = 'R'
 
-AND wm.locn_hdr.dsp_locn = 'ZONE11'
+--AND wm.locn_hdr.dsp_locn = 'ZONE23'
     
     
-  --  AND wm.item_cbo.item_name IN ('104458302')
+    AND wm.item_cbo.item_name IN ('104458302')
  
  Order By
     wm.item_cbo.item_name, 
