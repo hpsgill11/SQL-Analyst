@@ -7,6 +7,23 @@ SELECT
     wm.cl_message.WHEN_CREATED,
     wm.cl_message.SOURCE_ID,
     CASE 
+        WHEN WM.CL_EVENT_MASTER.EVENT_DESC IN ('6182-Custom Tote Divert Message', 'Sortation - Pick Tote, iLPN')
+        THEN REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 3)
+        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content'
+        THEN REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 8)
+        WHEN WM.CL_EVENT_MASTER.EVENT_DESC IN ('EX23_ITEMSTATUS')
+        THEN REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 5)
+        
+
+        ELSE NULL
+    END AS Tote_Number,
+
+    CASE 
+        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content'
+        THEN REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 3)
+        ELSE NULL
+    END AS Wave_Number,
+    CASE 
         WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
         THEN wm.cl_message.DATA
         ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 1)
@@ -105,157 +122,7 @@ SELECT
         WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
         THEN NULL
         ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 20)
-    END AS DATA_PART_20,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 21)
-    END AS DATA_PART_21,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 22)
-    END AS DATA_PART_22,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 23)
-    END AS DATA_PART_23,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 24)
-    END AS DATA_PART_24,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 25)
-    END AS DATA_PART_25,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 26)
-    END AS DATA_PART_26,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 27)
-    END AS DATA_PART_27,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 28)
-    END AS DATA_PART_28,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 29)
-    END AS DATA_PART_29,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 30)
-    END AS DATA_PART_30,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 31)
-    END AS DATA_PART_31,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 32)
-    END AS DATA_PART_32,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 33)
-    END AS DATA_PART_33,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 34)
-    END AS DATA_PART_34,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 35)
-    END AS DATA_PART_35,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 36)
-    END AS DATA_PART_36,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 37)
-    END AS DATA_PART_37,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 38)
-    END AS DATA_PART_38,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 39)
-    END AS DATA_PART_39,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 40)
-    END AS DATA_PART_40,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 41)
-    END AS DATA_PART_41,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 42)
-    END AS DATA_PART_42,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 43)
-    END AS DATA_PART_43,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 44)
-    END AS DATA_PART_44,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 45)
-    END AS DATA_PART_45,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 46)
-    END AS DATA_PART_46,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 47)
-    END AS DATA_PART_47,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 48)
-    END AS DATA_PART_48,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 49)
-    END AS DATA_PART_49,
-    CASE 
-        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content' 
-        THEN NULL
-        ELSE REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 50)
-    END AS DATA_PART_50
+    END AS DATA_PART_20
 FROM 
     wm.cl_message
 LEFT JOIN 
@@ -263,6 +130,7 @@ LEFT JOIN
 ON 
     wm.cl_message.EVENT_ID = WM.CL_EVENT_MASTER.EVENT_ID
 WHERE 
-    wm.cl_message.DATA LIKE '%PWP016%'
+    wm.cl_message.DATA LIKE '%EP2415%'
+  AND WM.CL_EVENT_MASTER.EVENT_desc NOT IN ('SD INDUCTED')
 ORDER BY 
     wm.cl_message.WHEN_CREATED DESC;
