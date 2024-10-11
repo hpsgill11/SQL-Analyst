@@ -1,4 +1,5 @@
 SELECT
+wm.task_dtl.create_date_time,
     wm.task_dtl.task_seq_nbr,
     wm.task_dtl.task_id,
     SysHeader.code_desc AS task_header_status,
@@ -20,6 +21,14 @@ SELECT
     WHEN wm.task_dtl.cntr_nbr IS NULL THEN wm.task_dtl.carton_nbr
     ELSE wm.task_dtl.cntr_nbr
     END AS LPN,
+    
+        CASE
+    WHEN oLPNStatus.description IS NULL THEN LPNStatus.description
+    ELSE oLPNStatus.description
+    END AS LPN_Status,
+    
+ --   oLPNStatus.description,
+  --  LPNStatus.description,
     wm.task_dtl.pikr_nbr AS Zone,
     wm.task_dtl.tote_nbr AS Pick_Cart_Tote_Number,
     wm.task_dtl.slot_nbr AS Slot_Number,
@@ -38,7 +47,7 @@ END AS Order_Type,
 FROM
     wm.task_dtl
     LEFT JOIN wm.task_hdr ON wm.task_dtl.task_id = wm.task_hdr.task_id
-        LEFT JOIN wm.item_cbo ON wm.task_dtl.item_id = wm.item_cbo.item_id
+    LEFT JOIN wm.item_cbo ON wm.task_dtl.item_id = wm.item_cbo.item_id
     LEFT JOIN wm.locn_hdr current_locn ON wm.task_dtl.pull_locn_id = current_locn.locn_id
     LEFT JOIN wm.locn_hdr destination_locn ON wm.task_dtl.pull_locn_id = destination_locn.locn_id
     
@@ -54,8 +63,18 @@ FROM
     LEFT JOIN wm.sys_code SysInv_Type ON wm.task_dtl.invn_type = SysInv_Type.code_id
                              AND SysInv_Type.code_type = '064' and SysInv_Type.misc_flags IS NOT NULL
     LEFT JOIN wm.orders ON wm.task_dtl.tc_order_id = wm.orders.tc_order_id
-                             
-where  wm.task_hdr.task_id = '20040212'
+    LEFT JOIN wm.lpn LPN ON wm.task_dtl.cntr_nbr = LPN.tc_lpn_id   
+    LEFT JOIN wm.lpn oLPN ON wm.task_dtl.carton_nbr = oLPN.tc_lpn_id
+    
+   LEFT JOIN wm.lpn_facility_status oLPNStatus ON oLPN.lpn_facility_status = oLPNStatus.lpn_facility_status
+   AND  oLPNStatus.inbound_outbound_indicator = 'O'
+    
+     LEFT JOIN wm.lpn_facility_status LPNStatus ON LPN.lpn_facility_status = LPNStatus.lpn_facility_status
+   AND  LPNStatus.inbound_outbound_indicator = 'I'
+   -- AND oLPNStatus.lpn_facility_status.inbound_outbound_indicator = OLPN.inbound_outbound_indicator 
+    
+--where  --wm.task_hdr.task_id = '20040212'
+--wm.task_hdr.invn_need_type = '50'
 
 Order By
 wm.task_dtl.task_id,wm.task_dtl.task_seq_nbr
