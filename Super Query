@@ -1,50 +1,52 @@
 SELECT
-wm.task_dtl.create_date_time,
+wm.task_dtl.create_date_time + INTERVAL '3' HOUR AS Create_Date_Time,
     wm.task_dtl.task_seq_nbr,
     wm.task_dtl.task_id,
     SysHeader.code_desc AS task_header_status,
     wm.INT_MASTER.int_desc AS Inventory_Need_Type,
     wm.task_hdr.task_type,
-    SysTaskType.code_desc AS Task_Type_Description,
     wm.task_hdr.task_desc,
+    SysTaskType.code_desc AS Task_Type_Description,
     SysInv_Type.code_desc AS Inv_Type,
-
+wm.task_hdr.user_id,
+wm.task_hdr.pick_to_tote_flag,
+    wm.task_dtl.task_genrtn_ref_nbr,
     current_locn.dsp_locn AS Current_Location,
     destination_locn.dsp_locn AS Destination_Location,
-    wm.task_dtl.task_genrtn_ref_nbr,
      wm.task_dtl.orig_reqmt AS Required_QTY,
     wm.task_dtl.qty_alloc,
     wm.task_dtl.qty_pulld,
     SysDetailHeader.code_desc AS Detail_Header,
-    
+        wm.task_dtl.pikr_nbr AS Zone,
+    wm.locn_hdr.work_grp,
     CASE
     WHEN wm.task_dtl.cntr_nbr IS NULL THEN wm.task_dtl.carton_nbr
     ELSE wm.task_dtl.cntr_nbr
     END AS LPN,
-    
         CASE
     WHEN oLPNStatus.description IS NULL THEN LPNStatus.description
     ELSE oLPNStatus.description
     END AS LPN_Status,
-    
- --   oLPNStatus.description,
-  --  LPNStatus.description,
-    wm.task_dtl.pikr_nbr AS Zone,
-    wm.locn_hdr.work_grp,
+     OLPN.TRACKING_NBR,
+    OLPN.TC_parent_LPN_id as Pallet_ID,
+    OLPN.TC_shipment_id as Shipment_ID,
     wm.task_dtl.tote_nbr AS Pick_Cart_Tote_Number,
     wm.task_dtl.slot_nbr AS Slot_Number,
     wm.task_dtl.misc_alpha_field_2,
     wm.item_cbo.item_name,
-            wm.task_dtl.cntry_of_orgn,
+    wm.task_dtl.cntry_of_orgn AS Item_COO,  
     wm.item_cbo.description AS Item_Description,
-        wm.item_cbo.product_class_id,
+    wm.item_cbo.product_class_id,
     wm.item_cbo.unit_weight,
     wm.task_dtl.tc_order_id,
+    WM.ORDERS.ORDER_TYPE,
     CASE 
         WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
-    ELSE 'Multi'
-END AS Order_Type,
-    wm.orders.lane_name
+        WHEN wm.orders.TOTAL_NBR_OF_UNITS > 1 THEN 'Multi'
+    ELSE NULL
+END AS Order_Type_CLASS,
+    wm.orders.lane_name,
+    wm.lpn.ship_via AS LPN_ShipVia
 FROM
     wm.task_dtl
     LEFT JOIN wm.task_hdr ON wm.task_dtl.task_id = wm.task_hdr.task_id
@@ -52,31 +54,39 @@ FROM
     LEFT JOIN wm.locn_hdr ON wm.task_dtl.pull_locn_id = wm.locn_hdr.locn_id
     LEFT JOIN wm.locn_hdr current_locn ON wm.task_dtl.pull_locn_id = current_locn.locn_id
     LEFT JOIN wm.locn_hdr destination_locn ON wm.task_dtl.pull_locn_id = destination_locn.locn_id
-    
+
     LEFT JOIN wm.sys_code SysHeader ON wm.task_hdr.stat_code = SysHeader.code_id
                              AND SysHeader.code_type = '552'
     LEFT JOIN  wm.INT_MASTER ON wm.task_dtl.invn_need_type = wm.INT_MASTER.invn_need_type and  wm.INT_MASTER.WHSE = 'TOR'
-    
+
     LEFT JOIN wm.sys_code SysTaskType ON wm.task_hdr.task_type = SysTaskType.code_id
                              AND SysTaskType.code_type = '590'
     LEFT JOIN wm.sys_code SysDetailHeader ON wm.task_dtl.stat_code = SysDetailHeader.code_id
                              AND SysDetailHeader.code_type = '553'
-                             
+
     LEFT JOIN wm.sys_code SysInv_Type ON wm.task_dtl.invn_type = SysInv_Type.code_id
                              AND SysInv_Type.code_type = '064' and SysInv_Type.misc_flags IS NOT NULL
     LEFT JOIN wm.orders ON wm.task_dtl.tc_order_id = wm.orders.tc_order_id
     LEFT JOIN wm.lpn LPN ON wm.task_dtl.cntr_nbr = LPN.tc_lpn_id   
     LEFT JOIN wm.lpn oLPN ON wm.task_dtl.carton_nbr = oLPN.tc_lpn_id
-    
-   LEFT JOIN wm.lpn_facility_status oLPNStatus ON oLPN.lpn_facility_status = oLPNStatus.lpn_facility_status
-   AND  oLPNStatus.inbound_outbound_indicator = 'O'
-    
-     LEFT JOIN wm.lpn_facility_status LPNStatus ON LPN.lpn_facility_status = LPNStatus.lpn_facility_status
-   AND  LPNStatus.inbound_outbound_indicator = 'I'
-   -- AND oLPNStatus.lpn_facility_status.inbound_outbound_indicator = OLPN.inbound_outbound_indicator 
-    
-where  wm.task_hdr.task_id = '20040212'
---wm.task_hdr.invn_need_type = '50'
+    LEFT JOIN wm.lpn_facility_status oLPNStatus ON oLPN.lpn_facility_status = oLPNStatus.lpn_facility_status
+                            AND  oLPNStatus.inbound_outbound_indicator = 'O'
+
+    LEFT JOIN wm.lpn_facility_status LPNStatus ON LPN.lpn_facility_status = LPNStatus.lpn_facility_status
+                            AND  LPNStatus.inbound_outbound_indicator = 'I'
+
+--where-- wm.task_hdr.task_id = '20044342'
+
+--wm.orders.tc_order_id IN ('501244425', '503708428', '503708503')
+--oLPNStatus.description = 'Packed'
+--olpn.tc_lpn_id = '00000999990759765556'
+   -- wm.task_hdr.task_type = '14'--
+     --SysTaskType.code_desc = 'Ecom Tote Multi'
+--wm.task_hdr.stat_code = 30
+--and wm.orders.order_type = 'SPECIAL'
+--wm.task_hdr.invn_need_type = '1'
+--wm.task_hdr.STAT_CODE = 30 AND wm.task_dtl.misc_alpha_field_2 IS NULL 
+--AND wm.task_hdr.pick_to_tote_flag = 'Y'
 
 Order By
-wm.task_dtl.task_id,wm.task_dtl.task_seq_nbr
+wm.task_dtl.create_date_time DESC,wm.task_dtl.task_id,wm.task_dtl.task_seq_nbr
