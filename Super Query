@@ -4,7 +4,7 @@ SELECT
     SysHeader.code_desc AS task_header_status,
     wm.INT_MASTER.int_desc AS Inventory_Need_Type,
     wm.task_hdr.task_type,
-    SysTaskType.code_desc AS Task_Type,
+    SysTaskType.code_desc AS Task_Type_Description,
     SysInv_Type.code_desc AS Inv_Type,
 
     current_locn.dsp_locn AS Current_Location,
@@ -54,7 +54,7 @@ FROM
                              AND SysInv_Type.code_type = '064' and SysInv_Type.misc_flags IS NOT NULL
     LEFT JOIN wm.orders ON wm.task_dtl.tc_order_id = wm.orders.tc_order_id
                              
---where  wm.task_hdr.task_id = '20036166'
+where  wm.task_hdr.task_id = '20036166'
 
 Order By
 wm.task_dtl.task_id,wm.task_dtl.task_seq_nbr
