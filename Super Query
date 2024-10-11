@@ -30,6 +30,7 @@ wm.task_dtl.create_date_time,
  --   oLPNStatus.description,
   --  LPNStatus.description,
     wm.task_dtl.pikr_nbr AS Zone,
+    wm.locn_hdr.work_grp,
     wm.task_dtl.tote_nbr AS Pick_Cart_Tote_Number,
     wm.task_dtl.slot_nbr AS Slot_Number,
     wm.task_dtl.misc_alpha_field_2,
@@ -48,6 +49,7 @@ FROM
     wm.task_dtl
     LEFT JOIN wm.task_hdr ON wm.task_dtl.task_id = wm.task_hdr.task_id
     LEFT JOIN wm.item_cbo ON wm.task_dtl.item_id = wm.item_cbo.item_id
+    LEFT JOIN wm.locn_hdr ON wm.task_dtl.pull_locn_id = wm.locn_hdr.locn_id
     LEFT JOIN wm.locn_hdr current_locn ON wm.task_dtl.pull_locn_id = current_locn.locn_id
     LEFT JOIN wm.locn_hdr destination_locn ON wm.task_dtl.pull_locn_id = destination_locn.locn_id
     
@@ -73,7 +75,7 @@ FROM
    AND  LPNStatus.inbound_outbound_indicator = 'I'
    -- AND oLPNStatus.lpn_facility_status.inbound_outbound_indicator = OLPN.inbound_outbound_indicator 
     
---where  --wm.task_hdr.task_id = '20040212'
+where  wm.task_hdr.task_id = '20040212'
 --wm.task_hdr.invn_need_type = '50'
 
 Order By
