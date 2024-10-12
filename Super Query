@@ -1,5 +1,6 @@
 SELECT
 wm.task_dtl.create_date_time + INTERVAL '3' HOUR AS Create_Date_Time,
+wm.task_dtl.alloc_invn_dtl_id,
     wm.task_dtl.task_seq_nbr,
     wm.task_dtl.task_id,
     SysHeader.code_desc AS task_header_status,
@@ -16,6 +17,7 @@ wm.task_hdr.pick_to_tote_flag,
      wm.task_dtl.orig_reqmt AS Required_QTY,
     wm.task_dtl.qty_alloc,
     wm.task_dtl.qty_pulld,
+    wm.task_dtl.stat_code,
     SysDetailHeader.code_desc AS Detail_Header,
         wm.task_dtl.pikr_nbr AS Zone,
     wm.locn_hdr.work_grp,
@@ -74,12 +76,13 @@ FROM
 
     LEFT JOIN wm.lpn_facility_status LPNStatus ON LPN.lpn_facility_status = LPNStatus.lpn_facility_status
                             AND  LPNStatus.inbound_outbound_indicator = 'I'
-
---where-- wm.task_hdr.task_id = '20044342'
+where --wm.task_hdr.task_id = '20045913'
+--wm.task_dtl.misc_alpha_field_2 = 'EP0002'
 
 --wm.orders.tc_order_id IN ('501244425', '503708428', '503708503')
 --oLPNStatus.description = 'Packed'
---olpn.tc_lpn_id = '00000999990759765556'
+--olpn.tc_lpn_id = '00000999990760214739'
+wm.orders.tc_order_id = 'c172856453673346_202410101145102431327638'
    -- wm.task_hdr.task_type = '14'--
      --SysTaskType.code_desc = 'Ecom Tote Multi'
 --wm.task_hdr.stat_code = 30
@@ -89,4 +92,4 @@ FROM
 --AND wm.task_hdr.pick_to_tote_flag = 'Y'
 
 Order By
-wm.task_dtl.create_date_time DESC,wm.task_dtl.task_id,wm.task_dtl.task_seq_nbr
+wm.task_dtl.alloc_invn_dtl_id,wm.task_dtl.task_id,wm.task_dtl.task_seq_nbr
