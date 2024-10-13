@@ -24,6 +24,11 @@ wm.task_hdr.pick_to_tote_flag,
     WHEN wm.task_dtl.cntr_nbr IS NULL THEN wm.task_dtl.carton_nbr
     ELSE wm.task_dtl.cntr_nbr
     END AS LPN,
+    oLPN.tc_reference_lpn_id,
+    CASE
+    WHEN oLPN.tc_reference_lpn_id IS NULL THEN LPN.tc_reference_lpn_id
+    ELSE oLPN.tc_reference_lpn_id
+    END AS Reference_LPN,
         CASE
     WHEN oLPNStatus.description IS NULL THEN LPNStatus.description
     ELSE oLPNStatus.description
@@ -80,8 +85,9 @@ where --wm.task_hdr.task_id = '20045913'
 
 --wm.orders.tc_order_id IN ('501244425', '503708428', '503708503')
 --oLPNStatus.description = 'Packed'
---olpn.tc_lpn_id = '00000999990760214739'
-wm.orders.tc_order_id = 'c172856453673346_202410101145102431327638'
+olpn.tc_lpn_id = '00000999990760145569'
+--LPN.TC_parent_LPN_id = 'PM1703732'
+--wm.orders.tc_order_id = 'c172856453673346_202410101145102431327638'
    -- wm.task_hdr.task_type = '14'--
      --SysTaskType.code_desc = 'Ecom Tote Multi'
 --wm.task_hdr.stat_code = 30
