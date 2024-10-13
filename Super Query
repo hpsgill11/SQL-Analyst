@@ -12,6 +12,7 @@ wm.task_dtl.alloc_invn_dtl_id,
 wm.task_hdr.user_id,
 wm.task_hdr.pick_to_tote_flag,
     wm.task_dtl.task_genrtn_ref_nbr,
+    wm.wave_parm.wave_desc,
     current_locn.dsp_locn AS Current_Location,
     destination_locn.dsp_locn AS Destination_Location,
      wm.task_dtl.orig_reqmt AS Required_QTY,
@@ -80,17 +81,19 @@ FROM
 
     LEFT JOIN wm.lpn_facility_status LPNStatus ON LPN.lpn_facility_status = LPNStatus.lpn_facility_status
                             AND  LPNStatus.inbound_outbound_indicator = 'I'
+    LEFT JOIN wm.wave_parm ON    wm.task_dtl.task_genrtn_ref_nbr =  wm.wave_parm.wave_nbr
 where --wm.task_hdr.task_id = '20045913'
 --wm.task_dtl.misc_alpha_field_2 = 'EP0002'
 
 --wm.orders.tc_order_id IN ('501244425', '503708428', '503708503')
 --oLPNStatus.description = 'Packed'
-olpn.tc_lpn_id = '00000999990760145569'
+--olpn.tc_lpn_id = '00000999990760145569'
+ wm.task_dtl.task_genrtn_ref_nbr IN ('202410110297','202410120056','202410120097','202410120169','202410120181','202410120274')
 --LPN.TC_parent_LPN_id = 'PM1703732'
 --wm.orders.tc_order_id = 'c172856453673346_202410101145102431327638'
    -- wm.task_hdr.task_type = '14'--
      --SysTaskType.code_desc = 'Ecom Tote Multi'
---wm.task_hdr.stat_code = 30
+AND wm.task_hdr.stat_code = 10
 --and wm.orders.order_type = 'SPECIAL'
 --wm.task_hdr.invn_need_type = '1'
 --wm.task_hdr.STAT_CODE = 30 AND wm.task_dtl.misc_alpha_field_2 IS NULL 
