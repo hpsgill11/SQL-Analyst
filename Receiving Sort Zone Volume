@@ -1,0 +1,4 @@
+select *  from wm.resv_locn_hdr 
+join wm.locn_hdr ON wm.resv_locn_hdr.locn_id = wm.locn_hdr.locn_id
+
+where wm.locn_hdr.locn_id in((select locn_id from wm.locn_hdr where dsp_locn like 'PZ1%'));
