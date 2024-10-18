@@ -1,96 +1,30 @@
-SELECT sp.ship_wave_nbr,
-       sp.wave_desc,
-       sp."User Wave Desc",
-       CASE
-           WHEN UPPER(sp.wave_desc) LIKE '%TRANSFER%' THEN 'Transfer'
-           WHEN UPPER(sp.wave_desc) LIKE '%XFER%' THEN 'Transfer'
-           WHEN UPPER(sp.wave_desc) LIKE '%CPP%' THEN 'CPP'
-           WHEN UPPER(sp.wave_desc) LIKE '%RETAIL%' THEN 'Retail'
-           WHEN UPPER(sp.wave_desc) LIKE '%REPLEN%' THEN 'Retail'
-           WHEN UPPER(sp.wave_desc) LIKE '%ALLOC%' THEN 'Retail'
-           WHEN UPPER(sp.wave_desc) LIKE '%STRAT%' THEN 'Strat'
-           WHEN UPPER(sp.wave_desc) LIKE '%E-COM%' THEN 'Ecom'
-           WHEN UPPER(sp.wave_desc) LIKE '%ECOM%' THEN 'Ecom'
-           ELSE 'Other'
-       END AS "Wave Type",
-       sp.user_id,
-       sp.create_date_time,
-       sp.wave_status,
-       sp.nbr_ld_tasks,
-       sp.nbr_ld_detail,
-       sp.nbr_fp_tasks,
-       sp.nbr_fp_detail,
-       sp.nbr_pick_tasks,
-       NVL(oli.orders, 0) AS nbr_of_orders,
-       NVL(oli.order_lines, 0) AS order_lines,
-       NVL(oli.alloc_units, 0) AS alloc_units,
-       NVL(oli.units_required, 0) AS units_required,
-       NVL(oli.units_required, 0) - NVL(oli.alloc_units, 0) AS fallout,
-       NVL(l.olpns, 0) AS nbr_of_olpns
-FROM (
-    SELECT ship_wave_nbr,
-           wave_desc,
-           "User Wave Desc",
-           create_date_time,
-           user_id,
-           wave_status,
-           COUNT(DISTINCT pick_task_id) AS nbr_pick_tasks,
-           COUNT(DISTINCT ld_task_id) AS nbr_ld_tasks,
-           COUNT(DISTINCT ld_detail) AS nbr_ld_detail,
-           COUNT(DISTINCT fp_task_id) AS nbr_fp_tasks,
-           COUNT(DISTINCT fp_detail) AS nbr_fp_detail
-    FROM (
-        SELECT swp.ship_wave_nbr,
-               swp.wave_desc,
-               wp.wave_desc AS "User Wave Desc",
-               (swp.create_date_time + wh.time_zone) AS create_date_time,
-               wq.login_user_id AS user_id,
-               CASE
-                   WHEN td.invn_need_type IN ('50', '55') AND td.stat_code < 99 THEN td.task_id
-               END AS pick_task_id,
-               CASE
-                   WHEN td.invn_need_type IN ('1', '2') AND UPPER(th.task_desc) NOT LIKE '%FULL%' AND UPPER(th.task_desc) NOT LIKE '%FP%' THEN td.task_id
-               END AS ld_task_id,
-               CASE
-                   WHEN td.invn_need_type IN ('1', '2') AND UPPER(th.task_desc) NOT LIKE '%FULL%' AND UPPER(th.task_desc) NOT LIKE '%FP%' THEN td.task_dtl_id
-               END AS ld_detail,
-               CASE
-                   WHEN td.invn_need_type IN ('1', '2') AND (UPPER(th.task_desc) LIKE '%FULL%' OR UPPER(th.task_desc) LIKE '%FP%') THEN td.task_id
-               END AS fp_task_id,
-               CASE
-                   WHEN td.invn_need_type IN ('1', '2') AND (UPPER(th.task_desc) LIKE '%FULL%' OR UPPER(th.task_desc) LIKE '%FP%') THEN td.task_dtl_id
-               END AS fp_detail,
-               DECODE(wp.wave_stat_code, wp.wave_stat_code, (SELECT code_desc
-                                                             FROM wm.sys_code
-                                                             WHERE rec_type = 'S'
-                                                               AND code_type = '595'
-                                                               AND code_id = wp.wave_stat_code)) AS wave_status,
-               th.task_desc,
-               th.task_type || ' - ' || ys.code_desc AS task_type
-        FROM wm.ship_wave_parm swp
-        INNER JOIN wm.wave_parm wp ON swp.wave_parm_id = wp.wave_parm_id
-        INNER JOIN wm.wave_queue wq ON wq.ship_wave_parm_id = swp.ship_wave_parm_id
-        LEFT OUTER JOIN wm.task_dtl td ON swp.ship_wave_nbr = td.task_genrtn_ref_nbr
-        INNER JOIN wm.task_hdr th ON th.task_id = td.task_hdr_id
-        LEFT OUTER JOIN (SELECT sc.code_desc, sc.code_id
-                         FROM wm.sys_code sc
-                         WHERE sc.rec_type = 'S' AND sc.code_type = '590') ys ON ys.code_id = td.task_type,
-                     (SELECT SUM(CASE
-                                     WHEN TRIM(pay_scale) = 'TIME_ZONE' THEN TO_NUMBER(pay_scale_desc) / 24
-                                 END) AS time_zone,
-                             SUM(CASE
-                                     WHEN TRIM(pay_scale) = 'UTC_ADJ' THEN TO_NUMBER(pay_scale_desc) / 24
-                                 END) AS utc_adj,
-                             SUM(CASE
-                                     WHEN TRIM(pay_scale) = 'SHIFT_ADJ' THEN TO_NUMBER(pay_scale_desc) / 24
-                                 END) AS shift_adj
-                      FROM wm.e_pay_scale
-                      WHERE pay_scale IN ('TIME_ZONE', 'SHIFT_ADJ', 'UTC_ADJ')) wh
-        WHERE swp.ship_wave_nbr IS NOT NULL
-    )
-    GROUP BY ship_wave_nbr, wave_desc, "User Wave Desc", create_date_time, user_id, wave_status
-) sp
-LEFT OUTER JOIN (
+SELECT 
+    wm.wave_parm.create_date_time + INTERVAL '3' HOUR AS Time,
+    wm.wave_parm.wave_nbr as Wave_Number,
+    CASE
+    WHEN LOWER(wm.ship_wave_parm.wave_desc) LIKE '%ecom%' THEN 'ECOMM' 
+    ELSE OrderType.order_type
+    END AS Wave_Type,
+    wm.wave_parm.wave_desc,
+    wm.ship_wave_parm.wave_desc AS Wave_Template_desc,
+    COUNT(DISTINCT CASE WHEN wm.task_dtl.invn_need_type IN ('1') THEN wm.task_dtl.task_id END) AS LD_Task,
+    COUNT(DISTINCT CASE WHEN wm.task_dtl.invn_need_type IN ('1') THEN wm.task_dtl.task_dtl_id END) AS LD_Detail,
+    COUNT(DISTINCT CASE WHEN wm.task_dtl.invn_need_type IN ('2') THEN wm.task_dtl.task_id END) AS FP_Task,
+    COUNT(DISTINCT CASE WHEN wm.task_dtl.invn_need_type IN ('2') THEN wm.task_dtl.task_dtl_id END) AS FP_Detail,
+    COUNT(DISTINCT CASE WHEN wm.task_dtl.invn_need_type IN ('50', '55') AND wm.task_dtl.stat_code < 99 THEN wm.task_dtl.task_id END) AS Pick_task,
+    NVL(oli.order_lines, 0) AS order_lines,
+NVL(oli.alloc_units, 0) AS alloc_units,
+NVL(oli.units_required, 0) AS units_required,
+NVL(oli.units_required, 0) - NVL(oli.alloc_units, 0) AS Fallout,
+NVL(l.olpns, 0) AS olpns,
+wm.wave_parm.user_id
+
+--NVL(oli.orders, 0) AS orders,
+FROM wm.wave_parm
+LEFT JOIN wm.ship_wave_parm ON wm.wave_parm.wave_nbr = wm.ship_wave_parm.ship_wave_nbr
+LEFT JOIN wm.task_dtl ON wm.wave_parm.wave_nbr = wm.task_dtl.task_genrtn_ref_nbr
+LEFT JOIN wm.task_hdr ON wm.task_hdr.task_id = wm.task_dtl.task_hdr_id
+LEFT JOIN (
     SELECT DISTINCT oli.ship_wave_nbr,
                     COUNT(DISTINCT oli.order_id) AS orders,
                     SUM(oli.allocated_qty) AS alloc_units,
@@ -98,22 +32,48 @@ LEFT OUTER JOIN (
                     COUNT(DISTINCT oli.line_item_id) AS order_lines
     FROM wm.order_line_item oli
     INNER JOIN wm.orders o ON oli.order_id = o.order_id
-    WHERE do_dtl_status < 200
-      AND ((EXISTS (SELECT parent_order_id
-                    FROM wm.orders
-                    WHERE parent_order_id = oli.order_id)
-             AND NOT EXISTS (SELECT order_id
-                             FROM wm.orders
-                             WHERE tc_order_id LIKE 'c%' AND order_id = oli.order_id))
-           OR o.order_type IN ('ECOMM', 'STRAT', 'COMM'))
+    WHERE o.is_original_order = '1'
+      AND oli.ship_wave_nbr IS NOT NULL
     GROUP BY oli.ship_wave_nbr
-) oli ON sp.ship_wave_nbr = oli.ship_wave_nbr
-LEFT OUTER JOIN (
+    ORDER BY oli.ship_wave_nbr DESC
+) oli ON wm.wave_parm.wave_nbr = oli.ship_wave_nbr
+LEFT JOIN (
     SELECT DISTINCT l.wave_nbr,
                     COUNT(DISTINCT l.tc_lpn_id) AS olpns
     FROM wm.lpn l
     WHERE l.inbound_outbound_indicator = 'O'
-      AND l.lpn_facility_status < 99
     GROUP BY l.wave_nbr
-) l ON sp.ship_wave_nbr = l.wave_nbr
-ORDER BY sp.create_date_time;
+) l ON wm.wave_parm.wave_nbr = l.wave_nbr
+
+LEFT JOIN (    select  DISTINCT WM.LPN.WAVE_NBR, WM.ORDERS.ORDER_TYPE from wm.LPN
+    JOIN WM.ORDERS ON wm.LPN.TC_ORDER_ID = WM.orders.TC_ORDER_ID
+       WHERE WM.LPN.inbound_outbound_indicator = 'O'
+       ORDER BY WAVE_NBR DESC) OrderType ON  wm.wave_parm.wave_nbr = OrderType.wave_nbr
+
+WHERE wm.wave_parm.wave_nbr IS NOT NULL
+AND wm.wave_parm.wave_stat_code != '99'
+GROUP BY 
+    wm.wave_parm.create_date_time,
+    wm.wave_parm.wave_nbr,
+     CASE
+    WHEN LOWER(wm.ship_wave_parm.wave_desc) LIKE '%ecom%' THEN 'ECOMM' 
+    ELSE OrderType.order_type
+    END,
+    wm.wave_parm.wave_desc,
+    wm.ship_wave_parm.wave_desc,
+  --  oli.orders,
+    oli.alloc_units,
+    oli.units_required,
+    oli.order_lines,
+    l.olpns,
+    wm.wave_parm.user_id
+HAVING
+    (
+        COUNT(DISTINCT CASE WHEN wm.task_dtl.invn_need_type IN ('50', '55') AND wm.task_dtl.stat_code < 99 THEN wm.task_dtl.task_id END) 
+        + COUNT(DISTINCT CASE WHEN wm.task_dtl.invn_need_type IN ('1') THEN wm.task_dtl.task_id END)
+        + COUNT(DISTINCT CASE WHEN wm.task_dtl.invn_need_type IN ('1') THEN wm.task_dtl.task_dtl_id END)
+        + COUNT(DISTINCT CASE WHEN wm.task_dtl.invn_need_type IN ('2') THEN wm.task_dtl.task_id END)
+        + COUNT(DISTINCT CASE WHEN wm.task_dtl.invn_need_type IN ('2') THEN wm.task_dtl.task_dtl_id END)
+        + NVL(l.olpns, 0)
+    ) > 0
+ORDER BY wm.wave_parm.create_date_time DESC;
