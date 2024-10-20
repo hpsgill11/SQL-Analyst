@@ -1,0 +1,4 @@
+Select *
+from wm.c_enroute_tran where tc_lpn_id in '00000999990764518628'
+and error_message is not null
+order by created_dttm desc
