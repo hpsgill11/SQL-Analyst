@@ -1,12 +1,12 @@
 SELECT 
     wm.wave_parm.create_date_time + INTERVAL '3' HOUR AS Time,
     wm.wave_parm.wave_nbr as Wave_Number,
-    CASE
-    WHEN LOWER(wm.ship_wave_parm.wave_desc) LIKE '%ecom%' THEN 'ECOMM' 
+CASE
+    WHEN wm.ship_wave_parm.wave_desc IN ('PT Lulu Ecom Letdowns','MIL E INVN Ecom LETDOWNS') THEN 'ECOMM'
     ELSE OrderType.order_type
     END AS Wave_Type,
     wm.wave_parm.wave_desc,
-    wm.ship_wave_parm.wave_desc AS Wave_Template_desc,
+  --  wm.ship_wave_parm.wave_desc AS Wave_Template_desc,
     COUNT(DISTINCT CASE WHEN wm.task_dtl.invn_need_type IN ('1') THEN wm.task_dtl.task_id END) AS LD_Task,
     COUNT(DISTINCT CASE WHEN wm.task_dtl.invn_need_type IN ('1') THEN wm.task_dtl.task_dtl_id END) AS LD_Detail,
     COUNT(DISTINCT CASE WHEN wm.task_dtl.invn_need_type IN ('2') THEN wm.task_dtl.task_id END) AS FP_Task,
@@ -52,15 +52,21 @@ LEFT JOIN (    select  DISTINCT WM.LPN.WAVE_NBR, WM.ORDERS.ORDER_TYPE from wm.LP
 
 WHERE wm.wave_parm.wave_nbr IS NOT NULL
 AND wm.wave_parm.wave_stat_code != '99'
+
+
+--and cast(wm.wave_parm.create_date_time + INTERVAL '3' HOUR as timestamp) >= cast(to_date(substr(#Prompt('pStartDateTime')#,0,19),'YYYY-MM-DD"T"HH24:mi:ss') as timestamp)
+--and cast(wm.wave_parm.create_date_time + INTERVAL '3' HOUR as timestamp) <= cast(to_date(substr(#Prompt('pEndDateTime')#,0,19),'YYYY-MM-DD"T"HH24:mi:ss') as timestamp)
+
+
 GROUP BY 
     wm.wave_parm.create_date_time,
     wm.wave_parm.wave_nbr,
-     CASE
-    WHEN LOWER(wm.ship_wave_parm.wave_desc) LIKE '%ecom%' THEN 'ECOMM' 
+CASE
+    WHEN wm.ship_wave_parm.wave_desc IN ('PT Lulu Ecom Letdowns','MIL E INVN Ecom LETDOWNS') THEN 'ECOMM'
     ELSE OrderType.order_type
-    END,
+END,
     wm.wave_parm.wave_desc,
-    wm.ship_wave_parm.wave_desc,
+  --  wm.ship_wave_parm.wave_desc,
   --  oli.orders,
     oli.alloc_units,
     oli.units_required,
@@ -76,4 +82,4 @@ HAVING
         + COUNT(DISTINCT CASE WHEN wm.task_dtl.invn_need_type IN ('2') THEN wm.task_dtl.task_dtl_id END)
         + NVL(l.olpns, 0)
     ) > 0
-ORDER BY wm.wave_parm.create_date_time DESC;
+ORDER BY wm.wave_parm.create_date_time
