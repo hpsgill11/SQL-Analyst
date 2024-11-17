@@ -1,0 +1,45 @@
+SELECT * 
+FROM (
+    WITH TASK_GRP_GROUPING AS (
+        SELECT DISTINCT 
+            A.task_type AS task_type_code,
+            A.task_grp AS task_grp_code,
+            B.CODE_DESC AS TASK_GROUP_DESCRIPTION,
+            A.INVN_NEED_TYPE AS INVENTORY_NEED_TYPE
+        FROM 
+            wm.TASK_GRP_ELGBLTY A, 
+            wm.SYS_CODE B 
+        WHERE 
+            B.code_type = '337' 
+            AND A.task_grp = B.CODE_ID 
+            AND A.task_type <> '*'
+        ORDER BY 
+            A.INVN_NEED_TYPE, A.TASK_TYPE
+    ),
+    TASK_TYPE_GROUPING AS (
+        SELECT DISTINCT 
+            A.TASK_TYPE AS TASK_TYPE_CODE,
+            B.CODE_DESC AS task_type_description
+        FROM 
+            wm.TASK_GRP_ELGBLTY A, 
+            wm.sys_code B 
+        WHERE 
+            B.code_type = '590' 
+            AND A.TASK_TYPE = B.CODE_ID
+        ORDER BY 
+            A.task_type
+    )
+    SELECT 
+        C.task_grp_code,
+        C.TASK_GROUP_DESCRIPTION,
+        D.TASK_TYPE_CODE,
+        D.task_type_description,
+        C.INVENTORY_NEED_TYPE
+    FROM 
+        wm.TASK_GRP_GROUPING C, 
+        wm.TASK_TYPE_GROUPING D 
+    WHERE 
+        C.task_type_code = D.TASK_TYPE_CODE
+    ORDER BY 
+        C.INVENTORY_NEED_TYPE, C.task_grp_code
+)
