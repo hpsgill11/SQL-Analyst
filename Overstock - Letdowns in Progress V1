@@ -1,0 +1,100 @@
+SELECT
+    CASE
+        WHEN SUBSTR(destination_locn.dsp_locn, 1, 3) IN ('AS1', 'AS2', 'AS3', 'PA1', 'PA2', 'PA3') THEN 'Mississauga'
+        ELSE 'Milton'
+    END AS Facility,
+TO_CHAR(wm.wave_parm.create_date_time + INTERVAL '3' HOUR, 'DD-Mon HH:MI AM') AS Create_Date_Time,
+to_char(wm.wave_parm.create_date_time + INTERVAL '3' HOUR, 'HH24') as Hour,
+    wm.task_dtl.task_id,
+    SysHeader.code_desc AS task_header_status,
+    wm.task_hdr.task_type,
+    wm.task_hdr.task_desc,
+    SysTaskType.code_desc AS Task_Type_Description,
+    SysInv_Type.code_desc AS Inv_Type,
+wm.task_hdr.user_id,
+wm.wave_parm.wave_desc,
+    wm.task_dtl.task_genrtn_ref_nbr,
+    current_locn_lpn.dsp_locn as LPN_Current_Location,
+    current_locn.dsp_locn AS Current_Location,
+    destination_locn.dsp_locn AS Destination_Location,
+     SUBSTR(destination_locn.dsp_locn, 1, 3) AS Floor,
+CASE
+    WHEN SUBSTR(destination_locn.dsp_locn, 1, 3) IN ('AS1', 'AS2', 'AS3', 'PA1', 'PA2', 'PA3') THEN
+        CONCAT(
+            SUBSTR(destination_locn.dsp_locn, 3, 1),
+            CASE
+                WHEN TO_NUMBER(SUBSTR(destination_locn.dsp_locn, 8, 2)) <= 20 THEN '1'
+                ELSE '3'
+            END
+        )
+    ELSE NULL
+END AS Zone,
+CASE
+    WHEN SUBSTR(current_locn_lpn.dsp_locn, 1, 4) IN ('ZONE') THEN 'Inducted'
+    WHEN SUBSTR(current_locn_lpn.dsp_locn, 1, 3) IN ('APT') THEN 'Drop Zone'
+    WHEN SUBSTR(current_locn_lpn.dsp_locn, 1, 3) IN ('AS5') THEN 'Drop Zone'
+    WHEN LPNStatus.description IN ('Allocated','In Active Storage') THEN 'Pending Pull'
+    WHEN LPNStatus.description = 'Allocated and Pulled' THEN 'Pull Complete'
+    else 'Not Inducted'
+    end as Induct_Status,
+     wm.task_dtl.orig_reqmt AS Required_QTY,
+    wm.task_dtl.qty_alloc,
+    wm.task_dtl.qty_pulld,
+    SysDetailHeader.code_desc AS Detail_Header,
+  --  wm.locn_hdr.work_grp,
+    CASE
+    WHEN wm.task_dtl.cntr_nbr IS NULL THEN wm.task_dtl.carton_nbr
+    ELSE wm.task_dtl.cntr_nbr
+    END AS LPN,
+        CASE
+    WHEN oLPNStatus.description IS NULL THEN LPNStatus.description
+    ELSE oLPNStatus.description
+    END AS LPN_Status
+FROM
+    wm.task_dtl
+    LEFT JOIN wm.task_hdr ON wm.task_dtl.task_id = wm.task_hdr.task_id
+    LEFT JOIN wm.item_cbo ON wm.task_dtl.item_id = wm.item_cbo.item_id
+    LEFT JOIN wm.locn_hdr ON wm.task_dtl.pull_locn_id = wm.locn_hdr.locn_id
+    LEFT JOIN wm.locn_hdr current_locn ON wm.task_dtl.pull_locn_id = current_locn.locn_id
+    LEFT JOIN wm.locn_hdr destination_locn ON wm.task_dtl.dest_locn_id = destination_locn.locn_id
+    LEFT JOIN wm.sys_code SysHeader ON wm.task_hdr.stat_code = SysHeader.code_id
+                             AND SysHeader.code_type = '552'
+    LEFT JOIN  wm.INT_MASTER ON wm.task_dtl.invn_need_type = wm.INT_MASTER.invn_need_type and  wm.INT_MASTER.WHSE = 'TOR'
+    LEFT JOIN wm.sys_code SysTaskType ON wm.task_hdr.task_type = SysTaskType.code_id
+                             AND SysTaskType.code_type = '590'
+    LEFT JOIN wm.sys_code SysDetailHeader ON wm.task_dtl.stat_code = SysDetailHeader.code_id
+                             AND SysDetailHeader.code_type = '553'
+    LEFT JOIN wm.sys_code SysInv_Type ON wm.task_dtl.invn_type = SysInv_Type.code_id
+                             AND SysInv_Type.code_type = '064' and SysInv_Type.misc_flags IS NOT NULL
+    LEFT JOIN wm.orders ON wm.task_dtl.tc_order_id = wm.orders.tc_order_id
+    LEFT JOIN wm.lpn LPN ON wm.task_dtl.cntr_nbr = LPN.tc_lpn_id   
+    LEFT JOIN wm.lpn oLPN ON wm.task_dtl.carton_nbr = oLPN.tc_lpn_id
+    LEFT JOIN wm.lpn_facility_status oLPNStatus ON oLPN.lpn_facility_status = oLPNStatus.lpn_facility_status
+                            AND  oLPNStatus.inbound_outbound_indicator = 'O'
+    LEFT JOIN wm.lpn_facility_status LPNStatus ON LPN.lpn_facility_status = LPNStatus.lpn_facility_status
+                            AND  LPNStatus.inbound_outbound_indicator = 'I'
+    LEFT JOIN wm.wave_parm ON wm.wave_parm.wave_nbr = wm.task_dtl.task_genrtn_ref_nbr
+    LEFT JOIN wm.locn_hdr current_locn_lpn ON wm.lpn.curr_sub_locn_id = current_locn_lpn.locn_id
+where --wm.task_hdr.task_id = '20082185'
+--wm.task_dtl.misc_alpha_field_2 = 'EP0002'
+--wm.orders.tc_order_id IN ('501244425', '503708428', '503708503')
+--oLPNStatus.description = 'Packed'
+--olpn.tc_lpn_id = '00000999990760442279'
+--wm.task_hdr.task_desc = 'Pick Tower Letdown'
+wm.task_dtl.invn_need_type = '1'
+and  wm.task_hdr.stat_code < 90
+and wm.task_dtl.stat_code not in ('90','99')
+and LPNStatus.lpn_facility_status != '90'
+--LPN.TC_parent_LPN_id = 'PM1703732'
+--and SUBSTR(destination_locn.dsp_locn, 1, 3) IN ('AS1', 'AS2', 'AS3', 'PA1', 'PA2', 'PA3')
+--wm.task_dtl.task_genrtn_ref_nbr = 'CART8004'
+--wm.orders.tc_order_id = 'c172856453673346_202410101145102431327638'
+   -- wm.task_hdr.task_type = '14'--
+     --SysTaskType.code_desc = 'Ecom Tote Multi'
+--wm.task_hdr.stat_code < 31
+--and wm.orders.order_type = 'SPECIAL'
+--wm.task_hdr.invn_need_type = '1'
+--wm.task_hdr.STAT_CODE = 30 AND wm.task_dtl.misc_alpha_field_2 IS NULL 
+--AND wm.task_hdr.pick_to_tote_flag = 'Y'
+Order By
+wm.task_dtl.task_id
