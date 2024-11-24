@@ -60,7 +60,7 @@ FROM
     LEFT JOIN wm.item_cbo ON wm.task_dtl.item_id = wm.item_cbo.item_id
     LEFT JOIN wm.locn_hdr ON wm.task_dtl.pull_locn_id = wm.locn_hdr.locn_id
     LEFT JOIN wm.locn_hdr current_locn ON wm.task_dtl.pull_locn_id = current_locn.locn_id
-    LEFT JOIN wm.locn_hdr destination_locn ON wm.task_dtl.pull_locn_id = destination_locn.locn_id
+    LEFT JOIN wm.locn_hdr destination_locn ON wm.task_dtl.dest_locn_id = destination_locn.locn_id
 
     LEFT JOIN wm.sys_code SysHeader ON wm.task_hdr.stat_code = SysHeader.code_id
                              AND SysHeader.code_type = '552'
@@ -88,7 +88,7 @@ where --wm.task_hdr.task_id = '20045913'
 --wm.orders.tc_order_id IN ('501244425', '503708428', '503708503')
 --oLPNStatus.description = 'Packed'
 --olpn.tc_lpn_id = '00000999990760145569'
- wm.task_dtl.task_genrtn_ref_nbr IN ('202410110297','202410120056','202410120097','202410120169','202410120181','202410120274')
+-- wm.task_dtl.task_genrtn_ref_nbr IN ('202410110297','202410120056','202410120097','202410120169','202410120181','202410120274')
 --LPN.TC_parent_LPN_id = 'PM1703732'
 --wm.orders.tc_order_id = 'c172856453673346_202410101145102431327638'
    -- wm.task_hdr.task_type = '14'--
