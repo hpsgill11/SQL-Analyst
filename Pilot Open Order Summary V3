@@ -1,0 +1,221 @@
+SELECT
+CASE 
+        WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Milton'
+        WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp = 'GIFT' THEN 'Mississauga'
+        WHEN wm.order_line_item.invn_type = 'R' AND wm.locn_hdr.work_grp IS NULL THEN 'Milton'
+        WHEN wm.order_line_item.invn_type = 'E' AND wm.locn_hdr.work_grp IS NULL THEN 'Mississauga'
+        WHEN wm.locn_hdr.work_grp = 'SHLF' THEN 'Mississauga'
+        WHEN wm.locn_hdr.work_grp IN ('MFLW', 'MRPH', 'MACT', 'MRAK')  THEN 'Milton'
+        ELSE wm.locn_hdr.work_grp
+END AS Facility,
+    wm.orders.created_dttm + INTERVAL '3' HOUR AS Order_Create_Date_EST,
+    wm.orders.tc_order_id,
+    wm.order_line_item.tc_order_line_id as DO_Line_Number,
+CASE 
+        WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
+    ELSE 'Multi'
+END AS Order_Type,
+    wm.orders.RTE_TYPE_1 AS LANE_NAME,
+    wm.orders.REF_FIELD_1,
+    wm.orders.d_name as Customer_Name,
+    wm.orders.bill_to_email AS Email,
+    wm.orders.do_status || ' - ' ||  wm.do_status.description AS Order_Status,
+CASE 
+        WHEN wm.order_line_item.DO_DTL_STATUS = 112 THEN 'Special Processing Pending'
+        WHEN wm.order_line_item.DO_DTL_STATUS = 100 THEN 'Draft'
+        WHEN wm.order_line_item.DO_DTL_STATUS = 105 THEN 'Pre-Released'
+        WHEN wm.order_line_item.DO_DTL_STATUS = 110 THEN 'Released'
+        WHEN wm.order_line_item.DO_DTL_STATUS = 115 THEN 'Selected for Preview Wave'
+        WHEN wm.order_line_item.DO_DTL_STATUS = 120 THEN 'Partially DC Allocated'
+        WHEN wm.order_line_item.DO_DTL_STATUS = 130 THEN 'DC Allocated'
+        WHEN wm.order_line_item.DO_DTL_STATUS = 140 THEN 'In Packing'
+        WHEN wm.order_line_item.DO_DTL_STATUS = 150 THEN 'Packed'
+        WHEN wm.order_line_item.DO_DTL_STATUS = 160 THEN 'Weighed'
+        WHEN wm.order_line_item.DO_DTL_STATUS = 170 THEN 'Manifested'
+        WHEN wm.order_line_item.DO_DTL_STATUS = 180 THEN 'Loaded'
+        WHEN wm.order_line_item.DO_DTL_STATUS = 190 THEN 'Shipped'
+        WHEN wm.order_line_item.DO_DTL_STATUS = 200 THEN 'Cancelled'
+        WHEN wm.order_line_item.DO_DTL_STATUS = 185 THEN 'Partially Shipped'
+        WHEN wm.order_line_item.DO_DTL_STATUS = 165 THEN 'Staged'
+        WHEN wm.order_line_item.DO_DTL_STATUS = 195 THEN 'Delivered'
+        ELSE 'Unknown'
+END AS Order_Line_Status,
+    wm.order_line_item.invn_type as Order_Line_Inv_Type,
+CASE 
+        WHEN wm.order_line_item.DO_DTL_STATUS = '100' THEN 'Waiting to be Waved'
+        WHEN wm.order_line_item.DO_DTL_STATUS = '110' THEN 'Waiting to be Waved'
+        WHEN wm.task_hdr.STAT_CODE = 5 AND wm.lpn.lpn_facility_status = '10' THEN 'Pending FA'
+        WHEN wm.task_hdr.STAT_CODE = 10 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NULL THEN 'Ready To Carton Start'
+        WHEN wm.task_hdr.STAT_CODE = 10 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NOT NULL THEN 'Carton Started'
+        WHEN wm.task_hdr.STAT_CODE = 30 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NOT NULL THEN 'Picking In Progress'
+        WHEN wm.task_hdr.STAT_CODE = 30 AND wm.lpn.lpn_facility_status = '10' AND wm.task_dtl.MISC_ALPHA_FIELD_2 IS NULL THEN 'Task Issue - Investigate'
+        WHEN wm.task_hdr.STAT_CODE = 99 AND wm.lpn.lpn_facility_status = '10' THEN 'Pending Packs'
+   --     WHEN wm.lpn.lpn_facility_status = '12' THEN 'Released'
+   --     WHEN wm.lpn.lpn_facility_status = '15' THEN 'In Packing'
+   --     WHEN wm.lpn.lpn_facility_status = '20' THEN 'Packed'
+   --     WHEN wm.lpn.lpn_facility_status = '30' THEN 'Weighed'
+   --     WHEN wm.lpn.lpn_facility_status = '30' THEN 'Manifested'
+   --     WHEN wm.lpn.lpn_facility_status = '50' THEN 'Loaded on truck'
+   --     WHEN wm.lpn.lpn_facility_status = '89' THEN 'Completed VAS'
+   --     WHEN wm.lpn.lpn_facility_status = '90' THEN 'Shipped'
+   --     WHEN wm.lpn.lpn_facility_status = '99' THEN 'Shorted'
+END AS Pick_and_Pack_Status,
+    wm.alloc_invn_dtl.task_genrtn_ref_nbr AS Wave_Number,
+    wm.wave_parm.wave_desc,
+  --  CASE
+  --  WHEN wm.wave_parm.chase_wave = '1' THEN 'Yes'
+  --  ELSE 'No'
+  --  END as Chase_Wave_Flag,
+    wm.order_line_item.item_name,
+    wm.orders.total_nbr_of_units as DO_Quantity,
+    wm.order_line_item.order_qty as DO_Line_Quantity,
+    wm.order_line_item.ALLOCATED_QTY,
+    task_dtl.qty_alloc AS Task_qty_allocated,
+    wm.lpn.total_LPN_QTY as oLPN_Quantity,
+    wm.alloc_invn_dtl.task_cmpl_ref_nbr as oLPN,
+    lpn_facility_status.description AS oLPN_Status,
+    lpn.ship_via,
+    locn_lpn.dsp_locn as oLPN_Current_Location,
+CASE
+        WHEN COUNT(CASE 
+                    WHEN locn_lpn.dsp_locn LIKE 'HS%' OR locn_lpn.dsp_locn LIKE 'HM%' OR locn_lpn.dsp_locn = 'SH-P -L-26' OR locn_lpn.dsp_locn = 'SHP-S2-28' OR wm.prod_trkg_tran.ref_field_2 IS NOT NULL THEN 1
+                 END) 
+             OVER (PARTITION BY wm.orders.tc_order_id) > 0 
+        THEN 'Yes'
+        ELSE 'No'
+END AS Hospital_Flag,
+CASE
+    WHEN 
+        (COUNT(CASE 
+                WHEN locn_lpn.dsp_locn LIKE 'HS%' OR locn_lpn.dsp_locn LIKE 'HM%' 
+                     OR locn_lpn.dsp_locn = 'SH-P -L-26' OR locn_lpn.dsp_locn = 'SHP-S2-28' OR wm.prod_trkg_tran.ref_field_2 IS NOT NULL
+                THEN 1
+             END) 
+         OVER (PARTITION BY wm.orders.tc_order_id)) > 0 
+    THEN
+        CASE
+           WHEN wm.prod_trkg_tran.ref_field_2 > 0 THEN 'Split Combined'
+           WHEN wm.lpn.lpn_facility_status = 99 AND wm.prod_trkg_tran.ref_field_2 < 0 THEN 'Split Cancel'
+           
+           WHEN locn_lpn.dsp_locn LIKE 'HS%' THEN 'Mississauga Hospital'
+           WHEN locn_lpn.dsp_locn LIKE 'HM%' THEN 'Milton Hospital'
+           WHEN locn_lpn.dsp_locn LIKE 'SH-P -L-26'  THEN 'Diverted to Hospital'
+           WHEN locn_lpn.dsp_locn LIKE 'SHP-S2-28'   THEN 'Diverted to Hospital'
+           WHEN wm.lpn.lpn_facility_status = '10' AND wm.lpn.ref_field_3 IS NULL AND wm.lpn.ref_field_4 IS NULL THEN 'Chase Task created'
+           WHEN wm.lpn.lpn_facility_status = '15' AND wm.lpn.ref_field_3 IS NOT NULL AND wm.lpn.ref_field_4 IS NOT NULL THEN 'Partially in Putwall'
+           WHEN wm.lpn.lpn_facility_status = '20' AND wm.lpn.ref_field_3 IS NOT NULL AND wm.lpn.ref_field_4 IS NOT NULL AND (wm.locn_hdr.dsp_locn NOT LIKE 'HS%' OR wm.locn_hdr.dsp_locn NOT LIKE 'HM%' OR locn_lpn.dsp_locn LIKE 'SH-P -L-26' OR locn_lpn.dsp_locn LIKE 'SHP-S2-28' OR wm.locn_hdr.dsp_locn IS NULL) THEN 'In Putwall'
+           WHEN wm.lpn.lpn_facility_status = 30  THEN 'Packed from Putwall'
+           WHEN wm.lpn.lpn_facility_status > 30 AND wm.lpn.lpn_facility_status < 90 THEN 'Packed out from Hospital'
+           WHEN wm.lpn.lpn_facility_status = 99 AND wm.prod_trkg_tran.ref_field_2 IS NULL THEN 'Shorted'
+           ELSE NULL
+        END
+    ELSE
+        NULL
+END AS Hospital_Status,
+    wm.lpn.TRACKING_NBR,
+    wm.lpn.TC_parent_LPN_id as Pallet_ID,
+    wm.lpn.TC_shipment_id as Shipment_ID,
+    
+    wm.lpn.last_updated_dttm + INTERVAL '3' HOUR AS oLPN_Last_Updated_DTTM,
+    wm.lpn.created_DTTM + INTERVAL '3' HOUR AS oLPN_Create_DTTM,
+    task_dtl.task_id as Pick_Task_ID,
+CASE wm.task_hdr.STAT_CODE
+        WHEN 5 THEN 'Locked Disabled'
+        WHEN 10 THEN 'Released'
+        WHEN 30 THEN 'Assigned'
+        WHEN 99 THEN 'Cancelled'
+    ELSE TO_CHAR(wm.task_hdr.STAT_CODE)
+END AS Task_Header_Status,
+CASE
+    WHEN task_dtl.task_type IS NOT NULL OR task_hdr.task_desc IS NOT NULL THEN task_dtl.task_type || '-' || task_hdr.task_desc
+    ELSE NULL
+END AS Tote_Type,
+CASE 
+        WHEN (wm.task_hdr.STAT_CODE IN (10) AND (wm.task_dtl.MISC_ALPHA_FIELD_2 IS NULL OR wm.task_dtl.MISC_ALPHA_FIELD_2 = '')) THEN 'Ready to Induct'
+        ELSE wm.task_dtl.MISC_ALPHA_FIELD_2
+END AS Tote_Number,
+    locn_hdr.dsp_locn AS pull_locn,
+CASE
+        WHEN locn_hdr.dsp_locn IS NOT NULL THEN
+            CASE
+                WHEN task_dtl.pikr_nbr IS NOT NULL THEN TO_CHAR(task_dtl.pikr_nbr)
+                ELSE wm.locn_hdr.travel_zone
+            END
+        ELSE NULL
+END AS Zone,
+    task_dtl_2.task_id AS cart_task_ID,
+    task_dtl_2.TASK_GENRTN_REF_NBR AS Cart_Number,
+    task_dtl_2.qty_pulld AS qty_picked,
+    NVL(picking_short_item.short_qty, 0) AS qty_shorted,
+    NVL(alloc_invn_dtl_2.qty_alloc, 0) AS Qty_To_Be_Put,
+    NVL(alloc_invn_dtl_2.qty_pulld, 0) AS Qty_Put,
+    WM.item_cbo.REF_FIELD3 || ' - ' || wm.item_cbo.item_style AS Item_Style,
+    WM.item_cbo.Unit_Volume,
+CASE 
+    WHEN WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09' THEN 'Footwear'
+    ELSE 'Non Footwear'
+END AS Footwear_Indicator
+FROM
+    wm.orders
+    LEFT JOIN wm.order_line_item ON wm.orders.order_id = wm.order_line_item.order_id
+    LEFT JOIN wm.do_status ON wm.orders.do_status = wm.do_status.order_status
+    LEFT JOIN WM.item_cbo ON wm.order_line_item.item_name = WM.item_cbo.item_name
+    LEFT JOIN WM.item_facility_mapping_wms ON wm.order_line_item.item_id = WM.item_facility_mapping_wms.item_id
+    LEFT JOIN wm.alloc_invn_dtl ON wm.order_line_item.line_item_ID = wm.alloc_invn_dtl.line_item_ID
+    AND wm.alloc_invn_dtl.tc_order_id = wm.orders.tc_order_id
+    AND wm.alloc_invn_dtl.task_cmpl_ref_code = 6 AND wm.alloc_invn_dtl.task_genrtn_ref_code = 1
+    
+    LEFT JOIN wm.task_dtl ON wm.alloc_invn_dtl.alloc_invn_dtl_id = wm.task_dtl.alloc_invn_dtl_id
+    AND wm.task_dtl.carton_nbr = wm.alloc_invn_dtl.carton_nbr
+    AND wm.task_dtl.task_genrtn_ref_code = '1'
+    
+    LEFT JOIN wm.task_hdr ON wm.task_dtl.task_id = wm.task_hdr.task_id
+    LEFT JOIN wm.wave_parm ON wm.wave_parm.wave_nbr = wm.alloc_invn_dtl.task_genrtn_ref_nbr
+    LEFT JOIN wm.locn_hdr ON wm.alloc_invn_dtl.pull_locn_id = locn_hdr.locn_id
+    LEFT JOIN wm.lpn ON wm.alloc_invn_dtl.task_cmpl_ref_nbr = wm.lpn.tc_lpn_id 
+    LEFT JOIN wm.lpn_facility_status ON lpn.lpn_facility_status = lpn_facility_status.lpn_facility_status
+    AND lpn_facility_status.inbound_outbound_indicator = 'O'
+    
+    LEFT JOIN wm.task_dtl task_dtl_2 ON task_dtl_2.alloc_invn_dtl_id = wm.alloc_invn_dtl.alloc_invn_dtl_id
+    AND task_dtl_2.line_item_id = wm.order_line_item.line_item_id
+    AND task_dtl_2.task_cmpl_ref_code = '15'
+    
+    LEFT JOIN wm.alloc_invn_dtl alloc_invn_dtl_2 ON alloc_invn_dtl_2.carton_nbr = wm.task_dtl.carton_nbr
+    AND wm.task_dtl.carton_seq_nbr = alloc_invn_dtl_2.carton_seq_nbr
+    AND alloc_invn_dtl_2.invn_need_type = 52
+    
+    LEFT JOIN wm.picking_short_item ON wm.task_dtl.line_item_id = wm.picking_short_item.line_item_id
+    AND wm.task_dtl.tc_order_id = wm.picking_short_item.tc_order_id
+    AND  wm.picking_short_item.locn_id = locn_hdr.locn_id
+    AND wm.picking_short_item.ship_wave_nbr = task_dtl_2.TASK_GENRTN_REF_NBR
+    
+    LEFT JOIN wm.locn_hdr locn_lpn ON wm.lpn.curr_sub_locn_id = locn_lpn.locn_id 
+    
+    LEFT JOIN wm.prod_trkg_tran ON wm.prod_trkg_tran.cntr_nbr = wm.lpn.tc_lpn_id
+    AND wm.prod_trkg_tran.menu_optn_name = 'Split Cmbne All oLPN' and wm.prod_trkg_tran.module_name = 'Modify'
+    AND wm.prod_trkg_tran.line_item_id = wm.alloc_invn_dtl.line_item_ID
+WHERE
+   wm.orders.order_type = 'ECOMM'
+  AND wm.do_status.order_status < 181
+ AND wm.order_line_item.DO_DTL_STATUS NOT IN ('200','190')
+   AND (
+        wm.alloc_invn_dtl.task_cmpl_ref_nbr = wm.lpn.tc_lpn_id
+        OR (wm.alloc_invn_dtl.task_cmpl_ref_nbr IS NULL AND wm.lpn.tc_lpn_id IS NULL)
+   )
+
+--AND locn_lpn.dsp_locn LIKE 'SHP-S2-28'
+--AND task_dtl_2.stat_code = '99'
+-- AND wm.order_line_item.invn_type = 'E'
+--AND wm.prod_trkg_tran.ref_field_2 IS NOT NULL
+--AND wm.orders.tc_order_id = 'c172514990152474_202409090958231759294334'
+-- AND wm.task_hdr.STAT_CODE = '5'
+AND wm.alloc_invn_dtl.task_cmpl_ref_nbr = '00000999990780079066'
+-- AND wm.alloc_invn_dtl.task_genrtn_ref_nbr = '202407200246'
+--AND task_hdr.task_desc  = 'Lulu Pick and Pass'
+-- AND task_dtl.task_id = '19189988'
+--AND wm.lpn.ref_field_3 IS NOT NULL
+ --AND wm.locn_hdr.work_grp = 'GIFT'
+-- AND WM.item_facility_mapping_wms.pick_locn_assign_type = 'P09'
+
+ORDER BY
+Order_Create_Date_EST,wm.orders.tc_order_id,wm.alloc_invn_dtl.task_cmpl_ref_nbr
