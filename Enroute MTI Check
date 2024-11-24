@@ -1,0 +1,45 @@
+SELECT
+  wm.orders.tc_order_id AS WMS_ORDER,
+  wm.orders.d_country_code AS SHIPTO_COUNTRY,
+  wm.lpn.tc_lpn_id AS CARTON,
+  CASE 
+    WHEN wm.lpn.total_lpn_qty = 1 THEN 'SINGLE_SKU_LPN' 
+    ELSE 'MULTI_SKU_LPN' 
+  END AS SINGLE_OR_MULTI_LPN,
+  wm.item_cbo.item_style || wm.item_cbo.item_color || wm.lpn_detail.cntry_of_orgn AS ELA_Request,
+  wm.item_cbo.item_name AS ITEM_MISSING_TRADE_INFO,
+  wm.item_cbo.item_style AS STYLE_CODE,
+  wm.item_cbo.item_color AS COLOUR_CODE,
+  wm.item_cbo.description AS ITEM_DESCRIPTION,
+  wm.lpn_detail.cntry_of_orgn
+FROM
+  wm.orders,
+  wm.order_line_item,
+  wm.item_cbo,
+  wm.lpn,
+  wm.lpn_detail,
+  wm.c_enroute_tran
+WHERE
+  1 = 1
+  AND wm.orders.order_id = wm.order_line_item.order_id
+  AND wm.order_line_item.item_id = wm.item_cbo.item_id
+  AND wm.lpn.lpn_id = wm.lpn_detail.lpn_id
+  AND wm.lpn_detail.item_id = wm.item_cbo.item_id
+  AND wm.lpn_detail.item_id = wm.order_line_item.item_id
+  AND wm.orders.tc_order_id = wm.lpn.tc_order_id
+  AND wm.lpn.tc_lpn_id = wm.c_enroute_tran.tc_lpn_id
+  AND wm.c_enroute_tran.stat_code = '20'
+  AND wm.lpn.lpn_facility_status < '90'
+  -- AND wm.lpn.tc_order_id IN ('c23285648006_202107040031394942088760')
+  AND wm.lpn.tc_lpn_id = '00000999990780233048'
+  AND wm.c_enroute_tran.error_message = 'Missing Trade Information: Item Description in international shipments is required.'
+  AND NOT EXISTS (
+    SELECT
+      1
+    FROM
+      wm.c_item_trade_rate
+    WHERE
+      wm.c_item_trade_rate.item_name = wm.item_cbo.item_name
+      AND wm.c_item_trade_rate.dest_cntry = wm.orders.d_country_code
+      AND wm.c_item_trade_rate.item_name || wm.c_item_trade_rate.CNTRY_OF_ORGN = wm.item_cbo.item_name || wm.lpn_detail.CNTRY_OF_ORGN
+  );
