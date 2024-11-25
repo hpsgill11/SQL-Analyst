@@ -1,0 +1,31 @@
+SELECT 
+    TO_CHAR(outpt_orders.created_dttm + INTERVAL '3' HOUR, 'YYYY/MM/DD') AS Order_Create_Date_EST,
+    COUNT(DISTINCT TC_ORDER_ID) AS Order_count,
+    WM.outpt_orders.LAST_UPDATED_SOURCE,
+    DEP.DEPT_ID,
+    E_DEPT.dept_code
+FROM 
+    WM.OUTPT_ORDERS
+LEFT JOIN WM.UCL_USER ON WM.UCL_USER.USER_NAME = WM.outpt_orders.LAST_UPDATED_SOURCE
+
+LEFT JOIN (
+    SELECT EMP_ID, DEPT_ID
+    FROM (
+        SELECT e.*,
+               ROW_NUMBER() OVER (PARTITION BY e.EMP_ID ORDER BY e.MOD_DATE_TIME DESC) AS rn
+        FROM wm.e_emp_dtl e
+    ) t
+    WHERE t.rn = 1
+) DEP ON DEP.EMP_ID = WM.UCL_USER.UCL_USER_ID
+
+LEFT JOIN WM.E_DEPT ON DEP.DEPT_ID = WM.E_DEPT.DEPT_ID 
+
+WHERE 
+    WM.outpt_orders.LAST_UPDATED_SOURCE != 'WMADMIN'
+GROUP BY 
+    TO_CHAR(outpt_orders.created_dttm + INTERVAL '3' HOUR, 'YYYY/MM/DD'),
+    WM.outpt_orders.LAST_UPDATED_SOURCE,
+    DEP.DEPT_id,
+     E_DEPT.dept_code
+ORDER BY 
+    Order_Create_Date_EST DESC
