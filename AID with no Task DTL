@@ -1,0 +1,42 @@
+SELECT
+    wm.alloc_invn_dtl.alloc_invn_dtl_id,
+    wm.alloc_invn_dtl.invn_need_type,
+    wm.alloc_invn_dtl.stat_code,
+    wm.alloc_invn_dtl.create_date_time,
+    wm.alloc_invn_dtl.invn_type,
+    wm.alloc_invn_dtl.cntry_of_orgn,
+    wm.alloc_invn_dtl.cntr_nbr,
+    current_locn.dsp_locn AS Current_Location,
+    destination_locn.dsp_locn AS Destination_Location,
+    current_locn.work_grp,
+    wm.alloc_invn_dtl.task_batch,
+    wm.alloc_invn_dtl.alloc_uom,
+    wm.alloc_invn_dtl.orig_reqmt,
+    wm.alloc_invn_dtl.qty_pulld,
+    wm.alloc_invn_dtl.qty_alloc,
+    wm.alloc_invn_dtl.task_genrtn_ref_nbr,
+     wm.wave_parm.wave_desc,
+    wm.item_cbo.item_name,
+    wm.item_cbo.product_class_id,
+    wm.lpn_facility_status.description
+FROM
+    wm.alloc_invn_dtl
+    LEFT JOIN wm.task_dtl ON wm.task_dtl.alloc_invn_dtl_id = wm.alloc_invn_dtl.alloc_invn_dtl_id
+    LEFT JOIN wm.item_cbo on wm.item_cbo.item_id = wm.alloc_invn_dtl.item_id
+    LEFT JOIN wm.lpn ON wm.alloc_invn_dtl.cntr_nbr = wm.lpn.tc_lpn_id
+    LEFT JOIN wm.lpn_facility_status ON wm.lpn.lpn_facility_status = wm.lpn_facility_status.lpn_facility_status
+                                        AND wm.lpn_facility_status.inbound_outbound_indicator = 'I'
+    LEFT JOIN wm.locn_hdr current_locn ON wm.alloc_invn_dtl.pull_locn_id = current_locn.locn_id
+    LEFT JOIN wm.locn_hdr destination_locn ON wm.alloc_invn_dtl.dest_locn_id = destination_locn.locn_id
+    LEFT JOIN wm.wave_parm ON  wm.alloc_invn_dtl.task_genrtn_ref_nbr =  wm.wave_parm.wave_nbr
+WHERE
+        wm.alloc_invn_dtl.invn_need_type = '1'
+    AND wm.alloc_invn_dtl.stat_code < 90
+    AND wm.alloc_invn_dtl.alloc_invn_dtl_id NOT IN (
+        SELECT
+            wm.task_dtl.alloc_invn_dtl_id
+        FROM
+            wm.task_dtl
+    )
+ORDER BY
+    wm.alloc_invn_dtl.create_date_time DESC
