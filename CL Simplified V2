@@ -1,0 +1,62 @@
+SELECT
+    CASE 
+        WHEN WM.CL_EVENT_MASTER.EVENT_DESC IN ('6182-Custom Tote Divert Message', 'Sortation - Pick Tote, iLPN')
+        THEN REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 3)
+        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content'
+        THEN REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 8)
+        WHEN WM.CL_EVENT_MASTER.EVENT_DESC IN ('EX23_ITEMSTATUS')
+        THEN REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 5)
+        WHEN WM.CL_EVENT_MASTER.EVENT_DESC IN ('SD INDUCTED')
+        THEN REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 4)
+        ELSE NULL
+    END AS Tote_Number,
+
+    CASE 
+        WHEN WM.CL_EVENT_MASTER.EVENT_DESC = '9991-6690 SPL Tote Content'
+        THEN REGEXP_SUBSTR(wm.cl_message.DATA, '[^\\^]+', 1, 3)
+        ELSE NULL
+    END AS Wave_Number,
+
+    CASE
+        WHEN wm.cl_message.event_id = '1620000' THEN
+            'PACKING'
+        WHEN wm.cl_message.event_id = '9991'    THEN
+            'TOTE CONTENT'
+        WHEN wm.cl_message.event_id = '3240000' THEN
+            'INDUCTED'
+        WHEN wm.cl_message.event_id = '6690'    THEN
+            'PICK ZONE DIVERT'
+        WHEN wm.cl_message.event_id = '6182'    THEN
+            'INDUCTED'
+        ELSE
+            NULL
+    END AS TEST,
+    wm.cl_message.msg_id,
+        wm.cl_message_status.status_name || ' - '||    wm.cl_endpoint_queue.status AS MSG_STATUS,
+    wm.cl_message.event_id,
+        wm.cl_event_master.event_desc,
+   --wm.cl_endpoint.description,
+        wm.cl_endpoint.name as End_point_name,
+    wm.cl_message.data,
+    wm.cl_message.when_created,
+   --wm.cl_message.source_id,
+   -- wm.cl_endpoint_queue.endpoint_queue_id,
+   -- wm.cl_endpoint_queue.endpoint_id,
+    wm.cl_endpoint_queue.when_queued,
+  --  wm.cl_endpoint_queue.error_count,
+    wm.cl_endpoint_queue.when_status_changed
+  --  wm.cl_endpoint.direction,
+FROM
+         wm.cl_message
+    INNER JOIN wm.cl_endpoint_queue ON wm.cl_message.msg_id = wm.cl_endpoint_queue.msg_id
+    INNER JOIN wm.cl_endpoint ON wm.cl_endpoint_queue.endpoint_id = wm.cl_endpoint.endpoint_id
+    INNER JOIN wm.cl_message_status ON wm.cl_endpoint_queue.status = wm.cl_message_status.status_id
+    INNER JOIN wm.cl_event_master ON wm.cl_message.event_id = wm.cl_event_master.event_id
+WHERE
+   wm.cl_message.data LIKE '%TT8929%'  
+   --wm.cl_message_status.status_name = 'Failed'
+   -- AND trunc(wm.cl_message.when_created) = trunc(sysdate)
+    AND WM.CL_EVENT_MASTER.EVENT_desc NOT IN ('SD INDUCTED')
+  AND SUBSTR(wm.cl_endpoint.name, -2) != '_2'   --- Building Filter
+ORDER BY
+    wm.cl_message.when_created DESC
