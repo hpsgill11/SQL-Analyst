@@ -1,0 +1,74 @@
+WITH base AS (
+    SELECT 
+        CASE 
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE)     THEN 'Same Day'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 1) THEN '1 Day old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 2) THEN '2 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 3) THEN '3 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 4) THEN '4 Days old'
+        END AS Date_Difference,
+        l.tc_parent_lpn_id,
+        COUNT(DISTINCT l.tc_lpn_id) AS oLPN_Count,
+        LISTAGG(DISTINCT l.ship_via, ', ') 
+         WITHIN GROUP (ORDER BY l.ship_via) AS ship_via_list
+    FROM wm.orders o
+    LEFT JOIN wm.lpn l
+           ON l.tc_order_id = o.tc_order_id
+    WHERE o.order_type = 'ECOMM'
+      AND l.tc_parent_lpn_id IS NOT NULL
+      AND TRUNC(o.created_dttm + INTERVAL '3' HOUR) >= TRUNC(SYSDATE - 4)
+      AND l.lpn_facility_status <> '50' -- Loaded oLPN Excluded
+    GROUP BY 
+        CASE 
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE)     THEN 'Same Day'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 1) THEN '1 Day old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 2) THEN '2 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 3) THEN '3 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 4) THEN '4 Days old'
+        END,
+        l.tc_parent_lpn_id
+        
+    HAVING 
+        -- Keep the “Same Day” logic for filtering only; exclude rows that are 100% Same Day
+        SUM(
+            CASE 
+                WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE) 
+                THEN 1 
+                ELSE 0 
+            END
+        ) < COUNT(*)
+),
+pvt AS (
+    SELECT
+        tc_parent_lpn_id,
+        ship_via_list,
+        "1 Day old"   AS one_day_old,
+        "2 Days old"  AS two_days_old,
+        "3 Days old"  AS three_days_old,
+        "4 Days old"  AS four_days_old
+    FROM base
+    PIVOT (
+        SUM(oLPN_Count)
+        FOR Date_Difference IN (
+            '1 Day old'   AS "1 Day old",
+            '2 Days old'  AS "2 Days old",
+            '3 Days old'  AS "3 Days old",
+            '4 Days old'  AS "4 Days old"
+        )
+    )
+)
+SELECT
+    tc_parent_lpn_id as Pallet,
+    ship_via_list,
+    CASE WHEN one_day_old    = 0 THEN NULL ELSE one_day_old    END AS one_day_old,
+    CASE WHEN two_days_old   = 0 THEN NULL ELSE two_days_old   END AS two_days_old,
+    CASE WHEN three_days_old = 0 THEN NULL ELSE three_days_old END AS three_days_old,
+    CASE WHEN four_days_old  = 0 THEN NULL ELSE four_days_old  END AS four_days_old
+    
+FROM pvt
+ORDER BY 
+    NVL(four_days_old, 0)      DESC,
+    NVL(three_days_old, 0)     DESC,
+    NVL(two_days_old, 0)       DESC,
+    NVL(one_day_old, 0)        DESC,
+    tc_parent_lpn_id;
