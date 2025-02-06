@@ -6,6 +6,12 @@ WITH base AS (
             WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 2) THEN '2 Days old'
             WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 3) THEN '3 Days old'
             WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 4) THEN '4 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 5) THEN '5 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 6) THEN '6 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 7) THEN '7 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 8) THEN '8 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 9) THEN '9 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 10) THEN '10 Days old'
         END AS Date_Difference,
         l.tc_parent_lpn_id,
         COUNT(DISTINCT l.tc_lpn_id) AS oLPN_Count,
@@ -16,7 +22,7 @@ WITH base AS (
            ON l.tc_order_id = o.tc_order_id
     WHERE o.order_type = 'ECOMM'
       AND l.tc_parent_lpn_id IS NOT NULL
-      AND TRUNC(o.created_dttm + INTERVAL '3' HOUR) >= TRUNC(SYSDATE - 4)
+      AND TRUNC(o.created_dttm + INTERVAL '3' HOUR) >= TRUNC(SYSDATE - 10)
       AND l.lpn_facility_status <> '50' -- Loaded oLPN Excluded
     GROUP BY 
         CASE 
@@ -25,50 +31,74 @@ WITH base AS (
             WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 2) THEN '2 Days old'
             WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 3) THEN '3 Days old'
             WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 4) THEN '4 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 5) THEN '5 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 6) THEN '6 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 7) THEN '7 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 8) THEN '8 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 9) THEN '9 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE - 10) THEN '10 Days old'
         END,
         l.tc_parent_lpn_id
-        
-    HAVING 
-        -- Keep the “Same Day” logic for filtering only; exclude rows that are 100% Same Day
-        SUM(
-            CASE 
-                WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE) 
-                THEN 1 
-                ELSE 0 
-            END
-        ) < COUNT(*)
 ),
+
 pvt AS (
     SELECT
         tc_parent_lpn_id,
         ship_via_list,
+        "Same Day"    AS same_day,
         "1 Day old"   AS one_day_old,
         "2 Days old"  AS two_days_old,
         "3 Days old"  AS three_days_old,
-        "4 Days old"  AS four_days_old
+        "4 Days old"  AS four_days_old,
+        "5 Days old"  AS five_days_old,
+        "6 Days old"  AS six_days_old,
+        "7 Days old"  AS seven_days_old,
+        "8 Days old"  AS eight_days_old,
+        "9 Days old"  AS nine_days_old,
+        "10 Days old" AS ten_days_old
     FROM base
     PIVOT (
         SUM(oLPN_Count)
         FOR Date_Difference IN (
+            'Same Day'    AS "Same Day",
             '1 Day old'   AS "1 Day old",
             '2 Days old'  AS "2 Days old",
             '3 Days old'  AS "3 Days old",
-            '4 Days old'  AS "4 Days old"
+            '4 Days old'  AS "4 Days old",
+            '5 Days old'  AS "5 Days old",
+            '6 Days old'  AS "6 Days old",
+            '7 Days old'  AS "7 Days old",
+            '8 Days old'  AS "8 Days old",
+            '9 Days old'  AS "9 Days old",
+            '10 Days old' AS "10 Days old"
         )
     )
 )
 SELECT
-    tc_parent_lpn_id as Pallet,
+    tc_parent_lpn_id AS Pallet,
     ship_via_list,
+    CASE WHEN same_day       = 0 THEN NULL ELSE same_day       END AS same_day,
     CASE WHEN one_day_old    = 0 THEN NULL ELSE one_day_old    END AS one_day_old,
     CASE WHEN two_days_old   = 0 THEN NULL ELSE two_days_old   END AS two_days_old,
     CASE WHEN three_days_old = 0 THEN NULL ELSE three_days_old END AS three_days_old,
-    CASE WHEN four_days_old  = 0 THEN NULL ELSE four_days_old  END AS four_days_old
-    
+    CASE WHEN four_days_old  = 0 THEN NULL ELSE four_days_old  END AS four_days_old,
+    CASE WHEN five_days_old  = 0 THEN NULL ELSE five_days_old  END AS five_days_old,
+    CASE WHEN six_days_old   = 0 THEN NULL ELSE six_days_old   END AS six_days_old,
+    CASE WHEN seven_days_old = 0 THEN NULL ELSE seven_days_old END AS seven_days_old,
+    CASE WHEN eight_days_old = 0 THEN NULL ELSE eight_days_old END AS eight_days_old,
+    CASE WHEN nine_days_old  = 0 THEN NULL ELSE nine_days_old  END AS nine_days_old,
+    CASE WHEN ten_days_old   = 0 THEN NULL ELSE ten_days_old   END AS ten_days_old
 FROM pvt
 ORDER BY 
-    NVL(four_days_old, 0)      DESC,
-    NVL(three_days_old, 0)     DESC,
-    NVL(two_days_old, 0)       DESC,
-    NVL(one_day_old, 0)        DESC,
+    NVL(ten_days_old, 0)     DESC,
+    NVL(nine_days_old, 0)    DESC,
+    NVL(eight_days_old, 0)   DESC,
+    NVL(seven_days_old, 0)   DESC,
+    NVL(six_days_old, 0)     DESC,
+    NVL(five_days_old, 0)    DESC,
+    NVL(four_days_old, 0)    DESC,
+    NVL(three_days_old, 0)   DESC,
+    NVL(two_days_old, 0)     DESC,
+    NVL(one_day_old, 0)      DESC,
+    NVL(same_day, 0)         DESC,
     tc_parent_lpn_id;
