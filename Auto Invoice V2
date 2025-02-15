@@ -1,0 +1,116 @@
+WITH ranked_data AS (
+    SELECT 
+        ROW_NUMBER() OVER (PARTITION BY cntr_nbr ORDER BY create_date_time DESC) AS row_num,
+        cntr_nbr,
+        create_date_time + INTERVAL '3' HOUR AS create_date_time,
+        menu_optn_name
+    FROM wm.prod_trkg_tran
+),
+oLPN_age AS (
+    SELECT 
+        cntr_nbr,
+        create_date_time,
+        menu_optn_name
+    FROM ranked_data
+    WHERE row_num = 1
+),
+CTE AS (
+    SELECT 
+        Building.Facility,
+        wm.orders.created_dttm + INTERVAL '3' HOUR AS Order_Create_Date_EST,
+        wm.orders.tc_order_id,
+        CASE 
+            WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
+            ELSE 'Multi'
+        END AS Order_Type,
+        wm.orders.REF_FIELD_1 AS Order_Country,
+        wm.orders.do_status || ' - ' || wm.do_status.description AS Order_Status,
+        wm.orders.total_nbr_of_units AS DO_Quantity,
+        wm.lpn.total_LPN_QTY AS oLPN_Quantity,
+        CASE 
+            WHEN SUM(wm.lpn.total_LPN_QTY) OVER (PARTITION BY wm.orders.tc_order_id) = wm.orders.total_nbr_of_units 
+            THEN 'Good'
+            ELSE 'Bad'
+        END AS Invoice,
+        lpn_facility_status.description AS oLPN_Status,
+        current_locn_lpn.dsp_locn,
+        wm.lpn.tc_lpn_id,
+        wm.lpn.ship_via,
+        wm.lpn.TRACKING_NBR,
+        wm.lpn.TC_parent_LPN_id AS Pallet_ID,
+        wm.lpn.TC_shipment_id AS Shipment_ID,
+        FLOOR(
+            EXTRACT(DAY FROM (CAST(SYSDATE + INTERVAL '3' HOUR AS TIMESTAMP) - CAST(oLPN_age.create_date_time AS TIMESTAMP))) * 24 +
+            EXTRACT(HOUR FROM (CAST(SYSDATE + INTERVAL '3' HOUR AS TIMESTAMP) - CAST(oLPN_age.create_date_time AS TIMESTAMP))) +
+            EXTRACT(MINUTE FROM (CAST(SYSDATE + INTERVAL '3' HOUR AS TIMESTAMP) - CAST(oLPN_age.create_date_time AS TIMESTAMP))) / 60
+        ) AS Age_in_Hours,
+        oLPN_age.create_date_time AS Last_Updated_DTTM,
+        oLPN_age.menu_optn_name AS Last_Transaction_Name
+    FROM wm.orders
+    LEFT JOIN wm.do_status 
+        ON wm.orders.do_status = wm.do_status.order_status
+    LEFT JOIN wm.lpn 
+        ON wm.lpn.tc_order_id = wm.orders.tc_order_id  
+       AND wm.lpn.inbound_outbound_indicator = 'O'
+    LEFT JOIN wm.locn_hdr current_locn_lpn 
+        ON wm.lpn.curr_sub_locn_id = current_locn_lpn.locn_id 
+    LEFT JOIN wm.lpn_facility_status 
+        ON wm.lpn.lpn_facility_status = wm.lpn_facility_status.lpn_facility_status 
+       AND wm.lpn_facility_status.inbound_outbound_indicator = 'O'
+    LEFT JOIN (
+        SELECT 
+            task_cmpl_ref_nbr,
+            CASE 
+                WHEN COUNT(DISTINCT Facility) > 1 THEN 'Cross Building - PNP'
+                ELSE MAX(Facility)
+            END AS Facility
+        FROM (
+            SELECT DISTINCT 
+                wm.alloc_invn_dtl.task_cmpl_ref_nbr,
+                CASE 
+                    WHEN wm.alloc_invn_dtl.invn_type = 'R' AND wm.locn_lpn.work_grp = 'GIFT' THEN 'Milton'
+                    WHEN wm.alloc_invn_dtl.invn_type = 'E' AND wm.locn_lpn.work_grp = 'GIFT' THEN 'Mississauga'
+                    WHEN wm.locn_lpn.work_grp = 'SHLF' THEN 'Mississauga'
+                    WHEN wm.locn_lpn.work_grp IN ('MFLW', 'MRPH', 'MACT', 'MRAK') THEN 'Milton'
+                    ELSE wm.locn_lpn.work_grp
+                END AS Facility
+            FROM wm.alloc_invn_dtl 
+            LEFT JOIN wm.locn_hdr locn_lpn 
+                ON wm.alloc_invn_dtl.pull_locn_id = locn_lpn.locn_id 
+            WHERE task_genrtn_ref_code = '1'
+        )
+        GROUP BY task_cmpl_ref_nbr
+    ) Building 
+        ON Building.task_cmpl_ref_nbr = wm.lpn.tc_lpn_id
+    LEFT JOIN oLPN_age 
+        ON oLPN_age.cntr_nbr = wm.lpn.tc_lpn_id
+    WHERE wm.orders.order_type = 'ECOMM'
+      AND wm.do_status.order_status IN ('160', '165')
+      AND wm.lpn.lpn_facility_status != '99'
+)
+SELECT
+    CASE WHEN COUNT(DISTINCT CTE.Facility) OVER (PARTITION BY CTE.tc_order_id) > 1 
+         THEN 'Cross Building'
+         ELSE CTE.Facility
+    END AS Facility,
+    CTE.Order_Create_Date_EST,
+    CTE.tc_order_id,
+    CTE.Order_Type,
+    CTE.Order_Country,
+    CTE.Order_Status,
+    CTE.DO_Quantity,
+    CTE.oLPN_Quantity,
+    CTE.Invoice,
+    CTE.oLPN_Status,
+    CTE.dsp_locn,
+    CTE.tc_lpn_id,
+    CTE.ship_via,
+    CTE.TRACKING_NBR,
+    CTE.Pallet_ID,
+    CTE.Shipment_ID,
+    CTE.Age_in_Hours,
+    CTE.Last_Updated_DTTM,
+    CTE.Last_Transaction_Name
+FROM CTE
+where oLPN_Status != 'Loaded on truck' and Invoice != 'Bad'
+ORDER BY Order_Create_Date_EST DESC;
