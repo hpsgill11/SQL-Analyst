@@ -44,6 +44,8 @@ CTE AS (
             EXTRACT(HOUR FROM (CAST(SYSDATE + INTERVAL '3' HOUR AS TIMESTAMP) - CAST(oLPN_age.create_date_time AS TIMESTAMP))) +
             EXTRACT(MINUTE FROM (CAST(SYSDATE + INTERVAL '3' HOUR AS TIMESTAMP) - CAST(oLPN_age.create_date_time AS TIMESTAMP))) / 60
         ) AS Age_in_Hours,
+    
+        
         oLPN_age.create_date_time AS Last_Updated_DTTM,
         oLPN_age.menu_optn_name AS Last_Transaction_Name
     FROM wm.orders
@@ -109,6 +111,11 @@ SELECT
     CTE.Pallet_ID,
     CTE.Shipment_ID,
     CTE.Age_in_Hours,
+        CASE
+        WHEN MAX(CTE.Age_in_Hours) OVER (PARTITION BY CTE.tc_order_id) > 24
+        THEN 'More than 24'
+        ELSE 'Less than 24'
+    END AS Age_Category,
     CTE.Last_Updated_DTTM,
     CTE.Last_Transaction_Name
 FROM CTE
