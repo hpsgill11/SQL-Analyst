@@ -155,6 +155,7 @@ CASE
          OR oli.invn_type = 'S'
          OR oli.invn_type = 'B'
          OR oli.invn_type = 'C'
+         OR oli.invn_type = 'O'
     THEN CASE 
             WHEN SUM(CASE 
                         WHEN lh.work_grp IN ('MFLW', 'MRPH', 'MACT', 'MRAK') 
@@ -320,6 +321,7 @@ CASE
          OR oli.invn_type = 'S'
          OR oli.invn_type = 'B'
          OR oli.invn_type = 'C'
+         OR oli.invn_type = 'O'
     THEN 'Milton'
     ELSE 'Mississauga' END AS Building
 FROM 
@@ -335,7 +337,7 @@ FROM
 WHERE 
     o.do_status IN ('110','120')
     AND oli.DO_DTL_STATUS <= 120
-    AND o.order_type IN ('ECOMM','123')
+    AND o.order_type IN ('ECOMM')
    -- AND o.tc_order_id = '516780557'
    AND  NOT TRUNC(o.created_dttm) = TO_DATE('2024/09/14', 'YYYY/MM/DD')
     AND oli.invn_type = 'E'
