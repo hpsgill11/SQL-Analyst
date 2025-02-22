@@ -1,0 +1,63 @@
+Select wm.orders.tc_order_id,
+wm.orders.created_dttm + INTERVAL '3' HOUR AS Order_Create_Date_EST,
+wave_time.wave_time AS Wave_Time,
+picking_stats.Pick_Complete,
+pack_time.pack_complete,
+palletize_time.palletize_time,
+manual_palletize_time.manual_palletize_time,
+    CASE 
+      WHEN palletize_time.palletize_time IS NOT NULL 
+           AND manual_palletize_time.manual_palletize_time IS NOT NULL 
+           AND palletize_time.palletize_time > manual_palletize_time.manual_palletize_time 
+         THEN palletize_time.palletize_time
+      WHEN palletize_time.palletize_time IS NOT NULL 
+           AND manual_palletize_time.manual_palletize_time IS NULL 
+         THEN palletize_time.palletize_time
+      WHEN palletize_time.palletize_time IS NULL 
+           AND manual_palletize_time.manual_palletize_time IS NOT NULL 
+         THEN manual_palletize_time.manual_palletize_time
+      ELSE NULL
+    END AS Latest_Palletize_Time
+from wm.orders
+
+LEFT JOIN (select tc_order_id,
+min(wm.lpn.created_dttm + INTERVAL '3' HOUR) AS Wave_Time
+from wm.lpn
+group by
+tc_order_id) wave_time on wave_time.tc_order_id = wm.orders.tc_order_id
+
+LEFT JOIN (select tc_order_id,
+max(create_date_time + INTERVAL '3' HOUR) as Pick_Complete
+from wm.prod_trkg_tran where tran_type = '500' and tran_code in ('010','007')
+group by
+tc_order_id) picking_stats on picking_stats.tc_order_id = wm.orders.tc_order_id
+
+LEFT JOIN (Select tc_order_id,
+max(create_date_time + INTERVAL '3' HOUR) as Pack_Complete
+from wm.prod_trkg_tran where menu_optn_name = 'Weigh and Manifest oLPN'
+group by 
+tc_order_id) pack_time on pack_time.tc_order_id = wm.orders.tc_order_id
+
+LEFT JOIN (Select WM.ORDERS.TC_ORDER_ID,
+MAX(WM.PROD_TRKG_TRAN.CREATE_DATE_TIME + INTERVAL '3' HOUR) as Palletize_Time
+from wm.orders
+JOIN WM.LPN ON WM.LPN.TC_ORDER_ID = WM.ORDERS.TC_ORDER_ID
+JOIN WM.PROD_TRKG_TRAN ON WM.PROD_TRKG_TRAN.CNTR_NBR = WM.LPN.TC_LPN_ID AND WM.PROD_TRKG_TRAN.menu_optn_name in ('Ptwy oLPN')
+WHERE WM.ORDERS.ORDER_TYPE = 'ECOMM'
+group by
+WM.ORDERS.TC_ORDER_ID) palletize_time on palletize_time.tc_order_id = wm.orders.tc_order_id
+
+LEFT JOIN (Select WM.ORDERS.TC_ORDER_ID,
+MAX(WM.PROD_TRKG_TRAN.CREATE_DATE_TIME + INTERVAL '3' HOUR) as Manual_Palletize_Time
+from wm.orders
+JOIN WM.LPN ON WM.LPN.TC_ORDER_ID = WM.ORDERS.TC_ORDER_ID
+JOIN WM.PROD_TRKG_TRAN ON WM.PROD_TRKG_TRAN.CNTR_NBR = WM.LPN.TC_LPN_ID AND WM.PROD_TRKG_TRAN.menu_optn_name in ('Pltz oLPN HSPTL','Pltz oLPNs')
+WHERE WM.ORDERS.ORDER_TYPE = 'ECOMM'
+group by
+WM.ORDERS.TC_ORDER_ID) manual_palletize_time on manual_palletize_time.tc_order_id = wm.orders.tc_order_id
+
+WHERE 1=1
+and wm.orders.order_type = 'ECOMM'
+--and wm.orders.tc_order_id = 'c173983484332469_202502171730536805741480'
+and wm.orders.do_status = 180
+order by wm.orders.created_dttm desc
