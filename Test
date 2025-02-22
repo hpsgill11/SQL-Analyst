@@ -42,7 +42,7 @@ LEFT JOIN (Select WM.ORDERS.TC_ORDER_ID,
 MAX(WM.PROD_TRKG_TRAN.CREATE_DATE_TIME + INTERVAL '3' HOUR) as Palletize_Time
 from wm.orders
 JOIN WM.LPN ON WM.LPN.TC_ORDER_ID = WM.ORDERS.TC_ORDER_ID
-JOIN WM.PROD_TRKG_TRAN ON WM.PROD_TRKG_TRAN.CNTR_NBR = WM.LPN.TC_LPN_ID AND WM.PROD_TRKG_TRAN.menu_optn_name in ('Ptwy oLPN')
+JOIN WM.PROD_TRKG_TRAN ON WM.PROD_TRKG_TRAN.CNTR_NBR = WM.LPN.TC_LPN_ID AND WM.PROD_TRKG_TRAN.menu_optn_name in ('Ptwy oLPN','Locate oLPN') and wm.PROD_TRKG_TRAN.user_id = 'MHEADMIN'
 WHERE WM.ORDERS.ORDER_TYPE = 'ECOMM'
 group by
 WM.ORDERS.TC_ORDER_ID) palletize_time on palletize_time.tc_order_id = wm.orders.tc_order_id
@@ -58,6 +58,6 @@ WM.ORDERS.TC_ORDER_ID) manual_palletize_time on manual_palletize_time.tc_order_i
 
 WHERE 1=1
 and wm.orders.order_type = 'ECOMM'
---and wm.orders.tc_order_id = 'c173983484332469_202502171730536805741480'
+--and wm.orders.tc_order_id = 'c174012094801923_202502202358126888883368'
 and wm.orders.do_status = 180
 order by wm.orders.created_dttm desc
