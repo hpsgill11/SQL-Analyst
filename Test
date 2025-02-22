@@ -3,8 +3,8 @@ wm.orders.created_dttm + INTERVAL '3' HOUR AS Order_Create_Date_EST,
 wave_time.wave_time AS Wave_Time,
 picking_stats.Pick_Complete,
 pack_time.pack_complete,
-palletize_time.palletize_time,
-manual_palletize_time.manual_palletize_time,
+--palletize_time.palletize_time,
+--manual_palletize_time.manual_palletize_time,
     CASE 
       WHEN palletize_time.palletize_time IS NOT NULL 
            AND manual_palletize_time.manual_palletize_time IS NOT NULL 
