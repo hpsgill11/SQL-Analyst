@@ -1,0 +1,254 @@
+WITH stage_seconds AS (
+    SELECT 
+           o.tc_order_id,
+           (o.created_dttm + INTERVAL '3' HOUR) AS order_create_ts,
+           wave_time.wave_time AS wave_ts,
+           picking_stats.pick_complete AS pick_ts,
+           pack_time.pack_complete AS pack_ts,
+           CASE 
+             WHEN palletize_time.palletize_time IS NOT NULL 
+                  AND manual_palletize_time.manual_palletize_time IS NOT NULL 
+                  AND palletize_time.palletize_time > manual_palletize_time.manual_palletize_time 
+               THEN palletize_time.palletize_time
+            WHEN palletize_time.palletize_time IS NOT NULL 
+                  AND manual_palletize_time.manual_palletize_time IS NOT NULL 
+                  AND manual_palletize_time.manual_palletize_time  >   palletize_time.palletize_time 
+               THEN manual_palletize_time.manual_palletize_time
+             WHEN palletize_time.palletize_time IS NOT NULL 
+                  AND manual_palletize_time.manual_palletize_time IS NULL 
+               THEN palletize_time.palletize_time
+             WHEN palletize_time.palletize_time IS NULL 
+                  AND manual_palletize_time.manual_palletize_time IS NOT NULL 
+               THEN manual_palletize_time.manual_palletize_time
+             ELSE NULL
+           END AS palletize_ts,
+           ------------------------------------------------------------------------------
+           -- 1) Duration_To_Wave_Seconds
+           ------------------------------------------------------------------------------
+           CASE 
+             WHEN wave_time.wave_time IS NOT NULL 
+                  AND o.created_dttm IS NOT NULL 
+             THEN
+               EXTRACT(DAY    FROM (wave_time.wave_time - (o.created_dttm + INTERVAL '3' HOUR))) * 86400
+             + EXTRACT(HOUR   FROM (wave_time.wave_time - (o.created_dttm + INTERVAL '3' HOUR))) * 3600
+             + EXTRACT(MINUTE FROM (wave_time.wave_time - (o.created_dttm + INTERVAL '3' HOUR))) * 60
+             + EXTRACT(SECOND FROM (wave_time.wave_time - (o.created_dttm + INTERVAL '3' HOUR)))
+             ELSE NULL
+           END AS duration_to_wave_seconds,
+
+           ------------------------------------------------------------------------------
+           -- 2) Duration_For_Picking_Seconds
+           ------------------------------------------------------------------------------
+           CASE 
+             WHEN picking_stats.pick_complete IS NOT NULL 
+                  AND wave_time.wave_time IS NOT NULL
+             THEN
+               EXTRACT(DAY    FROM (picking_stats.pick_complete - wave_time.wave_time)) * 86400
+             + EXTRACT(HOUR   FROM (picking_stats.pick_complete - wave_time.wave_time)) * 3600
+             + EXTRACT(MINUTE FROM (picking_stats.pick_complete - wave_time.wave_time)) * 60
+             + EXTRACT(SECOND FROM (picking_stats.pick_complete - wave_time.wave_time))
+             ELSE NULL
+           END AS duration_for_picking_seconds,
+
+           ------------------------------------------------------------------------------
+           -- 3) Duration_For_Packing_Seconds
+           ------------------------------------------------------------------------------
+           CASE 
+             WHEN pack_time.pack_complete IS NOT NULL
+                  AND picking_stats.pick_complete IS NOT NULL
+             THEN
+               EXTRACT(DAY    FROM (pack_time.pack_complete - picking_stats.pick_complete)) * 86400
+             + EXTRACT(HOUR   FROM (pack_time.pack_complete - picking_stats.pick_complete)) * 3600
+             + EXTRACT(MINUTE FROM (pack_time.pack_complete - picking_stats.pick_complete)) * 60
+             + EXTRACT(SECOND FROM (pack_time.pack_complete - picking_stats.pick_complete))
+             ELSE NULL
+           END AS duration_for_packing_seconds,
+
+           ------------------------------------------------------------------------------
+           -- 4) Duration_Of_Palletization_Seconds
+           ------------------------------------------------------------------------------
+           CASE 
+             WHEN pack_time.pack_complete IS NOT NULL THEN
+               CASE 
+                 WHEN palletize_time.palletize_time IS NOT NULL 
+                      AND manual_palletize_time.manual_palletize_time IS NOT NULL 
+                      AND palletize_time.palletize_time > manual_palletize_time.manual_palletize_time
+                   THEN
+                     EXTRACT(DAY    FROM (palletize_time.palletize_time - pack_time.pack_complete)) * 86400
+                   + EXTRACT(HOUR   FROM (palletize_time.palletize_time - pack_time.pack_complete)) * 3600
+                   + EXTRACT(MINUTE FROM (palletize_time.palletize_time - pack_time.pack_complete)) * 60
+                   + EXTRACT(SECOND FROM (palletize_time.palletize_time - pack_time.pack_complete))
+
+  -- ADD THIS NEW WHEN CLAUSE
+      WHEN palletize_time.palletize_time IS NOT NULL 
+           AND manual_palletize_time.manual_palletize_time IS NOT NULL 
+           AND manual_palletize_time.manual_palletize_time > palletize_time.palletize_time
+        THEN
+          EXTRACT(DAY    FROM (manual_palletize_time.manual_palletize_time - pack_time.pack_complete)) * 86400
+        + EXTRACT(HOUR   FROM (manual_palletize_time.manual_palletize_time - pack_time.pack_complete)) * 3600
+        + EXTRACT(MINUTE FROM (manual_palletize_time.manual_palletize_time - pack_time.pack_complete)) * 60
+        + EXTRACT(SECOND FROM (manual_palletize_time.manual_palletize_time - pack_time.pack_complete))
+      -- END OF NEW WHEN CLAUSE
+      
+                 WHEN palletize_time.palletize_time IS NOT NULL
+                      AND manual_palletize_time.manual_palletize_time IS NULL 
+                   THEN
+                     EXTRACT(DAY    FROM (palletize_time.palletize_time - pack_time.pack_complete)) * 86400
+                   + EXTRACT(HOUR   FROM (palletize_time.palletize_time - pack_time.pack_complete)) * 3600
+                   + EXTRACT(MINUTE FROM (palletize_time.palletize_time - pack_time.pack_complete)) * 60
+                   + EXTRACT(SECOND FROM (palletize_time.palletize_time - pack_time.pack_complete))
+
+                 WHEN palletize_time.palletize_time IS NULL
+                      AND manual_palletize_time.manual_palletize_time IS NOT NULL 
+                   THEN
+                     EXTRACT(DAY    FROM (manual_palletize_time.manual_palletize_time - pack_time.pack_complete)) * 86400
+                   + EXTRACT(HOUR   FROM (manual_palletize_time.manual_palletize_time - pack_time.pack_complete)) * 3600
+                   + EXTRACT(MINUTE FROM (manual_palletize_time.manual_palletize_time - pack_time.pack_complete)) * 60
+                   + EXTRACT(SECOND FROM (manual_palletize_time.manual_palletize_time - pack_time.pack_complete))
+
+                 ELSE NULL
+               END
+             ELSE NULL
+           END AS duration_of_palletization_seconds
+
+    FROM wm.orders o
+
+    LEFT JOIN (
+        SELECT tc_order_id,
+               MIN(lpn.created_dttm + INTERVAL '3' HOUR) AS wave_time
+        FROM wm.lpn
+        GROUP BY tc_order_id
+    ) wave_time 
+        ON wave_time.tc_order_id = o.tc_order_id
+
+    LEFT JOIN (
+        SELECT tc_order_id,
+               MAX(create_date_time + INTERVAL '3' HOUR) AS pick_complete
+        FROM wm.prod_trkg_tran
+        WHERE tran_type = '500' 
+          AND tran_code IN ('010','007')
+        GROUP BY tc_order_id
+    ) picking_stats 
+        ON picking_stats.tc_order_id = o.tc_order_id
+
+    LEFT JOIN (
+        SELECT tc_order_id,
+               MAX(create_date_time + INTERVAL '3' HOUR) AS pack_complete
+        FROM wm.prod_trkg_tran
+        WHERE menu_optn_name = 'Weigh and Manifest oLPN'
+        GROUP BY tc_order_id
+    ) pack_time
+        ON pack_time.tc_order_id = o.tc_order_id
+
+    LEFT JOIN (
+        SELECT oo.tc_order_id,
+               MAX(ptt.create_date_time + INTERVAL '3' HOUR) AS palletize_time
+        FROM wm.orders oo
+        JOIN wm.lpn l
+          ON l.tc_order_id = oo.tc_order_id
+        JOIN wm.prod_trkg_tran ptt
+          ON ptt.cntr_nbr       = l.tc_lpn_id
+         AND ptt.menu_optn_name IN ('Ptwy oLPN','Locate oLPN')
+         AND ptt.user_id        = 'MHEADMIN'
+        WHERE oo.order_type = 'ECOMM'
+        GROUP BY oo.tc_order_id
+    ) palletize_time 
+        ON palletize_time.tc_order_id = o.tc_order_id
+
+    LEFT JOIN (
+        SELECT oo.tc_order_id,
+               MAX(ptt.create_date_time + INTERVAL '3' HOUR) AS manual_palletize_time
+        FROM wm.orders oo
+        JOIN wm.lpn l
+          ON l.tc_order_id = oo.tc_order_id
+        JOIN wm.prod_trkg_tran ptt
+          ON ptt.cntr_nbr       = l.tc_lpn_id 
+         AND ptt.menu_optn_name IN ('Pltz oLPN HSPTL','Pltz oLPNs')
+        WHERE oo.order_type = 'ECOMM'
+        GROUP BY oo.tc_order_id
+    ) manual_palletize_time
+        ON manual_palletize_time.tc_order_id = o.tc_order_id
+
+    WHERE o.order_type = 'ECOMM'
+    AND o.do_status between 130 and 190
+),
+stage_avgs AS (
+    SELECT
+       -- Average in decimal minutes for each stage
+       AVG(duration_to_wave_seconds)/60           AS avg_to_wave_mins,
+       AVG(duration_for_picking_seconds)/60       AS avg_picking_mins,
+       AVG(duration_for_packing_seconds)/60       AS avg_packing_mins,
+       AVG(duration_of_palletization_seconds)/60  AS avg_palletizing_mins
+    FROM stage_seconds
+     WHERE palletize_ts BETWEEN 
+          TO_TIMESTAMP('22-FEB-2025 07:00:00', 'DD-MON-YYYY HH24:MI:SS') 
+      AND TO_TIMESTAMP('22-FEB-2025 15:00:00', 'DD-MON-YYYY HH24:MI:SS')
+     and  wave_ts is not null
+       and pick_ts is not null
+        and pack_ts is not null
+         and palletize_ts is not null
+)
+SELECT 
+  -------------------------------------------------------------------------------
+  -- Convert average_to_wave_mins
+  -------------------------------------------------------------------------------
+  CASE WHEN avg_to_wave_mins >= 60 THEN
+    -- hours + " hrs " + leftover mins
+    TO_CHAR(TRUNC(avg_to_wave_mins/60)) 
+    || ' hrs '
+    || LPAD(TO_CHAR(ROUND(MOD(avg_to_wave_mins,60))), 2, '0')
+    || ' mins'
+  ELSE
+    TO_CHAR(ROUND(avg_to_wave_mins,2)) || ' mins'
+  END AS duration_to_wave,
+
+  -------------------------------------------------------------------------------
+  -- Convert avg_picking_mins
+  -------------------------------------------------------------------------------
+  CASE WHEN avg_picking_mins >= 60 THEN
+    TO_CHAR(TRUNC(avg_picking_mins/60)) 
+    || ' hrs '
+    || LPAD(TO_CHAR(ROUND(MOD(avg_picking_mins,60))), 2, '0')
+    || ' mins'
+  ELSE
+    TO_CHAR(ROUND(avg_picking_mins,2)) || ' mins'
+  END AS duration_for_picking,
+
+  -------------------------------------------------------------------------------
+  -- Convert avg_packing_mins
+  -------------------------------------------------------------------------------
+  CASE WHEN avg_packing_mins >= 60 THEN
+    TO_CHAR(TRUNC(avg_packing_mins/60)) 
+    || ' hrs '
+    || LPAD(TO_CHAR(ROUND(MOD(avg_packing_mins,60))), 2, '0')
+    || ' mins'
+  ELSE
+    TO_CHAR(ROUND(avg_packing_mins,2)) || ' mins'
+  END AS duration_for_packing,
+
+  -------------------------------------------------------------------------------
+  -- Convert avg_palletizing_mins
+  -------------------------------------------------------------------------------
+  CASE WHEN avg_palletizing_mins >= 60 THEN
+    TO_CHAR(TRUNC(avg_palletizing_mins/60)) 
+    || ' hrs '
+    || LPAD(TO_CHAR(ROUND(MOD(avg_palletizing_mins,60))), 2, '0')
+    || ' mins'
+  ELSE
+    TO_CHAR(ROUND(avg_palletizing_mins,2)) || ' mins'
+  END AS duration_of_palletization,
+
+  -------------------------------------------------------------------------------
+  -- Compute and format total duration for all stages
+  -------------------------------------------------------------------------------
+  CASE 
+    WHEN (avg_to_wave_mins + avg_picking_mins + avg_packing_mins + avg_palletizing_mins) >= 60 THEN
+      TO_CHAR(TRUNC((avg_to_wave_mins + avg_picking_mins + avg_packing_mins + avg_palletizing_mins)/60))
+        || ' hrs '
+        || LPAD(TO_CHAR(ROUND(MOD((avg_to_wave_mins + avg_picking_mins + avg_packing_mins + avg_palletizing_mins),60))), 2, '0')
+        || ' mins'
+    ELSE
+      TO_CHAR(ROUND((avg_to_wave_mins + avg_picking_mins + avg_packing_mins + avg_palletizing_mins),2)) || ' mins'
+  END AS total_duration
+
+FROM stage_avgs;
