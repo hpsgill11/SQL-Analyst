@@ -3,6 +3,7 @@ WITH stage_seconds AS (
            o.tc_order_id,
            (o.created_dttm + INTERVAL '3' HOUR) AS order_create_ts,
            wave_time.wave_time AS wave_ts,
+           induct_time.max_induct_time as induct_ts,
            picking_stats.pick_complete AS pick_ts,
            pack_time.pack_complete AS pack_ts,
            CASE 
@@ -39,14 +40,25 @@ WITH stage_seconds AS (
            ------------------------------------------------------------------------------
            -- 2) Duration_For_Picking_Seconds
            ------------------------------------------------------------------------------
+                      CASE 
+             WHEN wave_time.wave_time IS NOT NULL 
+                  AND o.created_dttm IS NOT NULL 
+             THEN
+               EXTRACT(DAY    FROM (induct_time.max_induct_time - (wave_time.wave_time))) * 86400
+             + EXTRACT(HOUR   FROM (induct_time.max_induct_time - (wave_time.wave_time ))) * 3600
+             + EXTRACT(MINUTE FROM (induct_time.max_induct_time - (wave_time.wave_time ))) * 60
+             + EXTRACT(SECOND FROM (induct_time.max_induct_time - (wave_time.wave_time)))
+             ELSE NULL
+           END AS duration_to_induct_seconds,
+           
            CASE 
              WHEN picking_stats.pick_complete IS NOT NULL 
                   AND wave_time.wave_time IS NOT NULL
              THEN
-               EXTRACT(DAY    FROM (picking_stats.pick_complete - wave_time.wave_time)) * 86400
-             + EXTRACT(HOUR   FROM (picking_stats.pick_complete - wave_time.wave_time)) * 3600
-             + EXTRACT(MINUTE FROM (picking_stats.pick_complete - wave_time.wave_time)) * 60
-             + EXTRACT(SECOND FROM (picking_stats.pick_complete - wave_time.wave_time))
+               EXTRACT(DAY    FROM (picking_stats.pick_complete - induct_time.max_induct_time)) * 86400
+             + EXTRACT(HOUR   FROM (picking_stats.pick_complete - induct_time.max_induct_time)) * 3600
+             + EXTRACT(MINUTE FROM (picking_stats.pick_complete - induct_time.max_induct_time)) * 60
+             + EXTRACT(SECOND FROM (picking_stats.pick_complete - induct_time.max_induct_time))
              ELSE NULL
            END AS duration_for_picking_seconds,
 
@@ -168,22 +180,58 @@ WITH stage_seconds AS (
         GROUP BY oo.tc_order_id
     ) manual_palletize_time
         ON manual_palletize_time.tc_order_id = o.tc_order_id
+        
+LEFT JOIN (SELECT
+    wm.orders.tc_order_id,
+    MAX(induct_time.induct_time) AS max_induct_time
+FROM wm.orders
+LEFT JOIN wm.task_dtl
+    ON wm.task_dtl.tc_order_id = wm.orders.tc_order_id
+LEFT JOIN
+(
+    SELECT
+        x.task_id,
+        MAX(x.create_date_time + INTERVAL '3' HOUR) AS induct_time
+    FROM
+    (
+        SELECT
+            TRIM(wm.event_message.ek_task_id) AS task_id,
+            wm.event_message.create_date_time
+        FROM wm.event_message
+        WHERE TRIM(wm.event_message.ek_task_id) IS NOT NULL
+
+        UNION ALL
+
+        SELECT
+            TRIM(wm.event_message_history.ek_task_id) AS task_id,
+            wm.event_message_history.create_date_time
+        FROM wm.event_message_history
+        WHERE TRIM(wm.event_message_history.ek_task_id) IS NOT NULL
+    ) x
+    GROUP BY x.task_id
+) induct_time
+    ON induct_time.task_id = wm.task_dtl.task_id
+WHERE wm.orders.order_type = 'ECOMM'
+GROUP BY wm.orders.tc_order_id) induct_time on induct_time.tc_order_id = o.tc_order_id
 
     WHERE o.order_type = 'ECOMM'
+   -- and o.tc_order_id = 'c173896576896361_202502182222336835574388'
     AND o.do_status between 130 and 190
 ),
 stage_avgs AS (
     SELECT
        -- Average in decimal minutes for each stage
        AVG(duration_to_wave_seconds)/60           AS avg_to_wave_mins,
+       AVG(duration_to_induct_seconds)/60           AS avg_to_induct_mins,
        AVG(duration_for_picking_seconds)/60       AS avg_picking_mins,
        AVG(duration_for_packing_seconds)/60       AS avg_packing_mins,
        AVG(duration_of_palletization_seconds)/60  AS avg_palletizing_mins
     FROM stage_seconds
      WHERE palletize_ts BETWEEN 
-          TO_TIMESTAMP('22-FEB-2025 07:00:00', 'DD-MON-YYYY HH24:MI:SS') 
-      AND TO_TIMESTAMP('22-FEB-2025 15:00:00', 'DD-MON-YYYY HH24:MI:SS')
+          TO_TIMESTAMP('21-FEB-2025 00:00:00', 'DD-MON-YYYY HH24:MI:SS') 
+      AND TO_TIMESTAMP('21-FEB-2025 23:59:59', 'DD-MON-YYYY HH24:MI:SS')
      and  wave_ts is not null
+       and  induct_ts is not null
        and pick_ts is not null
         and pack_ts is not null
          and palletize_ts is not null
@@ -204,6 +252,17 @@ SELECT
 
   -------------------------------------------------------------------------------
   -- Convert avg_picking_mins
+  
+    CASE WHEN avg_to_induct_mins >= 60 THEN
+    -- hours + " hrs " + leftover mins
+    TO_CHAR(TRUNC(avg_to_induct_mins/60)) 
+    || ' hrs '
+    || LPAD(TO_CHAR(ROUND(MOD(avg_to_induct_mins,60))), 2, '0')
+    || ' mins'
+  ELSE
+    TO_CHAR(ROUND(avg_to_induct_mins,2)) || ' mins'
+  END AS duration_to_induct,
+  
   -------------------------------------------------------------------------------
   CASE WHEN avg_picking_mins >= 60 THEN
     TO_CHAR(TRUNC(avg_picking_mins/60)) 
