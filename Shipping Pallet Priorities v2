@@ -27,10 +27,58 @@ base AS (
                 THEN '10 Days old'
         END AS date_difference,
         l.tc_parent_lpn_id,
+        pallet.last_updated_time,
+        pallet.age,
         COUNT(DISTINCT l.tc_lpn_id) AS oLPN_Count
     FROM wm.orders o
     JOIN wm.lpn l 
         ON l.tc_order_id = o.tc_order_id
+    LEFT JOIN (SELECT DISTINCT
+       tc_lpn_id,
+       
+last_updated_dttm + INTERVAL '3' HOUR as last_updated_time,
+       
+       CASE 
+         WHEN FLOOR(
+             (SYSDATE + 3/24) 
+             - (last_updated_dttm + 3/24)
+           ) < 1 THEN
+           -- Hours and minutes
+           FLOOR(
+             ((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) * 24
+           ) 
+           || ' hr '
+           || FLOOR(
+                MOD(
+                  ((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) * 24 * 60, 
+                  60
+                )
+              ) 
+           || ' min'
+         ELSE
+           -- Days, hours, and minutes
+           FLOOR(
+             (SYSDATE + 3/24) 
+             - (last_updated_dttm + 3/24)
+           ) 
+           || ' day '
+           || FLOOR(
+                MOD(
+                  ((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) * 24, 
+                  24
+                )
+              ) 
+           || ' hr '
+           || FLOOR(
+                MOD(
+                  ((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) * 24 * 60, 
+                  60
+                )
+              ) 
+           || ' min'
+       END AS age
+FROM   wm.lpn
+WHERE  lpn_type = '2') pallet on pallet.tc_lpn_id = l.tc_parent_lpn_id
     WHERE o.order_type = 'ECOMM'
       AND l.tc_parent_lpn_id IS NOT NULL
       AND l.lpn_facility_status <> '50'        -- Exclude Loaded oLPN
@@ -60,12 +108,16 @@ base AS (
             WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 10)
                 THEN '10 Days old'
         END,
-        l.tc_parent_lpn_id
+        l.tc_parent_lpn_id,
+        pallet.last_updated_time,
+        pallet.age
 ),
 -- 2) Pivot the counts by date-difference, but NOT by ship_via
 pvt AS (
     SELECT
         tc_parent_lpn_id,
+        last_updated_time,
+        age,
         "Same Day"    AS same_day,
         "1 Day old"   AS one_day_old,
         "2 Days old"  AS two_days_old,
@@ -113,6 +165,8 @@ via_list AS (
 SELECT
     pvt.tc_parent_lpn_id AS pallet,
     via_list.ship_via_list,
+   -- to_char(pvt.last_updated_time, 'DD-Mon HH:MI AM') AS Last_Update_Time,
+    pvt.age as Pallet_Age,
     CASE WHEN same_day       = 0 THEN NULL ELSE same_day       END AS same_day,
     CASE WHEN one_day_old    = 0 THEN NULL ELSE one_day_old    END AS one_day_old,
     CASE WHEN two_days_old   = 0 THEN NULL ELSE two_days_old   END AS two_days_old,
