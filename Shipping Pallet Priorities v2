@@ -163,21 +163,21 @@ via_list AS (
     GROUP BY l.tc_parent_lpn_id
 )
 SELECT
-    pvt.tc_parent_lpn_id AS pallet,
-    via_list.ship_via_list,
+    pvt.tc_parent_lpn_id AS Pallet,
+    via_list.ship_via_list as Ship_Via,
    -- to_char(pvt.last_updated_time, 'DD-Mon HH:MI AM') AS Last_Update_Time,
     pvt.age as Pallet_Age,
     CASE WHEN same_day       = 0 THEN NULL ELSE same_day       END AS same_day,
-    CASE WHEN one_day_old    = 0 THEN NULL ELSE one_day_old    END AS one_day_old,
-    CASE WHEN two_days_old   = 0 THEN NULL ELSE two_days_old   END AS two_days_old,
-    CASE WHEN three_days_old = 0 THEN NULL ELSE three_days_old END AS three_days_old,
-    CASE WHEN four_days_old  = 0 THEN NULL ELSE four_days_old  END AS four_days_old,
-    CASE WHEN five_days_old  = 0 THEN NULL ELSE five_days_old  END AS five_days_old,
-    CASE WHEN six_days_old   = 0 THEN NULL ELSE six_days_old   END AS six_days_old,
-    CASE WHEN seven_days_old = 0 THEN NULL ELSE seven_days_old END AS seven_days_old,
-    CASE WHEN eight_days_old = 0 THEN NULL ELSE eight_days_old END AS eight_days_old,
-    CASE WHEN nine_days_old  = 0 THEN NULL ELSE nine_days_old  END AS nine_days_old,
-    CASE WHEN ten_days_old   = 0 THEN NULL ELSE ten_days_old   END AS ten_days_old
+    CASE WHEN one_day_old    = 0 THEN NULL ELSE one_day_old    END AS one_day,
+    CASE WHEN two_days_old   = 0 THEN NULL ELSE two_days_old   END AS two_day,
+    CASE WHEN three_days_old = 0 THEN NULL ELSE three_days_old END AS three_day,
+    CASE WHEN four_days_old  = 0 THEN NULL ELSE four_days_old  END AS four_day,
+    CASE WHEN five_days_old  = 0 THEN NULL ELSE five_days_old  END AS five_day,
+    CASE WHEN six_days_old   = 0 THEN NULL ELSE six_days_old   END AS six_day,
+    CASE WHEN seven_days_old = 0 THEN NULL ELSE seven_days_old END AS seven_day,
+    CASE WHEN eight_days_old = 0 THEN NULL ELSE eight_days_old END AS eight_day,
+    CASE WHEN nine_days_old  = 0 THEN NULL ELSE nine_days_old  END AS nine_day,
+    CASE WHEN ten_days_old   = 0 THEN NULL ELSE ten_days_old   END AS ten_day
 FROM pvt
 LEFT JOIN via_list
     ON pvt.tc_parent_lpn_id = via_list.tc_parent_lpn_id
