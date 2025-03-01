@@ -29,6 +29,9 @@ base AS (
         l.tc_parent_lpn_id,
         pallet.last_updated_time,
         pallet.age,
+            CASE
+        WHEN o.d_country_code = 'CA' Then 'Domestic'
+        else 'Cross-Border' end as Country,
         COUNT(DISTINCT l.tc_lpn_id) AS oLPN_Count
     FROM wm.orders o
     JOIN wm.lpn l 
@@ -110,7 +113,10 @@ WHERE  lpn_type = '2') pallet on pallet.tc_lpn_id = l.tc_parent_lpn_id
         END,
         l.tc_parent_lpn_id,
         pallet.last_updated_time,
-        pallet.age
+        pallet.age,
+                 CASE
+        WHEN o.d_country_code = 'CA' Then 'Domestic'
+        else 'Cross-Border' end
 ),
 -- 2) Pivot the counts by date-difference, but NOT by ship_via
 pvt AS (
@@ -118,6 +124,7 @@ pvt AS (
         tc_parent_lpn_id,
         last_updated_time,
         age,
+        country,
         "Same Day"    AS same_day,
         "1 Day old"   AS one_day_old,
         "2 Days old"  AS two_days_old,
@@ -166,7 +173,9 @@ SELECT
     pvt.tc_parent_lpn_id AS Pallet,
     via_list.ship_via_list as Ship_Via,
    -- to_char(pvt.last_updated_time, 'DD-Mon HH:MI AM') AS Last_Update_Time,
+       pvt.country,
     pvt.age as Pallet_Age,
+
     CASE WHEN same_day       = 0 THEN NULL ELSE same_day       END AS same_day,
     CASE WHEN one_day_old    = 0 THEN NULL ELSE one_day_old    END AS one_day,
     CASE WHEN two_days_old   = 0 THEN NULL ELSE two_days_old   END AS two_day,
@@ -182,6 +191,7 @@ FROM pvt
 LEFT JOIN via_list
     ON pvt.tc_parent_lpn_id = via_list.tc_parent_lpn_id
 ORDER BY 
+pvt.country,
     NVL(ten_days_old, 0)  DESC,
     NVL(nine_days_old, 0) DESC,
     NVL(eight_days_old, 0)DESC,
