@@ -1,0 +1,277 @@
+WITH ----------------------------------------------------------------------------
+     -- 1) Gather real transactions
+     ----------------------------------------------------------------------------
+     final_base AS (
+         SELECT 
+               CASE 
+                   WHEN lh2.dsp_locn IS NOT NULL THEN lh2.dsp_locn 
+                   ELSE lh1.dsp_locn 
+               END AS pick_location, 
+               ptt.menu_optn_name AS transaction_type, 
+               ptt.cntr_nbr AS lpn, 
+               ic.item_name AS sku, 
+               ptt.nbr_units, 
+               ptt.user_id, 
+               NULL AS order_type,
+               NULL AS tc_order_id,
+               ptt.create_date_time + NUMTODSINTERVAL(3,'HOUR') AS created_dt
+         FROM wm.prod_trkg_tran ptt 
+              LEFT JOIN wm.item_cbo ic 
+                     ON ptt.item_id = ic.item_id 
+              LEFT JOIN wm.locn_hdr lh1 
+                     ON ptt.from_locn = lh1.locn_id 
+              LEFT JOIN wm.locn_hdr lh2 
+                     ON ptt.to_locn = lh2.locn_id
+         WHERE ptt.menu_optn_name != 'Generate Replenishment'
+           AND (
+                 (lh2.dsp_locn IS NOT NULL AND lh2.dsp_locn = 'AS1-02-11-B03')
+              OR (lh2.dsp_locn IS NULL AND lh1.dsp_locn = 'AS1-02-11-B03')
+           )
+
+         UNION ALL
+
+         SELECT
+               lh.dsp_locn AS pick_location,
+               'Pick Short' AS transaction_type,
+               NULL AS lpn,
+               ic.item_name AS sku,
+               psi.short_qty AS nbr_units,
+               psi.created_source AS user_id,
+               CASE 
+                  WHEN o.order_type = 'ECOMM' THEN 'ECOMM' 
+                  ELSE o.order_type 
+               END AS order_type,
+               psi.tc_order_id,
+               psi.created_dttm + NUMTODSINTERVAL(3,'HOUR') AS created_dt
+         FROM picking_short_item psi
+              INNER JOIN locn_hdr lh 
+                      ON lh.locn_id = psi.locn_id
+              INNER JOIN item_cbo ic 
+                      ON ic.item_id = psi.item_id
+              INNER JOIN orders o 
+                      ON o.tc_order_id = psi.tc_order_id
+         WHERE lh.dsp_locn = 'AS1-02-11-B03'
+     ),
+
+     final AS (
+         SELECT * FROM final_base
+     ),
+
+     ----------------------------------------------------------------------------
+     -- 2) Identify cycle counts (Cyc Cnt Actv OR Cyc Cnt Act-Rndm)
+     ----------------------------------------------------------------------------
+     cycle_count_rows AS (
+         SELECT
+             pick_location,
+             transaction_type,
+             lpn,
+             sku,
+             nbr_units,
+             user_id,
+             order_type,
+             tc_order_id,
+             created_dt
+         FROM final
+         WHERE transaction_type IN ('Cyc Cnt Actv','Cyc Cnt Act-Rndm')
+     ),
+
+     ----------------------------------------------------------------------------
+     -- 3) Create "carryover" rows after each cycle count
+     ----------------------------------------------------------------------------
+     carryover_rows AS (
+         SELECT
+             pick_location,
+             'CarryOver' AS transaction_type,
+             lpn,
+             sku,
+             nbr_units,
+             'carryover' AS user_id,
+             order_type,
+             tc_order_id,
+             -- +1 second for ordering
+             created_dt + (1/86400) AS created_dt
+         FROM cycle_count_rows
+     ),
+
+     ----------------------------------------------------------------------------
+     -- 4) Combine real + carryover
+     ----------------------------------------------------------------------------
+     combined AS (
+         SELECT * FROM final
+         UNION ALL
+         SELECT * FROM carryover_rows
+     ),
+
+     ----------------------------------------------------------------------------
+     -- 5) Flag new-batch boundaries
+     ----------------------------------------------------------------------------
+     flagged AS (
+         SELECT
+             c.*,
+             CASE
+                 WHEN LAG(pick_location) 
+                      OVER (PARTITION BY pick_location ORDER BY created_dt) 
+                      IS NULL THEN 1
+
+                 WHEN LAG(transaction_type) 
+                      OVER (PARTITION BY pick_location ORDER BY created_dt)
+                      IN ('Cyc Cnt Actv','Cyc Cnt Act-Rndm')
+                 THEN 1
+
+                 WHEN transaction_type = 'CarryOver'
+                 THEN 1
+
+                 WHEN transaction_type IN ('Fill Actv - Truck','Fill Actv User Dir')
+                      AND (
+                           LAG(sku) 
+                           OVER (PARTITION BY pick_location ORDER BY created_dt)
+                           IS NULL
+                           OR 
+                           LAG(sku) 
+                           OVER (PARTITION BY pick_location ORDER BY created_dt)
+                           <> sku
+                         )
+                 THEN 1
+
+                 ELSE 0
+             END AS new_batch_flag
+         FROM combined c
+     ),
+
+     ----------------------------------------------------------------------------
+     -- 6) Assign batch_no
+     ----------------------------------------------------------------------------
+     batches AS (
+         SELECT
+             flagged.*,
+             SUM(new_batch_flag) 
+               OVER (
+                 PARTITION BY pick_location
+                 ORDER BY created_dt
+                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+               ) AS batch_no
+         FROM flagged
+     ),
+
+     ----------------------------------------------------------------------------
+     -- 7) Summarize each batch 
+     --    (Shows picks, iLPN, carryover, cycle count, etc.)
+     ----------------------------------------------------------------------------
+     batch_summary AS (
+         SELECT 
+             pick_location,
+             batch_no,
+             sku,
+
+             SUM(
+                 CASE WHEN transaction_type IN (
+                       'Fill Actv - Truck', 
+                       'Fill Actv User Dir',
+                       'CarryOver'
+                     )
+                     THEN nbr_units 
+                     ELSE 0 
+                 END
+             ) AS fill_qty,
+
+             -- "Traditional" picks
+             SUM(
+                 CASE WHEN transaction_type IN (
+                       'Pack Pick Cart Put Wall',
+                       'Resume Pick Cart EX16'
+                     )
+                     THEN nbr_units 
+                     ELSE 0 
+                 END
+             ) AS total_picked,
+
+             -- iLPN removal
+             SUM(
+                 CASE WHEN transaction_type = 'Pck iLPN Frm Actv'
+                      THEN nbr_units 
+                      ELSE 0 
+                 END
+             ) AS total_ilpn_removed,
+
+             -- Did we see a carryover row in this batch?
+             MAX(
+                 CASE WHEN transaction_type = 'CarryOver' 
+                      THEN 1 
+                      ELSE 0 
+                 END
+             ) AS has_carryover,
+
+             -- If any cycle count present, get the max 
+             MAX(
+                 CASE WHEN transaction_type IN ('Cyc Cnt Actv','Cyc Cnt Act-Rndm')
+                      THEN nbr_units 
+                      ELSE NULL 
+                 END
+             ) AS final_cycle_count,
+
+             MIN(created_dt) AS batch_start,
+             MAX(created_dt) AS batch_end
+         FROM batches
+         GROUP BY pick_location, batch_no, sku
+     ),
+
+     ----------------------------------------------------------------------------
+     -- 8) Final Calc: leftover, lost, found
+     ----------------------------------------------------------------------------
+     diff_calc AS (
+         SELECT
+             pick_location,
+             sku,
+             fill_qty,
+             total_picked,
+             total_ilpn_removed,
+             has_carryover,
+             NVL(final_cycle_count, 0) AS final_cycle_count,
+             batch_start,
+             batch_end,
+
+             -- For convenience, sum all removals in one column
+             (total_picked + total_ilpn_removed) AS total_removals,
+
+             CASE
+               -- (A) If no fill, no carryover => no known starting inventory => skip difference
+               WHEN fill_qty = 0 AND has_carryover = 0 
+               THEN 0
+
+               -- (B) If there's no cycle count in the batch => leftover scenario => no final discrepancy
+               WHEN final_cycle_count IS NULL
+               THEN 0
+
+               -- (C) Else normal formula
+               ELSE fill_qty - ((total_picked + total_ilpn_removed) + 
+                                NVL(final_cycle_count, 0))
+             END AS diff_val,
+
+             CASE
+               -- If no final cycle count and we do have fill or carryover
+               WHEN final_cycle_count IS NULL 
+                    AND (fill_qty > 0 OR has_carryover = 1)
+               THEN fill_qty - (total_picked + total_ilpn_removed)
+               ELSE NULL
+             END AS leftover
+         FROM batch_summary
+     )
+
+-------------------------------------------------------------------------------
+-- 9) Final SELECT
+-------------------------------------------------------------------------------
+SELECT
+    pick_location,
+    sku,
+    fill_qty as Total_IN,
+    total_picked,
+    total_ilpn_removed as TOTAL_Pack_Out,
+    total_removals as Total_Out,
+    final_cycle_count as Cycle_Count,
+        CASE WHEN diff_val > 0 THEN diff_val ELSE 0 END AS lost_inventory,
+    CASE WHEN diff_val < 0 THEN -diff_val ELSE 0 END AS found_inventory,
+    leftover,
+    batch_start,
+    batch_end
+FROM diff_calc
+ORDER BY pick_location, batch_start;
