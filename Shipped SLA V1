@@ -1,0 +1,97 @@
+SELECT
+  Order_Create_Date,
+  Country,
+  Shipping_Mode,
+  COUNT(DISTINCT tc_order_id) AS Total_Orders,
+  SUM(CASE WHEN Order_Cutoff = 'Before Cutoff' THEN 1 ELSE 0 END) AS Orders_Before_Cutoff,
+  SUM(CASE WHEN Order_Cutoff = 'After Cutoff' THEN 1 ELSE 0 END) AS Orders_After_Cutoff,
+  SUM(CASE WHEN SLA_Status = 'Late' THEN 1 ELSE 0 END) AS Late_Orders,
+  SUM(CASE WHEN SLA_Status = 'On Time' THEN 1 ELSE 0 END) AS On_Time_Orders,
+  SUM(CASE WHEN SLA_Status = 'Early' THEN 1 ELSE 0 END) AS Early_Orders
+FROM (
+  SELECT
+    wm.orders.tc_order_id,
+    TRUNC(CAST(wm.orders.created_dttm + INTERVAL '3' HOUR AS DATE)) AS Order_Create_Date,
+    CASE 
+      WHEN D_country_code = 'CA' THEN 'Domestic' 
+      ELSE 'Cross-Order'
+    END AS Country,
+    CASE 
+      WHEN line_haul_ship_via LIKE 'FI%' THEN 'Air'
+      WHEN line_haul_ship_via LIKE '%01' THEN 'Air'
+      WHEN line_haul_ship_via LIKE '%03' THEN 'Air'
+      WHEN line_haul_ship_via LIKE '%05' THEN 'Air'
+      ELSE 'Ground'
+    END AS Shipping_Mode,
+    -- Order_Cutoff Calculation: Before or After the cutoff
+    CASE 
+      WHEN (CAST(wm.orders.created_dttm + INTERVAL '3' HOUR AS DATE)
+            - TRUNC(CAST(wm.orders.created_dttm + INTERVAL '3' HOUR AS DATE)))
+           <
+           (CASE 
+              WHEN (D_country_code = 'CA' OR 
+                    line_haul_ship_via LIKE 'FI%' OR 
+                    line_haul_ship_via LIKE '%01' OR 
+                    line_haul_ship_via LIKE '%03' OR 
+                    line_haul_ship_via LIKE '%05')
+              THEN 11/24 
+              ELSE 3/24 
+            END)
+      THEN 'Before Cutoff'
+      ELSE 'After Cutoff'
+    END AS Order_Cutoff,
+    -- SLA_Status Calculation based on comparison between shipped date and expected ship date
+    CASE 
+      WHEN TRUNC(CAST(wm.orders.last_updated_dttm + INTERVAL '3' HOUR AS DATE))
+           >
+           (
+             CASE 
+               WHEN (CAST(wm.orders.created_dttm + INTERVAL '3' HOUR AS DATE)
+                     - TRUNC(CAST(wm.orders.created_dttm + INTERVAL '3' HOUR AS DATE)))
+                    <
+                    (CASE 
+                       WHEN (D_country_code = 'CA' OR 
+                             line_haul_ship_via LIKE 'FI%' OR 
+                             line_haul_ship_via LIKE '%01' OR 
+                             line_haul_ship_via LIKE '%03' OR 
+                             line_haul_ship_via LIKE '%05')
+                       THEN 11/24 
+                       ELSE 3/24 
+                     END)
+               THEN TRUNC(CAST(wm.orders.created_dttm + INTERVAL '3' HOUR AS DATE))
+               ELSE TRUNC(CAST(wm.orders.created_dttm + INTERVAL '3' HOUR AS DATE)) + 1
+             END
+           )
+      THEN 'Late'
+      WHEN TRUNC(CAST(wm.orders.last_updated_dttm + INTERVAL '3' HOUR AS DATE))
+           =
+           (
+             CASE 
+               WHEN (CAST(wm.orders.created_dttm + INTERVAL '3' HOUR AS DATE)
+                     - TRUNC(CAST(wm.orders.created_dttm + INTERVAL '3' HOUR AS DATE)))
+                    <
+                    (CASE 
+                       WHEN (D_country_code = 'CA' OR 
+                             line_haul_ship_via LIKE 'FI%' OR 
+                             line_haul_ship_via LIKE '%01' OR 
+                             line_haul_ship_via LIKE '%03' OR 
+                             line_haul_ship_via LIKE '%05')
+                       THEN 11/24 
+                       ELSE 3/24 
+                     END)
+               THEN TRUNC(CAST(wm.orders.created_dttm + INTERVAL '3' HOUR AS DATE))
+               ELSE TRUNC(CAST(wm.orders.created_dttm + INTERVAL '3' HOUR AS DATE)) + 1
+             END
+           )
+      THEN 'On Time'
+      ELSE 'Early'
+    END AS SLA_Status
+  FROM wm.orders
+  LEFT JOIN wm.ship_via 
+    ON wm.ship_via.ship_via = wm.orders.line_haul_ship_via
+  WHERE wm.orders.order_type = 'ECOMM'
+    AND line_haul_ship_via IS NOT NULL
+    AND wm.orders.do_status = 190
+) sub
+GROUP BY Order_Create_Date, Country, Shipping_Mode
+ORDER BY Order_Create_Date, Country, Shipping_Mode;
