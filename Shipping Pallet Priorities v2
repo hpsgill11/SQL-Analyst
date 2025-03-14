@@ -25,69 +25,48 @@ base AS (
                 THEN '9 Days old'
             WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 10)
                 THEN '10 Days old'
+            ELSE 'Over 10 Days'
         END AS date_difference,
         l.tc_parent_lpn_id,
         pallet.last_updated_time,
         wm.locn_hdr.dsp_locn,
         pallet.age,
-            CASE
-        WHEN o.d_country_code = 'CA' Then 'Domestic'
-        else 'Cross-Border' end as Country,
+        CASE
+            WHEN o.d_country_code = 'CA' THEN 'Domestic'
+            ELSE 'Cross-Border'
+        END AS country,
         COUNT(DISTINCT l.tc_lpn_id) AS oLPN_Count
     FROM wm.orders o
     JOIN wm.lpn l 
         ON l.tc_order_id = o.tc_order_id
-    LEFT JOIN wm.locn_hdr on wm.locn_hdr.locn_id  = l.curr_sub_locn_id
-    LEFT JOIN (SELECT DISTINCT
-       tc_lpn_id,
-       
-last_updated_dttm + INTERVAL '3' HOUR as last_updated_time,
-       
-       CASE 
-         WHEN FLOOR(
-             (SYSDATE + 3/24) 
-             - (last_updated_dttm + 3/24)
-           ) < 1 THEN
-           -- Hours and minutes
-           FLOOR(
-             ((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) * 24
-           ) 
-           || ' hr '
-           || FLOOR(
-                MOD(
-                  ((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) * 24 * 60, 
-                  60
-                )
-              ) 
-           || ' min'
-         ELSE
-           -- Days, hours, and minutes
-           FLOOR(
-             (SYSDATE + 3/24) 
-             - (last_updated_dttm + 3/24)
-           ) 
-           || ' day '
-           || FLOOR(
-                MOD(
-                  ((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) * 24, 
-                  24
-                )
-              ) 
-           || ' hr '
-           || FLOOR(
-                MOD(
-                  ((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) * 24 * 60, 
-                  60
-                )
-              ) 
-           || ' min'
-       END AS age
-FROM   wm.lpn
-WHERE  lpn_type = '2') pallet on pallet.tc_lpn_id = l.tc_parent_lpn_id
+    LEFT JOIN wm.locn_hdr 
+        ON wm.locn_hdr.locn_id  = l.curr_sub_locn_id
+    LEFT JOIN (
+        SELECT DISTINCT
+           tc_lpn_id,
+           last_updated_dttm + INTERVAL '3' HOUR AS last_updated_time,
+           CASE 
+             WHEN FLOOR((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) < 1 THEN
+               FLOOR(((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) * 24) 
+               || ' hr ' ||
+               FLOOR(MOD(((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) * 24 * 60, 60)) 
+               || ' min'
+             ELSE
+               FLOOR((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) 
+               || ' day ' ||
+               FLOOR(MOD(((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) * 24, 24)) 
+               || ' hr ' ||
+               FLOOR(MOD(((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) * 24 * 60, 60)) 
+               || ' min'
+           END AS age
+        FROM wm.lpn
+        WHERE lpn_type = '2'
+    ) pallet 
+      ON pallet.tc_lpn_id = l.tc_parent_lpn_id
     WHERE o.order_type = 'ECOMM'
       AND l.tc_parent_lpn_id IS NOT NULL
       AND l.lpn_facility_status <> '50'        -- Exclude Loaded oLPN
-      AND TRUNC(o.created_dttm + INTERVAL '3' HOUR) >= TRUNC(SYSDATE - 10)
+      -- Date filter removed to include orders older than 10 days
     GROUP BY 
         CASE
             WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE + INTERVAL '3' HOUR)
@@ -112,14 +91,16 @@ WHERE  lpn_type = '2') pallet on pallet.tc_lpn_id = l.tc_parent_lpn_id
                 THEN '9 Days old'
             WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 10)
                 THEN '10 Days old'
+            ELSE 'Over 10 Days'
         END,
         l.tc_parent_lpn_id,
         pallet.last_updated_time,
         wm.locn_hdr.dsp_locn,
         pallet.age,
-                 CASE
-        WHEN o.d_country_code = 'CA' Then 'Domestic'
-        else 'Cross-Border' end
+        CASE
+            WHEN o.d_country_code = 'CA' THEN 'Domestic'
+            ELSE 'Cross-Border'
+        END
 ),
 -- 2) Pivot the counts by date-difference, but NOT by ship_via
 pvt AS (
@@ -139,7 +120,8 @@ pvt AS (
         "7 Days old"  AS seven_days_old,
         "8 Days old"  AS eight_days_old,
         "9 Days old"  AS nine_days_old,
-        "10 Days old" AS ten_days_old
+        "10 Days old" AS ten_days_old,
+        "Over 10 Days" AS over_ten_days
     FROM base
     PIVOT (
         SUM(oLPN_Count)
@@ -154,7 +136,8 @@ pvt AS (
             '7 Days old'  AS "7 Days old",
             '8 Days old'  AS "8 Days old",
             '9 Days old'  AS "9 Days old",
-            '10 Days old' AS "10 Days old"
+            '10 Days old' AS "10 Days old",
+            'Over 10 Days' AS "Over 10 Days"
         )
     )
 ),
@@ -170,15 +153,15 @@ via_list AS (
     WHERE o.order_type = 'ECOMM'
       AND l.tc_parent_lpn_id IS NOT NULL
       AND l.lpn_facility_status <> '50'
-      AND TRUNC(o.created_dttm + INTERVAL '3' HOUR) >= TRUNC(SYSDATE - 10)
+      -- Date filter removed to include orders older than 10 days
     GROUP BY l.tc_parent_lpn_id
 )
 SELECT
     pvt.tc_parent_lpn_id AS Pallet,
-    via_list.ship_via_list as Ship_Via,
-       pvt.country,
-    pvt.age as Pallet_Age,
-    pvt.dsp_locn as Current_Location,
+    via_list.ship_via_list AS Ship_Via,
+    pvt.country,
+    pvt.age AS Pallet_Age,
+  -- pvt.dsp_locn AS Current_Location,
     CASE WHEN same_day       = 0 THEN NULL ELSE same_day       END AS same_day,
     CASE WHEN one_day_old    = 0 THEN NULL ELSE one_day_old    END AS one_day,
     CASE WHEN two_days_old   = 0 THEN NULL ELSE two_days_old   END AS two_day,
@@ -189,20 +172,21 @@ SELECT
     CASE WHEN seven_days_old = 0 THEN NULL ELSE seven_days_old END AS seven_day,
     CASE WHEN eight_days_old = 0 THEN NULL ELSE eight_days_old END AS eight_day,
     CASE WHEN nine_days_old  = 0 THEN NULL ELSE nine_days_old  END AS nine_day,
-    CASE WHEN ten_days_old   = 0 THEN NULL ELSE ten_days_old   END AS ten_day
+    CASE WHEN ten_days_old   = 0 THEN NULL ELSE ten_days_old   END AS ten_day,
+    CASE WHEN over_ten_days  = 0 THEN NULL ELSE over_ten_days  END AS over_ten_day
 FROM pvt
 LEFT JOIN via_list
     ON pvt.tc_parent_lpn_id = via_list.tc_parent_lpn_id
 ORDER BY 
---pvt.country,
+    NVL(over_ten_days, 0) DESC,
     NVL(ten_days_old, 0)  DESC,
     NVL(nine_days_old, 0) DESC,
-    NVL(eight_days_old, 0)DESC,
-    NVL(seven_days_old, 0)DESC,
+    NVL(eight_days_old, 0) DESC,
+    NVL(seven_days_old, 0) DESC,
     NVL(six_days_old, 0)  DESC,
     NVL(five_days_old, 0) DESC,
     NVL(four_days_old, 0) DESC,
-    NVL(three_days_old, 0)DESC,
+    NVL(three_days_old, 0) DESC,
     NVL(two_days_old, 0)  DESC,
     NVL(one_day_old, 0)   DESC,
     NVL(same_day, 0)      DESC,
