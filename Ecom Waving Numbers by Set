@@ -1,0 +1,38 @@
+SELECT
+  TRUNC(wm.wave_parm.create_date_time + INTERVAL '3' HOUR) AS THE_DATE,
+  SUM(CASE 
+        WHEN TO_CHAR(wm.wave_parm.create_date_time + INTERVAL '3' HOUR, 'HH24:MI:SS') >= '07:30:00'
+         AND TO_CHAR(wm.wave_parm.create_date_time + INTERVAL '3' HOUR, 'HH24:MI:SS') < '10:30:00'
+        THEN oli.allocated_qty ELSE 0 
+      END) AS "7:30 AM to 10:30 AM",
+  SUM(CASE 
+        WHEN TO_CHAR(wm.wave_parm.create_date_time + INTERVAL '3' HOUR, 'HH24:MI:SS') >= '10:30:00'
+         AND TO_CHAR(wm.wave_parm.create_date_time + INTERVAL '3' HOUR, 'HH24:MI:SS') < '14:30:00'
+        THEN oli.allocated_qty ELSE 0 
+      END) AS "10:30 AM to 2:30 PM",
+  SUM(CASE 
+        WHEN TO_CHAR(wm.wave_parm.create_date_time + INTERVAL '3' HOUR, 'HH24:MI:SS') >= '14:30:00'
+         AND TO_CHAR(wm.wave_parm.create_date_time + INTERVAL '3' HOUR, 'HH24:MI:SS') < '17:30:00'
+        THEN oli.allocated_qty ELSE 0 
+      END) AS "2:30 PM to 5:30 PM",
+  SUM(CASE 
+        WHEN TO_CHAR(wm.wave_parm.create_date_time + INTERVAL '3' HOUR, 'HH24:MI:SS') >= '17:30:00'
+         AND TO_CHAR(wm.wave_parm.create_date_time + INTERVAL '3' HOUR, 'HH24:MI:SS') < '20:00:00'
+        THEN oli.allocated_qty ELSE 0 
+      END) AS "5:30 PM to 8:00 PM",
+  SUM(CASE 
+        WHEN TO_CHAR(wm.wave_parm.create_date_time + INTERVAL '3' HOUR, 'HH24:MI:SS') >= '20:00:00'
+         AND TO_CHAR(wm.wave_parm.create_date_time + INTERVAL '3' HOUR, 'HH24:MI:SS') < '22:30:00'
+        THEN oli.allocated_qty ELSE 0 
+      END) AS "8:00 PM to 10:30 PM"
+FROM wm.order_line_item oli
+INNER JOIN wm.orders o ON oli.order_id = o.order_id
+LEFT JOIN wm.wave_parm ON wm.wave_parm.wave_nbr = oli.ship_wave_nbr
+WHERE o.is_original_order = '1'
+  AND oli.ship_wave_nbr IS NOT NULL
+  AND o.order_type = 'ECOMM'
+  AND oli.invn_type = 'E'
+  AND wm.wave_parm.wave_nbr IS NOT NULL
+  AND wm.wave_parm.wave_stat_code != '99'
+GROUP BY TRUNC(wm.wave_parm.create_date_time + INTERVAL '3' HOUR)
+ORDER BY THE_DATE;
