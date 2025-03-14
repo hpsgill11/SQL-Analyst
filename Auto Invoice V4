@@ -32,11 +32,9 @@ CTE AS (
         END AS Date_Difference,
         wm.orders.created_dttm + INTERVAL '3' HOUR AS Order_Create_Date_EST,
         wm.orders.tc_order_id,
-        CASE 
-            WHEN wm.orders.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
-            ELSE 'Multi'
-        END AS Order_Type,
-        wm.orders.REF_FIELD_1 AS Order_Country,
+        CASE
+        WHEN upper(wm.orders.D_country_code) = 'CA' THEN 'Domestic'
+        ELSE 'Cross-Border' end as Order_Country,
         wm.orders.do_status || ' - ' || wm.do_status.description AS Order_Status,
         wm.orders.total_nbr_of_units AS DO_Quantity,
         wm.lpn.total_LPN_QTY AS oLPN_Quantity,
@@ -49,6 +47,7 @@ CTE AS (
         current_locn_lpn.dsp_locn,
         wm.lpn.tc_lpn_id,
         wm.lpn.ship_via,
+        wm.ship_via.description as Ship_Via_Description,
         wm.lpn.TRACKING_NBR,
         wm.lpn.TC_parent_LPN_id AS Pallet_ID,
         wm.lpn.TC_shipment_id AS Shipment_ID,
@@ -99,6 +98,7 @@ CTE AS (
         ON Building.task_cmpl_ref_nbr = wm.lpn.tc_lpn_id
     LEFT JOIN oLPN_age 
         ON oLPN_age.cntr_nbr = wm.lpn.tc_lpn_id
+    LEFT JOIN wm.ship_via on wm.ship_via.ship_via = wm.lpn.ship_via
     WHERE wm.orders.order_type = 'ECOMM'
       AND wm.do_status.order_status IN ('160', '165')
       AND wm.lpn.lpn_facility_status != '99'
@@ -111,15 +111,13 @@ SELECT
          THEN 'Cross Building'
          ELSE CTE.Facility
     END AS Facility,
-    CTE.Date_Difference,
+    CTE.Date_Difference as Order_Age,
     CTE.Order_Create_Date_EST,
     CTE.tc_order_id,
-    CTE.Order_Type,
-    CTE.Order_Country,
+    CTE.Order_Country as Destination,
     CTE.Order_Status,
     CTE.DO_Quantity,
     CTE.oLPN_Quantity,
---    CTE.Invoice,
     CTE.oLPN_Status,
     CTE.dsp_locn as Current_location,
     CTE.tc_lpn_id as oLPN,
@@ -129,6 +127,7 @@ SELECT
        ELSE 'No Splits'
     END AS Split_Order_Check,
     CTE.ship_via,
+    CTE.Ship_Via_Description,
     CTE.TRACKING_NBR as Tracking_Number,
     CTE.Pallet_ID,
         CASE
@@ -147,11 +146,11 @@ SELECT
               OVER (PARTITION BY CTE.tc_order_id) > 0
             )
        THEN 'On Pallet'
-
-       ELSE 'No Pallets'
+       WHEN CTE.TRACKING_NBR is null then 'Invalid'
+       ELSE 'No Update'
     END AS Investigation,
     CTE.Shipment_ID,
-    CTE.Age_in_Hours,
+    CTE.Age_in_Hours as oLPN_Age,
 CASE
     WHEN MAX(CTE.Age_in_Hours) OVER (PARTITION BY CTE.tc_order_id) > 47 THEN 'More than 48'
     WHEN MAX(CTE.Age_in_Hours) OVER (PARTITION BY CTE.tc_order_id) > 35 THEN 'More than 36'
@@ -167,8 +166,8 @@ where  Invoice != 'Bad')
 SELECT *
 FROM final_output
 where 1=1
-and final_output.Age_Category != 'Less than 24'
+--and final_output.Age_Category not in ('Less than 24','More than 24')
 --and final_output.Investigation != 'On Pallet'
 --and final_output.Investigation != 'Investigate'
-and final_output.facility != 'Milton'
-ORDER BY Order_Create_Date_EST;
+--and final_output.facility != 'Milton'
+ORDER BY Order_Create_Date_EST,tc_order_id
