@@ -159,9 +159,9 @@ via_list AS (
 SELECT
     pvt.tc_parent_lpn_id AS Pallet,
     via_list.ship_via_list AS Ship_Via,
-    pvt.country,
+    pvt.country as Destination,
     pvt.age AS Pallet_Age,
-  -- pvt.dsp_locn AS Current_Location,
+   pvt.dsp_locn AS Current_Location,
     CASE WHEN same_day       = 0 THEN NULL ELSE same_day       END AS same_day,
     CASE WHEN one_day_old    = 0 THEN NULL ELSE one_day_old    END AS one_day,
     CASE WHEN two_days_old   = 0 THEN NULL ELSE two_days_old   END AS two_day,
