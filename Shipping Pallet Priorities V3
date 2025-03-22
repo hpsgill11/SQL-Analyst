@@ -1,0 +1,231 @@
+WITH
+-- 1) Base subquery for pivot: group only by pallet + date difference
+base AS (
+    SELECT 
+        CASE 
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE + INTERVAL '3' HOUR)
+                THEN 'Same Day'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 1)
+                THEN '1 Day old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 2)
+                THEN '2 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 3)
+                THEN '3 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 4)
+                THEN '4 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 5)
+                THEN '5 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 6)
+                THEN '6 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 7)
+                THEN '7 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 8)
+                THEN '8 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 9)
+                THEN '9 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 10)
+                THEN '10 Days old'
+            ELSE 'Over 10 Days'
+        END AS date_difference,
+        l.tc_parent_lpn_id,
+        pallet.last_updated_time,
+        facility.current_facility,
+        facility.created_facility,
+        facility.created_for,
+        facility.current_location,
+        facility.prev_location,
+        pallet.age,
+        CASE
+            WHEN o.d_country_code = 'CA' THEN 'Domestic'
+            ELSE 'Cross-Border'
+        END AS country,
+        COUNT(DISTINCT l.tc_lpn_id) AS oLPN_Count
+    FROM wm.orders o
+    JOIN wm.lpn l
+        ON l.tc_order_id = o.tc_order_id
+    LEFT JOIN (
+        SELECT DISTINCT
+           tc_lpn_id,
+           last_updated_dttm + INTERVAL '3' HOUR AS last_updated_time,
+           CASE 
+             WHEN FLOOR((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) < 1 THEN
+               FLOOR(((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) * 24) 
+               || ' hr ' ||
+               FLOOR(MOD(((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) * 24 * 60, 60)) 
+               || ' min'
+             ELSE
+               FLOOR((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) 
+               || ' day ' ||
+               FLOOR(MOD(((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) * 24, 24)) 
+               || ' hr ' ||
+               FLOOR(MOD(((SYSDATE + 3/24) - (last_updated_dttm + 3/24)) * 24 * 60, 60)) 
+               || ' min'
+           END AS age
+        FROM wm.lpn
+        WHERE lpn_type = '2'
+    ) pallet
+      ON pallet.tc_lpn_id = l.tc_parent_lpn_id
+      
+LEFT JOIN (Select
+wm.lpn.tc_lpn_id as p,
+CASE
+WHEN current_locn.aisle || current_locn.bay || current_locn.lvl = 'SHPS' THEN 'Milton'
+WHEN current_locn.aisle || current_locn.bay || current_locn.lvl = 'SHPL' THEN 'Mississauga'
+WHEN current_locn.area || current_locn.zone = 'STA' THEN 'Staging'
+WHEN  created_locn.dsp_locn is null and current_locn.dsp_locn is null and prev_locn.dsp_locn is null then 'Manual'
+end as Current_Facility,
+CASE
+WHEN created_locn.aisle || created_locn.bay || created_locn.lvl = 'SHPS' THEN 'Milton'
+WHEN created_locn.aisle || created_locn.bay || created_locn.lvl = 'SHPL' THEN 'Mississauga'
+WHEN  created_locn.dsp_locn is null and current_locn.dsp_locn is null and prev_locn.dsp_locn is null then 'Manual'
+end as Created_Facility,
+created_locn.dsp_locn as Created_For,
+current_locn.dsp_locn as current_location,
+prev_locn.dsp_locn as prev_location
+from wm.lpn 
+left join wm.prod_trkg_tran on wm.prod_trkg_tran.cntr_nbr = wm.lpn.tc_lpn_id
+LEFT JOIN wm.locn_hdr current_locn ON wm.lpn.curr_sub_locn_id = current_locn.locn_id 
+LEFT JOIN wm.locn_hdr prev_locn ON wm.lpn.prev_sub_locn_id = prev_locn.locn_id
+LEFT JOIN wm.locn_hdr created_locn ON wm.prod_trkg_tran.to_locn = created_locn.locn_id 
+where wm.lpn.lpn_type = '2') facility on  facility.p = l.tc_parent_lpn_id 
+
+    WHERE o.order_type = 'ECOMM'
+      AND l.tc_parent_lpn_id IS NOT NULL
+      AND l.lpn_facility_status <> '50'        -- Exclude Loaded oLPN
+      -- Date filter removed to include orders older than 10 days
+    GROUP BY 
+        CASE
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE + INTERVAL '3' HOUR)
+                THEN 'Same Day'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 1)
+                THEN '1 Day old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 2)
+                THEN '2 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 3)
+                THEN '3 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 4)
+                THEN '4 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 5)
+                THEN '5 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 6)
+                THEN '6 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 7)
+                THEN '7 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 8)
+                THEN '8 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 9)
+                THEN '9 Days old'
+            WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 10)
+                THEN '10 Days old'
+            ELSE 'Over 10 Days'
+        END,
+        l.tc_parent_lpn_id,
+        pallet.last_updated_time,
+        facility.current_facility,
+        facility.created_facility,
+        facility.created_for,
+        facility.current_location,
+        facility.prev_location,
+        pallet.age,
+        CASE
+            WHEN o.d_country_code = 'CA' THEN 'Domestic'
+            ELSE 'Cross-Border'
+        END
+),
+-- 2) Pivot the counts by date-difference, but NOT by ship_via
+pvt AS (
+    SELECT
+        tc_parent_lpn_id,
+        last_updated_time,
+        current_facility,
+        created_facility,
+        created_for,
+        current_location,
+        prev_location,
+        age,
+        country,
+        "Same Day"    AS same_day,
+        "1 Day old"   AS one_day_old,
+        "2 Days old"  AS two_days_old,
+        "3 Days old"  AS three_days_old,
+        "4 Days old"  AS four_days_old,
+        "5 Days old"  AS five_days_old,
+        "6 Days old"  AS six_days_old,
+        "7 Days old"  AS seven_days_old,
+        "8 Days old"  AS eight_days_old,
+        "9 Days old"  AS nine_days_old,
+        "10 Days old" AS ten_days_old,
+        "Over 10 Days" AS over_ten_days
+    FROM base
+    PIVOT (
+        SUM(oLPN_Count)
+        FOR date_difference IN (
+            'Same Day'    AS "Same Day",
+            '1 Day old'   AS "1 Day old",
+            '2 Days old'  AS "2 Days old",
+            '3 Days old'  AS "3 Days old",
+            '4 Days old'  AS "4 Days old",
+            '5 Days old'  AS "5 Days old",
+            '6 Days old'  AS "6 Days old",
+            '7 Days old'  AS "7 Days old",
+            '8 Days old'  AS "8 Days old",
+            '9 Days old'  AS "9 Days old",
+            '10 Days old' AS "10 Days old",
+            'Over 10 Days' AS "Over 10 Days"
+        )
+    )
+),
+-- 3) Gather all ship_via for each pallet in one comma-separated list
+via_list AS (
+    SELECT
+        l.tc_parent_lpn_id,
+        LISTAGG(DISTINCT l.ship_via, ', ')
+           WITHIN GROUP (ORDER BY l.ship_via) AS ship_via_list
+    FROM wm.orders o
+    JOIN wm.lpn l
+        ON l.tc_order_id = o.tc_order_id
+    WHERE o.order_type = 'ECOMM'
+      AND l.tc_parent_lpn_id IS NOT NULL
+      AND l.lpn_facility_status <> '50'
+      -- Date filter removed to include orders older than 10 days
+    GROUP BY l.tc_parent_lpn_id
+)
+SELECT
+    pvt.tc_parent_lpn_id AS Pallet,
+    via_list.ship_via_list AS Ship_Via,
+    pvt.country as Destination,
+    pvt.age AS Pallet_Age,
+    pvt.current_facility,
+    pvt.created_facility,
+    pvt.created_for,
+    pvt.current_location,
+    pvt.prev_location,
+    CASE WHEN same_day       = 0 THEN NULL ELSE same_day       END AS same_day,
+    CASE WHEN one_day_old    = 0 THEN NULL ELSE one_day_old    END AS one_day,
+    CASE WHEN two_days_old   = 0 THEN NULL ELSE two_days_old   END AS two_day,
+    CASE WHEN three_days_old = 0 THEN NULL ELSE three_days_old END AS three_day,
+    CASE WHEN four_days_old  = 0 THEN NULL ELSE four_days_old  END AS four_day,
+    CASE WHEN five_days_old  = 0 THEN NULL ELSE five_days_old  END AS five_day,
+    CASE WHEN six_days_old   = 0 THEN NULL ELSE six_days_old   END AS six_day,
+    CASE WHEN seven_days_old = 0 THEN NULL ELSE seven_days_old END AS seven_day,
+    CASE WHEN eight_days_old = 0 THEN NULL ELSE eight_days_old END AS eight_day,
+    CASE WHEN nine_days_old  = 0 THEN NULL ELSE nine_days_old  END AS nine_day,
+    CASE WHEN ten_days_old   = 0 THEN NULL ELSE ten_days_old   END AS ten_day,
+    CASE WHEN over_ten_days  = 0 THEN NULL ELSE over_ten_days  END AS over_ten_day
+FROM pvt
+LEFT JOIN via_list
+    ON pvt.tc_parent_lpn_id = via_list.tc_parent_lpn_id
+ORDER BY 
+    NVL(over_ten_days, 0) DESC,
+    NVL(ten_days_old, 0)  DESC,
+    NVL(nine_days_old, 0) DESC,
+    NVL(eight_days_old, 0) DESC,
+    NVL(seven_days_old, 0) DESC,
+    NVL(six_days_old, 0)  DESC,
+    NVL(five_days_old, 0) DESC,
+    NVL(four_days_old, 0) DESC,
+    NVL(three_days_old, 0) DESC,
+    NVL(two_days_old, 0)  DESC,
+    NVL(one_day_old, 0)   DESC,
+    NVL(same_day, 0)      DESC,
+    pvt.tc_parent_lpn_id;
