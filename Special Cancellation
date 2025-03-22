@@ -1,0 +1,22 @@
+SELECT 
+    wm.orders.mark_for,
+    wm.order_line_item.invn_type as Inv_Type,
+    SUM(CASE 
+          WHEN wm.order_line_item.DO_DTL_STATUS = 200 
+          THEN TO_NUMBER(wm.order_line_item.orig_order_qty)
+          ELSE 0 
+        END) AS Cancelled_Units,
+        
+            SUM(CASE 
+          WHEN wm.order_line_item.DO_DTL_STATUS = 190 
+          THEN TO_NUMBER(wm.order_line_item.order_qty)
+          ELSE 0 
+        END) AS Shipped_Units,
+        SUM(wm.order_line_item.orig_order_qty) AS total_order_qty
+FROM wm.orders 
+LEFT JOIN wm.order_line_item 
+    ON wm.orders.order_id = wm.order_line_item.order_id
+WHERE upper(wm.orders.order_type) = 'SPECIAL' and  wm.order_line_item.invn_type is not null
+and wm.orders.is_original_order = '1'
+GROUP BY wm.orders.mark_for,wm.order_line_item.invn_type
+order by  wm.orders.mark_for
