@@ -73,6 +73,13 @@ WHEN current_locn.aisle || current_locn.bay || current_locn.lvl = 'SHPS' THEN 'M
 WHEN current_locn.aisle || current_locn.bay || current_locn.lvl = 'SHPL' THEN 'Mississauga'
 WHEN current_locn.area || current_locn.zone = 'STA' THEN 'Staging'
 WHEN  created_locn.dsp_locn is null and current_locn.dsp_locn is null and prev_locn.dsp_locn is null then 'Manual'
+ELSE (CASE
+WHEN created_locn.aisle || created_locn.bay || created_locn.lvl = 'SHPS' THEN 'Milton'
+WHEN created_locn.aisle || created_locn.bay || created_locn.lvl = 'SHPL' THEN 'Mississauga'
+WHEN  created_locn.dsp_locn is null and current_locn.dsp_locn is null and prev_locn.dsp_locn is null then 'Manual'
+end )
+
+
 end as Current_Facility,
 CASE
 WHEN created_locn.aisle || created_locn.bay || created_locn.lvl = 'SHPS' THEN 'Milton'
