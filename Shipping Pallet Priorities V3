@@ -1,5 +1,4 @@
 WITH
--- 1) Base subquery for pivot: group only by pallet + date difference
 base AS (
     SELECT 
         CASE 
@@ -72,13 +71,14 @@ CASE
 WHEN current_locn.aisle || current_locn.bay || current_locn.lvl = 'SHPS' THEN 'Milton'
 WHEN current_locn.aisle || current_locn.bay || current_locn.lvl = 'SHPL' THEN 'Mississauga'
 WHEN current_locn.area || current_locn.zone = 'STA' THEN 'Staging'
+WHEN current_locn.area || current_locn.zone = 'HS1' THEN 'Mississauga - Hospital'
+WHEN current_locn.area || current_locn.zone = 'HM1' THEN 'Milton - Hospital'
 WHEN  created_locn.dsp_locn is null and current_locn.dsp_locn is null and prev_locn.dsp_locn is null then 'Manual'
 ELSE (CASE
 WHEN created_locn.aisle || created_locn.bay || created_locn.lvl = 'SHPS' THEN 'Milton'
 WHEN created_locn.aisle || created_locn.bay || created_locn.lvl = 'SHPL' THEN 'Mississauga'
 WHEN  created_locn.dsp_locn is null and current_locn.dsp_locn is null and prev_locn.dsp_locn is null then 'Manual'
 end )
-
 
 end as Current_Facility,
 CASE
@@ -98,8 +98,7 @@ where wm.lpn.lpn_type = '2') facility on  facility.p = l.tc_parent_lpn_id
 
     WHERE o.order_type = 'ECOMM'
       AND l.tc_parent_lpn_id IS NOT NULL
-      AND l.lpn_facility_status <> '50'        -- Exclude Loaded oLPN
-      -- Date filter removed to include orders older than 10 days
+      AND l.lpn_facility_status <> '50'     
     GROUP BY 
         CASE
             WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE + INTERVAL '3' HOUR)
@@ -139,7 +138,6 @@ where wm.lpn.lpn_type = '2') facility on  facility.p = l.tc_parent_lpn_id
             ELSE 'Cross-Border'
         END
 ),
--- 2) Pivot the counts by date-difference, but NOT by ship_via
 pvt AS (
     SELECT
         tc_parent_lpn_id,
@@ -182,7 +180,6 @@ pvt AS (
         )
     )
 ),
--- 3) Gather all ship_via for each pallet in one comma-separated list
 via_list AS (
     SELECT
         l.tc_parent_lpn_id,
@@ -194,7 +191,6 @@ via_list AS (
     WHERE o.order_type = 'ECOMM'
       AND l.tc_parent_lpn_id IS NOT NULL
       AND l.lpn_facility_status <> '50'
-      -- Date filter removed to include orders older than 10 days
     GROUP BY l.tc_parent_lpn_id
 )
 SELECT
