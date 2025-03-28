@@ -1,0 +1,72 @@
+SELECT 
+    wm.prod_trkg_tran.cntr_nbr,
+    LPNStatus.description,
+    l.TRACKING_NBR,
+    l.alt_TRACKING_NBR,
+    l.ship_via,
+    max(wm.prod_trkg_tran.CREATE_DATE_TIME + INTERVAL '3' HOUR) AS Packing_Date_Time,
+    TO_CHAR(wm.prod_trkg_tran.CREATE_DATE_TIME + INTERVAL '3' HOUR, 'MM/DD/YYYY') AS Process_Date,
+    TO_CHAR(wm.prod_trkg_tran.CREATE_DATE_TIME + INTERVAL '3' HOUR, 'HH24') AS Hour,
+    CASE WHEN SDi.Divert_status IS NOT NULL THEN SDi.Divert_status ELSE 'NO DIVERSION' end as Divert_status,
+    SDi.Ship_lane,
+    SDi.Divert_Date_Time,
+    CASE when
+    wm.prod_trkg_tran.menu_optn_name = 'AT-CrtnTote' Then 'Putwall' else  wm.prod_trkg_tran.menu_optn_name end as menu_optn_name,
+    wm.prod_trkg_tran.wkstn_id,
+    SDi.FACILITY,
+    new_test.plt_id,
+    new_test.to_locn,
+    new_test.menu_optn_name
+FROM
+    wm.prod_trkg_tran
+LEFT JOIN (
+    SELECT
+         distinct REGEXP_SUBSTR(DBMS_LOB.SUBSTR(wm.cl_message.DATA, 4000), '[^\\^]+', 1, 3) AS oLPN,
+        REGEXP_SUBSTR(DBMS_LOB.SUBSTR(wm.cl_message.DATA, 4000), '[^\\^]+', 1, 4) AS Divert_status,
+        REGEXP_SUBSTR(DBMS_LOB.SUBSTR(wm.cl_message.DATA, 4000), '[^\\^]+', 1, 6) AS Ship_Lane,
+        wm.cl_message.when_created + INTERVAL '3' HOUR AS Divert_Date_Time,
+        CASE WHEN event_id = '2020000' THEN 'SAUGA'
+        WHEN event_id = '4040000' THEN 'MILTON' ELSE null END AS FACILITY
+
+    FROM
+        cl_message
+    WHERE
+        event_id in ('2020000','4040000')
+) SDi ON SDi.olpn = wm.prod_trkg_tran.cntr_nbr
+LEFT JOIN (Select cntr_nbr,plt_id,to_locn,menu_optn_name from prod_trkg_tran where plt_id is not null or to_locn is not null) new_test on new_test.cntr_nbr = wm.prod_trkg_tran.cntr_nbr
+LEFT JOIN wm.lpn l on l.tc_lpn_id  = wm.prod_trkg_tran.cntr_nbr
+    LEFT JOIN wm.lpn_facility_status LPNStatus ON l.lpn_facility_status = LPNStatus.lpn_facility_status
+                            AND  LPNStatus.inbound_outbound_indicator = 'O'
+WHERE
+    wm.prod_trkg_tran.tran_type = '500'
+    AND wm.prod_trkg_tran.tran_code = '001'
+    AND NOT LENGTH(wm.prod_trkg_tran.tc_order_id) = 8
+    AND LOWER(wm.prod_trkg_tran.tc_order_id) NOT LIKE 'b%'
+    AND wm.prod_trkg_tran.nbr_units > 0
+ --   and   l.alt_TRACKING_NBR = '9632080400202438518800439948853738'
+ -- and l.tc_lpn_id = '1298'
+   and TO_CHAR(wm.prod_trkg_tran.CREATE_DATE_TIME + INTERVAL '3' HOUR, 'MM/DD/YYYY')  in ('03/24/2025')
+     --and l.ship_via like ('VH%')
+   and new_test.plt_id is  null
+   and new_test.to_locn is  null
+  -- and  l.lpn_facility_status >= 30
+
+Group by
+    wm.prod_trkg_tran.cntr_nbr,
+    LPNStatus.description,
+    l.TRACKING_NBR,
+    l.alt_TRACKING_NBR,
+    l.ship_via,
+    TO_CHAR(wm.prod_trkg_tran.CREATE_DATE_TIME + INTERVAL '3' HOUR, 'MM/DD/YYYY'),
+    TO_CHAR(wm.prod_trkg_tran.CREATE_DATE_TIME + INTERVAL '3' HOUR, 'HH24'),
+    CASE WHEN SDi.Divert_status IS NOT NULL THEN SDi.Divert_status ELSE 'NO DIVERSION' end ,
+    SDi.Ship_lane,
+    SDi.Divert_Date_Time,
+    CASE when wm.prod_trkg_tran.menu_optn_name = 'AT-CrtnTote' Then 'Putwall' else  wm.prod_trkg_tran.menu_optn_name end,
+    wm.prod_trkg_tran.wkstn_id,
+    SDi.FACILITY,
+    new_test.plt_id,
+    new_test.to_locn,
+    new_test.menu_optn_name
+ORDER BY
+    Packing_Date_Time desc
