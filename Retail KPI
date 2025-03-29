@@ -1,0 +1,427 @@
+-- 10/12/2022: Updated to split TIL and DEL/SCI (DEL should not have any Retail order, SCI has mats, footwear, self care)
+-- 4/26/2023 : Updated logic to return null values for columns referencing different order types as well as adding SHOULD_SHIP_DATE logic to replace should_ship_dow logic
+select 
+    DATE_KEY
+    , WHSE
+    , ZONE
+    , REGION
+    , count(distinct tc_lpn_id) LPNs_SHIPPED
+    , sum(UNITS_SHIPPED) as UNITS_SHIPPED
+    , sum(UNITS_CANCELLED) as UNITS_CANCELLED
+    -- SHOULD THIS BE Units shipped / Units shipped + Cancelled units ???
+    , round(sum(UNITS_SHIPPED) / (sum(UNITS_SHIPPED) + sum(UNITS_CANCELLED)), 4) as FILL_RATE
+    , round(sum(UNITS_SHIPPED) / count(distinct tc_lpn_id), 2) as AVG_UNITS_PER_LPN
+    , sum(case when ORDER_TYPE in ('ALLOC') then UNITS_SHIPPED else null end) as ALLOC_UNITS_SHIPPED
+  --  , SHOULD_SHIP_DATE
+  --  , LPN_SHIPPED_DTTM
+    , sum(ALLOC_ON_TIME_UNITS)
+    , sum(ALLOC_EARLY_UNITS)
+    , sum(ALLOC_LATE_UNITS)
+    , sum(case when ORDER_TYPE in ('REPLEN') then UNITS_SHIPPED else null end) as REPLEN_UNITS_SHIPPED
+    --, sum(case when ORDER_TYPE in ('REPLEN_CUSTOM') then UNITS_SHIPPED else 0 end) as REPLEN_CUSTOM_UNITS_SHIPPED
+    --, sum(case when ORDER_TYPE in ('CUSTOM_PREFLOW', 'CUSTOM_REPLEN_PO') then UNITS_SHIPPED else 0 end) as CUSTOM_UNITS_SHIPPED
+    , sum(case when ORDER_TYPE in ('SPECIAL') then UNITS_SHIPPED else null end) as SPECIALS_UNITS_SHIPPED
+    --, sum(case when ORDER_TYPE in ('NSO') then UNITS_SHIPPED else 0 end) as NSO_UNITS_SHIPPED
+    --, sum(case when ORDER_TYPE in ('FO') then UNITS_SHIPPED else 0 end) as FO_UNITS_SHIPPED
+    , case when ORDER_TYPE <> 'ALLOC' then null else round(sum(ALLOC_ON_TIME_UNITS) / sum(UNITS_SHIPPED), 4) end as ALLOC_ON_TIME_PERC
+	, case when ORDER_TYPE <> 'ALLOC' then null else round(sum(ALLOC_EARLY_UNITS) / sum(UNITS_SHIPPED), 4) end as ALLOC_EARLY_PERC
+    , case when sum(case when ORDER_TYPE = 'REPLEN' then UNITS_SHIPPED else 0 end) = 0 then null
+        else round(sum(case when ORDER_TYPE = 'REPLEN' then REPLEN_ON_TIME_UNITS else 0 end) / sum(case when ORDER_TYPE = 'REPLEN' then UNITS_SHIPPED else 0 end), 4)
+        end as REPLEN_ON_TIME_PERC
+    --, as SPECIAL_ON_TIME_PERC
+    , round(avg(UNITS_SHIPPED), 2) as MEAN_UNITS_PER_LPN
+    , median(UNITS_SHIPPED) as MEDIAN_UNITS_PER_LPN
+    , stats_mode(UNITS_SHIPPED) as MODE_UNITS_PER_LPN
+    , sum(case when FULL_PULL_MRKR = 1 then UNITS_SHIPPED else 0 end) as FULL_PULL_UNITS
+    , count(distinct case when FULL_PULL_MRKR = 1 then tc_lpn_id end) as FULL_PULL_LPNs
+    , round(sum(case when FULL_PULL_MRKR = 1 then UNITS_SHIPPED else 0 end) / sum(UNITS_SHIPPED), 4) as FULL_PULLS_PERCENTAGE
+    -- THIS COUNT LIKELY WILL BE SLIGHTLY HIGH DUE TO SEASONAL/POP-UP STORES NOT YT CLOSED IN FACILITY TABLES
+    , max(fac.NBR_STORES) as TOTAL_STORES
+    , count(distinct STORE_NBR) as NBR_STORES_SHIPPED_TO
+    , sum(UNITS_MENS) as UNITS_MENS
+    , sum(UNITS_WOMENS) as UNITS_WOMENS
+    , sum(UNITS_ACCS) as UNITS_ACCS
+    , sum(UNITS_EQUIPMENT) as UNITS_EQUIPMENT
+    -- LPNS SHIPPED WITH 1 UNIT
+    , sum(nvl(SINGLE_UNIT_FLAG, 0)) as REF_FIELD_1  
+    -- YOGA MAT UNITS
+    , sum(UNITS_MATS) as REF_FIELD_2
+    , '' as REF_FIELD_3
+    , '' as REF_FIELD_4
+    , '' as REF_FIELD_5
+    , '' as REF_FIELD_6
+    , '' as REF_FIELD_7
+    , '' as REF_FIELD_8
+from ( -- * SUMMARIZE BY LPN *
+    select distinct tc_lpn_id
+        , DATE_KEY
+        , WHSE
+        , ORDER_TYPE
+   --         , SHOULD_SHIP_DATE
+  --  , LPN_SHIPPED_DTTM
+        , sum(UNITS_SHIPPED) as UNITS_SHIPPED
+        -- ADDED TO FLAG SINGLE UNIT LPNS
+        , case when sum(UNITS_SHIPPED) = 1 then sum(UNITS_SHIPPED) end SINGLE_UNIT_FLAG
+        , sum(UNITS_CANCELLED) as UNITS_CANCELLED
+        , sum(case WHEN ORDER_TYPE = 'ALLOC' then case when ALLOC_ON_TIME = 'On Time' THEN UNITS_SHIPPED when ALLOC_ON_TIME = 'Early' then 0 when ALLOC_ON_TIME = 'Late' then 0 END else null end) AS ALLOC_ON_TIME_UNITS
+        , sum(case WHEN ORDER_TYPE = 'ALLOC' then case when ALLOC_ON_TIME = 'Early' THEN UNITS_SHIPPED when ALLOC_ON_TIME = 'On Time' then 0 when ALLOC_ON_TIME = 'Late' then 0 end ELSE null END) AS ALLOC_EARLY_UNITS
+        , sum(case WHEN ORDER_TYPE = 'ALLOC' then case when ALLOC_ON_TIME = 'Late' THEN UNITS_SHIPPED when ALLOC_ON_TIME = 'On Time' THEN 0 when ALLOC_ON_TIME = 'Early' then 0 end ELSE null END) AS ALLOC_LATE_UNITS
+        , sum(case when ORDER_TYPE ='REPLEN' and REPLEN_ON_TIME = 'On Time' then UNITS_SHIPPED else 0 end) as REPLEN_ON_TIME_UNITS
+        , sum(case when PROD_CTGRY = 'Mens' then UNITS_SHIPPED else 0 end) as UNITS_MENS
+        , sum(case when PROD_CTGRY = 'Womens' then UNITS_SHIPPED else 0 end) as UNITS_WOMENS
+        , sum(case when PROD_CTGRY = 'Accessories' then UNITS_SHIPPED else 0 end) as UNITS_ACCS
+        , sum(case when PROD_CTGRY = 'Yoga Mats' then UNITS_SHIPPED else 0 end) as UNITS_MATS
+        , sum(case when PROD_CTGRY = 'Equipment' then UNITS_SHIPPED else 0 end) as UNITS_EQUIPMENT
+        , STORE_NBR
+        , REGION
+        , ZONE
+        , case when (select distinct td.carton_nbr
+            from wm.task_hdr th
+            inner join wm.task_dtl td on th.task_id = td.task_id
+            left outer join (select sc.code_desc, sc.code_id from wm.sys_code sc where sc.rec_type = 'S' and sc.code_type = '590' 
+                ) ys on ys.code_id = th.task_type
+            where th.task_type in ('RB','60','32','FP','FM') and tc_lpn_id = td.carton_nbr
+            ) is null then 0 else 1
+            end as FULL_PULL_MRKR
+    from ( ---- * ON TIME UNIT CALCS *
+select tc_lpn_id
+            , DATE_KEY
+            , WHSE
+            , ORDER_TYPE
+            , ADJ_ORDER_TYPE
+            , UNITS_SHIPPED
+            , UNITS_CANCELLED
+            , DEST_CNTRY
+            , CORE
+            , PROD_CTGRY
+            , STORE_NBR
+            , REGION
+            , ZONE
+            , ORDER_DOW, SHIPPED_DOW, SHOULD_SHIP_DOW/*,SHOULD_SHIP_DATE,LPN_SHIPPED_DTTM*/
+            , round(((trunc(LPN_SHIPPED_DTTM)-trunc(CREATED_DTTM))*24)+((((to_char(LPN_SHIPPED_DTTM,'HH24')*60)+(to_char(LPN_SHIPPED_DTTM,'MI')))/60)-(((to_char(CREATED_DTTM,'HH24')*60)+(to_char(CREATED_DTTM,'MI')))/60)), 2) TURN_TIME_HRS
+            , case when ORDER_TYPE <> 'ALLOC' then 'n/a' 
+            when ORDER_TYPE = 'ALLOC' and SHOULD_SHIP_DATE = ORDER_SHIPPED_DTTM /*and SHIP_ISD_DIFF >= ALLOC_SHIP_DAYS*/ then 'On Time' 
+            when ORDER_TYPE = 'ALLOC' and SHOULD_SHIP_DATE > ORDER_SHIPPED_DTTM then 'Early' 
+            else 'Late' end ALLOC_ON_TIME
+            , case when ORDER_TYPE not in ('REPLEN') then 'n/a'
+                when ORDER_TYPE in ('REPLEN') and
+                    ((ORDER_DOW = 1 and SHOULD_SHIP_DOW = 2) or (ORDER_DOW = 2 and SHOULD_SHIP_DOW = 3) or (ORDER_DOW = 3 and SHOULD_SHIP_DOW = 4) or (ORDER_DOW = 4 and SHOULD_SHIP_DOW = 5))
+                    and ((trunc(LPN_SHIPPED_DTTM)-trunc(CREATED_DTTM))*24)+((((to_char(LPN_SHIPPED_DTTM,'HH24')*60)+(to_char(LPN_SHIPPED_DTTM,'MI')))/60)-(((to_char(CREATED_DTTM,'HH24')*60)+(to_char(CREATED_DTTM,'MI')))/60)) <= 48
+                then 'On Time'
+                when ORDER_TYPE in ('REPLEN') and
+                    ((ORDER_DOW = 1 and SHOULD_SHIP_DOW = 3) or (ORDER_DOW = 2 and SHOULD_SHIP_DOW = 4) or (ORDER_DOW = 3 and SHOULD_SHIP_DOW = 5) or (ORDER_DOW = 7 and SHOULD_SHIP_DOW = 2))
+                    and ((trunc(LPN_SHIPPED_DTTM)-trunc(CREATED_DTTM))*24)+((((to_char(LPN_SHIPPED_DTTM,'HH24')*60)+(to_char(LPN_SHIPPED_DTTM,'MI')))/60)-(((to_char(CREATED_DTTM,'HH24')*60)+(to_char(CREATED_DTTM,'MI')))/60)) <= 72
+                then 'On Time'
+                when ORDER_TYPE in ('REPLEN') and
+                    ((ORDER_DOW = 4 and SHOULD_SHIP_DOW = 1) or (ORDER_DOW = 5 and SHOULD_SHIP_DOW = 2))
+                    and ((trunc(LPN_SHIPPED_DTTM)-trunc(CREATED_DTTM))*24)+((((to_char(LPN_SHIPPED_DTTM,'HH24')*60)+(to_char(LPN_SHIPPED_DTTM,'MI')))/60)-(((to_char(CREATED_DTTM,'HH24')*60)+(to_char(CREATED_DTTM,'MI')))/60)) <= 120
+                then 'On Time'
+                when ORDER_TYPE in ('REPLEN') and
+                    ((ORDER_DOW = 5 and SHOULD_SHIP_DOW = 1) or (ORDER_DOW = 6 and SHOULD_SHIP_DOW = 2))
+                    and ((trunc(LPN_SHIPPED_DTTM)-trunc(CREATED_DTTM))*24)+((((to_char(LPN_SHIPPED_DTTM,'HH24')*60)+(to_char(LPN_SHIPPED_DTTM,'MI')))/60)-(((to_char(CREATED_DTTM,'HH24')*60)+(to_char(CREATED_DTTM,'MI')))/60)) <= 96
+                then 'On Time'
+                else 'Late'
+                end REPLEN_ON_TIME
+        -- GATHERS ORDER DATA 
+        from (
+				select to_char(sysdate + wh.UTC_ADJ - 1, 'YYYYMMDD') as DATE_KEY
+                /*, case when oli.invn_type = 'E' and min(substr(o.o_facility_alias_id,1,3)) = 'COL' then 'DHL'
+                    when oli.invn_type = 'R' and min(substr(o.o_facility_alias_id,1,3)) = 'COL' then 'COL'
+                    else min(substr(o.o_facility_alias_id,1,3))
+                    end WHSE*/
+                -- NEW CODE TO SPLIT DHL OUT
+                , case when upper(substr(o.o_facility_name,1,3)) = 'COL' and o.mark_for like '%FO%' and o.mark_for like '%DHL%' then 'ARC'
+                    -- 825 IS MATS, 828 IS SELFCARE
+                    when upper(substr(o.o_facility_name,1,3)) = 'COL' and pc.product_class in ('825','828') then 'ARC'
+                    when upper(substr(o.o_facility_name,1,3)) = 'COL' and oli.invn_type = 'E' then 'ARC'
+                    when upper(substr(o.o_facility_name,1,3)) = 'DEL' and oli.invn_type = 'R' and pc.product_class not in('825','828','118','821','820','442','834','836') then 'TIL'
+                    when upper(substr(o.o_facility_name,1,3)) = 'DEL' and oli.invn_type = 'E' and pc.product_class not in('825','828','118','821','820','442','834','836') then 'DEL'
+                    when upper(substr(o.o_facility_name,1,3)) = 'DEL' and pc.product_class in('825','828','118','821','820','442','834','836') then 'SCI'
+                    else upper(substr(o.o_facility_name,1,3))
+                    end WHSE
+                --, oli.invn_type
+                , (o.created_dttm + wh.UTC_ADJ) CREATED_DTTM
+                , case when o.order_type = 'REPLEN' and to_char(o.created_dttm + wh.UTC_ADJ, 'HH24') > 17 then 1 else 0 end AFTER_CUTOFF
+                , trunc(o.actual_shipped_dttm + wh.UTC_ADJ) ORDER_SHIPPED_DTTM
+                , trunc(o.last_updated_dttm + wh.UTC_ADJ) LAST_UPDATED_DTTM
+                , trunc(l.shipped_dttm + wh.UTC_ADJ) LPN_SHIPPED_DTTM
+                , (l.last_updated_dttm + wh.UTC_ADJ) LPN_LAST_UPDATED
+                , case when rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'monday' then 1
+                    when rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'tuesday' then 2
+                    when rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'wednesday' then 3
+                    when rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'thursday' then 4
+                    when rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'friday' then 5
+                    when rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'saturday' then 6
+                    when rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'sunday' then 7 
+                    end ORDER_DOW
+                , case when rtrim(to_char(l.shipped_dttm + wh.UTC_ADJ,'day')) = 'monday' then 1
+                    when rtrim(to_char(l.shipped_dttm + wh.UTC_ADJ,'day')) = 'tuesday' then 2
+                    when rtrim(to_char(l.shipped_dttm + wh.UTC_ADJ,'day')) = 'wednesday' then 3
+                    when rtrim(to_char(l.shipped_dttm + wh.UTC_ADJ,'day')) = 'thursday' then 4
+                    when rtrim(to_char(l.shipped_dttm + wh.UTC_ADJ,'day')) = 'friday' then 5
+                    when rtrim(to_char(l.shipped_dttm + wh.UTC_ADJ,'day')) = 'saturday' then 6
+                    when rtrim(to_char(l.shipped_dttm + wh.UTC_ADJ,'day')) = 'sunday' then 7 
+                    end SHIPPED_DOW
+                , case when o.order_type = 'REPLEN' and rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'monday' and to_char(o.created_dttm + wh.UTC_ADJ,'HH24') <= 17 then 2
+                    when o.order_type = 'REPLEN' and rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'monday' and to_char(o.created_dttm + wh.UTC_ADJ,'HH24') > 17 then 3 
+                    when o.order_type = 'REPLEN' and rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'tuesday' and to_char(o.created_dttm + wh.UTC_ADJ,'HH24') <= 17 then 3
+                    when o.order_type = 'REPLEN' and rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'tuesday' and to_char(o.created_dttm + wh.UTC_ADJ,'HH24') > 17 then 4
+                    when o.order_type = 'REPLEN' and rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'wednesday' and to_char(o.created_dttm + wh.UTC_ADJ,'HH24') <= 17 then 4
+                    when o.order_type = 'REPLEN' and rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'wednesday' and to_char(o.created_dttm + wh.UTC_ADJ,'HH24') > 17 then 5
+                    when o.order_type = 'REPLEN' and rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'thursday' and to_char(o.created_dttm + wh.UTC_ADJ,'HH24') <= 17 then 5
+                    when o.order_type = 'REPLEN' and rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'thursday' and to_char(o.created_dttm + wh.UTC_ADJ,'HH24') > 17 then 1
+                    when o.order_type = 'REPLEN' and rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'friday' and to_char(o.created_dttm + wh.UTC_ADJ,'HH24') <= 17 then 1
+                    when o.order_type = 'REPLEN' and rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'friday' and to_char(o.created_dttm + wh.UTC_ADJ,'HH24') > 17 then 2
+                    when o.order_type = 'REPLEN' and rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'saturday' then 2
+                    when o.order_type = 'REPLEN' and rtrim(to_char(o.created_dttm + wh.UTC_ADJ,'day')) = 'sunday' then 2
+                    end SHOULD_SHIP_DOW
+                , case when o.order_type = 'ALLOC' and f.region like '%1%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'monday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 1
+                    when o.order_type = 'ALLOC' and f.region like '%2%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'monday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 2
+                    when o.order_type = 'ALLOC' and f.region like '%3%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'monday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 3
+                    when o.order_type = 'ALLOC' and f.region like '%4%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'monday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 4
+                    when o.order_type = 'ALLOC' and f.region like '%5%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'monday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 5
+                    when o.order_type = 'ALLOC' and f.region like '%2%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'tuesday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 2
+                    when o.order_type = 'ALLOC' and f.region like '%3%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'tuesday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 3
+                    when o.order_type = 'ALLOC' and f.region like '%4%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'tuesday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 4
+                    when o.order_type = 'ALLOC' and f.region like '%5%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'tuesday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 5
+                    when o.order_type = 'ALLOC' and f.region like '%3%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'wednesday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 3
+                    when o.order_type = 'ALLOC' and f.region like '%4%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'wednesday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 4
+                    when o.order_type = 'ALLOC' and f.region like '%5%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'wednesday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 5
+                    when o.order_type = 'ALLOC' and f.region like '%4%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'thursday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 4
+                    when o.order_type = 'ALLOC' and f.region like '%5%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'thursday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 5
+                    when o.order_type = 'ALLOC' and f.region like '%5%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'friday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - regexp_replace(substr(f.region,1,3),'[^0-9]','')
+                    when o.order_type = 'ALLOC' and regexp_like(f.region,'[^0-9]') then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2
+                    else trunc(o.delivery_end_dttm + wh.TIME_ZONE) - regexp_replace(substr(f.region,1,3),'[^0-9]','') 
+                    end as SHOULD_SHIP_DATE                    
+                , case when o.order_type = 'ALLOC' then (trunc(o.delivery_end_dttm + wh.TIME_ZONE) - trunc(l.shipped_dttm + wh.UTC_ADJ)) else null end SHIP_ISD_DIFF
+                , regexp_replace(substr(f.region,1,3),'[^0-9]','') ALLOC_SHIP_DAYS
+                , (o.delivery_end_dttm + wh.TIME_ZONE) IN_STORE_DATE
+                , o.order_type ORDER_TYPE
+                , case
+                    when o.order_type in ('DCTRANSFER','INTERCOMPANY','WAREHOUSE') then 'TRANSFERS'
+                    when oli.invn_type = 'C' then 'COMMUNITY'
+                    when oli.invn_type = 'S' then 'STRAT'
+                    when o.mark_for = 'CUSTOM PREFLOW' then 'CUSTOM_PREFLOW'
+                    when o.mark_for = 'CUSTOM RPLN PO' then 'CUSTOM_REPLEN_PO'
+                    when o.order_type in ('REPLEN','ALLOC','SPECIAL') and f.region in ('NSO') then 'NSO'
+                    when o.order_type in ('REPLEN', 'ALLOC') and f.region in ('1FO', '2FOA', '2FOB', '3FO', 'WRFO', 'FFO','1FO','2FO','3FO','4FO') then 'FO'
+                    --when o.order_type in ('REPLEN', 'ALLOC') and o.region in ('MSH', 'TSH', 'WSH', 'RSH', 'FSH') THEN 'SHOWROOMS'
+                    when o.order_type = 'REPLEN' and (f.region not in ('NSO', '1FO', '2FOA', '2FOB', '3FO', 'WRFO', 'FFO','1FO','2FO','3FO','4FO') OR f.region is null) and o.mark_for in ('AAL Auto Replen Order') then 'REPLEN_AUTO'
+                    when o.order_type = 'REPLEN' and (f.region not in ('NSO', '1FO', '2FOA', '2FOB', '3FO', 'WRFO', 'FFO','1FO','2FO','3FO','4FO') OR f.region is null) and o.mark_for not in ('AAL Auto Replen Order') then 'REPLEN_CUSTOM'
+                    when o.order_type = 'SPECIAL' and (f.region not in ('NSO') OR f.region is null) then 'SPECIALS'
+                    when o.order_type = 'ALLOC' and (f.region not in ('NSO', '1FO', '2FOA', '2FOB', '3FO', 'WRFO', 'FFO','1FO','2FO','3FO','4FO') OR f.region is null) then 'ALLOC' 
+                    else 'N/A' 
+                    end as ADJ_ORDER_TYPE
+                , o.tc_order_id
+                , o.parent_order_id
+                -- GRABBED FROM THE RTL_Backlog_Smry QUERY
+                ,  to_number(CASE WHEN substr(o.o_facility_alias_id,0,3) = 'COL' THEN '3' 
+                        WHEN substr(o.o_facility_alias_id,0,3) = 'DEL' THEN '1' 
+                        WHEN substr(o.o_facility_alias_id,0,3) = 'SUM' THEN '2' 
+                        WHEN substr(o.o_facility_alias_id,0,3) = 'TOR' THEN '4' 
+                        ELSE '5' END||o.tc_order_id) as TC_ORDER_ID_ALT
+                , CASE WHEN o.parent_order_id is null THEN null ELSE to_number(CASE WHEN substr(o.o_facility_alias_id,0,3) = 'COL' THEN '3' 
+                        WHEN substr(o.o_facility_alias_id,0,3) = 'DEL' THEN '1' 
+                        WHEN substr(o.o_facility_alias_id,0,3) = 'SUM' THEN '2' 
+                        WHEN substr(o.o_facility_alias_id,0,3) = 'TOR' THEN '4' 
+                        ELSE '5' END||o.parent_order_id) END as PARENT_ORDER_ID_ALT
+                , o.mark_for
+                , l.tc_lpn_id
+                --, o.lane_name
+                , l.ship_via
+                , o.spl_instr_code_4 -- FLAGS IF AN ORDER WAS REROUTED TO ANOTHER DC
+                , o.spl_instr_code_5 -- FLAGS IF AN ORDER WAS SPLIT TO ANOTHER DC
+                , o.spl_instr_code_6
+                --, order_type
+                , o.total_nbr_of_units
+                -- NOT ALWAYS ACCURATE DUE TO THERE SOMETIMES BEING MULTIPLE ENTIRES IN ld.distribution_order_dtl_id FOR oli.line_item_id
+                    -- USE MAX o.total_nbr_of_units?
+                , sum(oli.orig_order_qty) UNITS_PLACED
+                , sum(l.initial_qty) UNITS_PLACED_ALT
+                , sum(l.size_value) UNITS_SHIPPED
+                , sum(case when oli.do_dtl_status = 200 then nvl(oli.ref_field3, oli.orig_order_qty) else '0' end) UNITS_CANCELLED
+                , count(distinct o.tc_order_id) ORDERS_PLACED
+                , count(oli.line_item_id) LINE_CNT
+                , (case --when min(o.d_country_code) = 'US' then 'US' when min(o.d_country_code) = 'CA' then 'CA' 
+                    when min(o.d_country_code) in ('US','CA','AU','NZ') then min(o.d_country_code)
+                    else 'Intl' end) DEST_CNTRY
+                , CASE WHEN c.primary_core = 'CORE' THEN 1 ELSE 0 END as CORE
+                , (case when ic.product_class_id = 172 then 'Yoga Mats' 
+                    when ic.product_class_id in (290,298,299,303) then 'BAGS' 
+                    when ic.product_class_id in (643,644) then 'FOOTWEAR' 
+                    when pc.product_class = '828' then 'Personal Care' 
+                    when pc.product_class = '119' then 'Gift Card'  
+                    when upper(pc.description) like 'MENS%' then 'Mens'
+                    when upper(pc.description) like 'WOMENS%' then 'Womens'
+                    when upper(pc.description) like '%ACCESSORIES%' then 'Accessories'
+                    when upper(pc.description) like '%EQUIPMENT%' then 'Equipment'
+                    else null end ) PROD_CTGRY 
+                , t.item_season ITEM_SEASON
+                , (case when trunc((o.created_dttm + wh.UTC_ADJ)) < trunc(sysdate + wh.UTC_ADJ) then 'Prev' else 'Today' end) ORD_DROP_DAY
+                , (case when min(o.do_status) = 110 then 'Open' 
+                    when min(o.do_status) between 120 and 189 then 'Allocated'
+                    when min(o.do_status)= 190 then 'Shipped' 
+                    when min(o.do_status) = 200 then 'Cancelled' 
+                    else 'N/A' end) ORDER_STAT
+                , (case when min(oli.do_dtl_status) = 190 then 'Shipped'
+                    when min(oli.do_dtl_status) = 200 then 'Cancelled'
+                    else 'N/A' end) OLI_STATUS
+                , o.store_nbr
+                , f.region
+                , f.zone
+                , f.rte_nbr PRIMARY_DC
+                , f.spl_instr_code_3 PRIMARY_TRANSIT 
+                , f.spl_instr_code_4 SECONDARY_TRANSIT
+            from wm.orders o
+            join wm.order_line_item oli on o.order_id = oli.order_id
+            join wm.item_cbo ic on ic.item_id = oli.item_id
+            -- JOIN FOR SHIPPED DTTM AND LPN INFO
+            left outer join (
+                select ld.distribution_order_dtl_id, ld.size_value, ld.initial_qty
+                    , la.*
+                from wm.lpn la
+                inner join wm.lpn_detail ld on la.lpn_id = ld.lpn_id
+                ) l on to_char(l.tc_order_id) = to_char(o.parent_order_id) and oli.line_item_id = l.distribution_order_dtl_id
+            left outer join wm.facility f on f.facility_id = o.d_facility_id
+            left outer join wm.lulu_core_item c on ic.item_name = c.item_name
+            --inner join wm.item_wms iw on iw.item_id = ic.item_id
+            left join wm.product_class pc on pc.product_class_id = ic.product_class_id
+            left outer join (
+                select item_style, max(item_season) as item_season 
+                from wm.lulu_item_translate 
+                group by item_style
+                ) t on ic.item_style = t.item_style
+            -- FOR UTC ADJ
+            , (select sum(case when pay_scale = 'UTC_ADJ' then to_number(pay_scale_desc)/24 end) as UTC_ADJ
+                    , sum(case when pay_scale = 'TIME_ZONE' then to_number(pay_scale_desc)/24 end) as TIME_ZONE
+                from wm.e_pay_scale 
+                where pay_scale in ('UTC_ADJ','TIME_ZONE','SHIFT_ADJ')
+                ) wh
+            where o.order_type not in ('ECOMM','WAREHOUSE','INTERCOMPANY','DCTRANSFER')
+                and to_char(o.created_dttm, 'YYYY') > '2019'
+                and o.parent_order_id is not null
+                and o.is_original_order = 1 
+                -- LIMIT TO ORDERS UPDATED YESTERDAY TO SHIPPED OR CANCELLED
+                --(trunc(o.last_updated_dttm + wh.UTC_ADJ) = trunc(sysdate + wh.UTC_ADJ - 1) and o.do_status in (190, 200))
+                and 
+                            (
+                (trunc(l.last_updated_dttm + wh.UTC_ADJ) = trunc(sysdate + wh.UTC_ADJ - 1) and l.lpn_facility_status in (90, 99))
+                or
+                (trunc(o.last_updated_dttm + wh.UTC_ADJ) = trunc(sysdate + wh.UTC_ADJ - 1) and oli.do_dtl_status in (200))
+                )
+                -- TESTING 
+                --and l.tc_lpn_id = '2101212917'
+                --and o.tc_order_id in ('206631804')
+            group by to_char(sysdate + wh.UTC_ADJ - 1, 'YYYYMMDD')
+               -- case when oli.do_dtl_status in (200) then to_char(o.last_updated_dttm + wh.UTC_ADJ, 'YYYYMMDD')
+                --    else to_char(l.shipped_dttm + wh.UTC_ADJ, 'YYYYMMDD') end
+                , case when upper(substr(o.o_facility_name,1,3)) = 'COL' and o.mark_for like '%FO%' and o.mark_for like '%DHL%' then 'ARC'
+                    -- 825 IS MATS, 828 IS SELFCARE
+                      when upper(substr(o.o_facility_name,1,3)) = 'COL' and pc.product_class in ('825','828') then 'ARC'
+                    when upper(substr(o.o_facility_name,1,3)) = 'COL' and oli.invn_type = 'E' then 'ARC'
+                    when upper(substr(o.o_facility_name,1,3)) = 'DEL' and oli.invn_type = 'R' and pc.product_class not in('825','828','118','821','820','442','834','836') then 'TIL'
+                    when upper(substr(o.o_facility_name,1,3)) = 'DEL' and oli.invn_type = 'E' and pc.product_class not in('825','828','118','821','820','442','834','836') then 'DEL'
+                    when upper(substr(o.o_facility_name,1,3)) = 'DEL' and pc.product_class in('825','828','118','821','820','442','834','836') then 'SCI'
+                    else upper(substr(o.o_facility_name,1,3))
+                    end 
+                , (o.created_dttm + wh.UTC_ADJ) 
+                , (o.actual_shipped_dttm + wh.UTC_ADJ)  
+                , (o.last_updated_dttm + wh.UTC_ADJ) 
+                , (l.shipped_dttm + wh.UTC_ADJ) 
+                , (l.last_updated_dttm + wh.UTC_ADJ)
+                , (o.delivery_end_dttm + wh.TIME_ZONE) 
+                , case when o.order_type = 'ALLOC' then (trunc(o.delivery_end_dttm + wh.TIME_ZONE) - trunc(l.shipped_dttm + wh.UTC_ADJ)) else null end
+                , o.order_type
+                , case
+                    when o.order_type in ('DCTRANSFER','INTERCOMPANY','WAREHOUSE') then 'TRANSFERS'
+                    when oli.invn_type = 'C' then 'COMMUNITY'
+                    when oli.invn_type = 'S' then 'STRAT'
+                    when o.mark_for = 'CUSTOM PREFLOW' then 'CUSTOM_PREFLOW'
+                    when o.mark_for = 'CUSTOM RPLN PO' then 'CUSTOM_REPLEN_PO'
+                    when o.order_type in ('REPLEN','ALLOC','SPECIAL') and f.region in ('NSO') then 'NSO'
+                    when o.order_type in ('REPLEN', 'ALLOC') and f.region in ('1FO', '2FOA', '2FOB', '3FO', 'WRFO', 'FFO','1FO','2FO','3FO','4FO') then 'FO'
+                    --when o.order_type in ('REPLEN', 'ALLOC') and o.region in ('MSH', 'TSH', 'WSH', 'RSH', 'FSH') THEN 'SHOWROOMS'
+                    when o.order_type = 'REPLEN' and (f.region not in ('NSO', '1FO', '2FOA', '2FOB', '3FO', 'WRFO', 'FFO','1FO','2FO','3FO','4FO') OR f.region is null) and o.mark_for in ('AAL Auto Replen Order') then 'REPLEN_AUTO'
+                    when o.order_type = 'REPLEN' and (f.region not in ('NSO', '1FO', '2FOA', '2FOB', '3FO', 'WRFO', 'FFO','1FO','2FO','3FO','4FO') OR f.region is null) and o.mark_for not in ('AAL Auto Replen Order') then 'REPLEN_CUSTOM'
+                    when o.order_type = 'SPECIAL' and (f.region not in ('NSO') OR f.region is null) then 'SPECIALS'
+                    when o.order_type = 'ALLOC' and (f.region not in ('NSO', '1FO', '2FOA', '2FOB', '3FO', 'WRFO', 'FFO','1FO','2FO','3FO','4FO') OR f.region is null) then 'ALLOC' 
+                    else 'N/A' 
+                    end
+                , o.tc_order_id
+                , o.parent_order_id
+                , substr(o.o_facility_alias_id,0,3)
+                , o.mark_for
+                , l.tc_lpn_id
+                --, o.lane_name
+                , l.ship_via
+                , o.spl_instr_code_4
+                , o.spl_instr_code_5
+                , o.spl_instr_code_6
+                , o.total_nbr_of_units
+                , CASE WHEN c.primary_core = 'CORE' THEN 1 ELSE 0 END
+                , (case when ic.product_class_id = 172 then 'Yoga Mats' 
+                    when ic.product_class_id in (290,298,299,303) then 'BAGS' 
+                    when ic.product_class_id in (643,644) then 'FOOTWEAR' 
+                    when pc.product_class = '828' then 'Personal Care' 
+                    when pc.product_class = '119' then 'Gift Card'  
+                    when upper(pc.description) like 'MENS%' then 'Mens'
+                    when upper(pc.description) like 'WOMENS%' then 'Womens'
+                    when upper(pc.description) like '%ACCESSORIES%' then 'Accessories'
+                    when upper(pc.description) like '%EQUIPMENT%' then 'Equipment'
+                    else null end )  
+                , t.item_season 
+                , (case when trunc((o.created_dttm + wh.UTC_ADJ)) < trunc(sysdate + wh.UTC_ADJ) then 'Prev' else 'Today' end) 
+                , o.store_nbr
+                , f.region
+                , f.zone
+                , f.rte_nbr
+                , f.spl_instr_code_3 
+                , f.spl_instr_code_4 
+                ,case when o.order_type = 'ALLOC' and f.region like '%1%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'monday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 1
+                    when o.order_type = 'ALLOC' and f.region like '%2%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'monday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 2
+                    when o.order_type = 'ALLOC' and f.region like '%3%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'monday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 3
+                    when o.order_type = 'ALLOC' and f.region like '%4%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'monday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 4
+                    when o.order_type = 'ALLOC' and f.region like '%5%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'monday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 5
+                    when o.order_type = 'ALLOC' and f.region like '%2%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'tuesday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 2
+                    when o.order_type = 'ALLOC' and f.region like '%3%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'tuesday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 3
+                    when o.order_type = 'ALLOC' and f.region like '%4%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'tuesday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 4
+                    when o.order_type = 'ALLOC' and f.region like '%5%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'tuesday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 5
+                    when o.order_type = 'ALLOC' and f.region like '%3%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'wednesday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 3
+                    when o.order_type = 'ALLOC' and f.region like '%4%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'wednesday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 4
+                    when o.order_type = 'ALLOC' and f.region like '%5%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'wednesday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 5
+                    when o.order_type = 'ALLOC' and f.region like '%4%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'thursday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 4
+                    when o.order_type = 'ALLOC' and f.region like '%5%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'thursday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - 5
+                    when o.order_type = 'ALLOC' and f.region like '%5%' and rtrim(to_char(o.delivery_end_dttm + wh.TIME_ZONE, 'day')) = 'friday' then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 - regexp_replace(substr(f.region,1,3),'[^0-9]','')
+                    when o.order_type = 'ALLOC' and regexp_like(f.region,'[^0-9]') then trunc(o.delivery_end_dttm + wh.TIME_ZONE) - 2 
+                    else trunc(o.delivery_end_dttm + wh.TIME_ZONE) - regexp_replace(substr(f.region,1,3),'[^0-9]','') 
+                    end
+            )
+        )
+    group by tc_lpn_id
+        , DATE_KEY
+        , WHSE
+        , ORDER_TYPE
+        , STORE_NBR
+        , REGION
+        , ZONE
+   -- , SHOULD_SHIP_DATE
+   -- , LPN_SHIPPED_DTTM
+    )
+left outer join (
+    select distinct f.zone FZONE, count(distinct fa.facility_alias_id) NBR_STORES
+    from wm.facility f
+    inner join wm.facility_alias fa on f.facility_id = fa.facility_id
+    where f.region is not null and f.region not in ('CLD', 'NSO', 'INTL', 'CLO', 'WHS', 'SW') 
+        and upper(fa.facility_name) not like '%RESERVE%' and upper(fa.facility_name) not like '%DC LULU%'
+    group by f.zone
+    ) fac on fac.FZONE = ZONE
+group by DATE_KEY
+    , WHSE
+    , ZONE
+    , REGION
+    , order_type
+ /*   , ALLOC_ON_TIME_UNITS
+    , ALLOC_EARLY_UNITS
+    , ALLOC_LATE_UNITS
+  --      , SHOULD_SHIP_DATE
+  --  , LPN_SHIPPED_DTTM*/
