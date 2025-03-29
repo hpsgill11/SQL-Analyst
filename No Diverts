@@ -43,13 +43,14 @@ WHERE
     AND NOT LENGTH(wm.prod_trkg_tran.tc_order_id) = 8
     AND LOWER(wm.prod_trkg_tran.tc_order_id) NOT LIKE 'b%'
     AND wm.prod_trkg_tran.nbr_units > 0
- --   and   l.alt_TRACKING_NBR = '9632080400202438518800439948853738'
+  --  and   l.alt_TRACKING_NBR = '9632001960653444710200447233457842'
  -- and l.tc_lpn_id = '1298'
-   and TO_CHAR(wm.prod_trkg_tran.CREATE_DATE_TIME + INTERVAL '3' HOUR, 'MM/DD/YYYY')  in ('03/24/2025')
+   and TO_CHAR(wm.prod_trkg_tran.CREATE_DATE_TIME + INTERVAL '3' HOUR, 'MM/DD/YYYY')  not in ('03/29/2025','03/29/2025')
+   
      --and l.ship_via like ('VH%')
    and new_test.plt_id is  null
    and new_test.to_locn is  null
-  -- and  l.lpn_facility_status >= 30
+  -- and  l.lpn_facility_status between 30 and 99
 
 Group by
     wm.prod_trkg_tran.cntr_nbr,
