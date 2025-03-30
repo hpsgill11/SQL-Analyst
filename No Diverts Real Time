@@ -1,0 +1,21 @@
+WITH list_values AS (
+  SELECT TRIM(REGEXP_SUBSTR(:p, '[^' || CHR(10) || ']+', 1, LEVEL)) AS val
+  FROM dual
+  CONNECT BY REGEXP_SUBSTR(:p, '[^' || CHR(10) || ']+', 1, LEVEL) IS NOT NULL
+)
+SELECT 
+    wm.orders.tc_order_id,
+    wm.orders.d_name as Customer_Name,
+    tc_lpn_id AS oLPN,
+    wm.lpn.alt_TRACKING_NBR,
+    wm.locn_hdr.dsp_locn AS Current_location,
+    wm.lpn.TC_parent_LPN_id AS Pallet_ID,
+      wm.lpn.last_updated_dttm + INTERVAL '3' HOUR AS oLPN_Last_Updated_DTTM
+FROM wm.lpn
+LEFT JOIN wm.locn_hdr 
+    ON wm.lpn.curr_sub_locn_id = wm.locn_hdr.locn_id 
+LEFT JOIN wm.orders on  wm.orders.tc_order_id = wm.lpn.tc_order_id
+WHERE  wm.lpn.TC_parent_LPN_id is null
+and
+ (tc_lpn_id IN (SELECT val FROM list_values)
+   OR wm.lpn.alt_TRACKING_NBR IN (SELECT val FROM list_values))
