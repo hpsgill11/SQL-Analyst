@@ -1,0 +1,25 @@
+Select 
+         wm.ship_via.description,
+                  l.ship_via,
+         CASE
+            WHEN o.d_country_code = 'CA' THEN 'Domestic'
+            ELSE 'Cross-Border'
+        END AS country,
+
+
+              COUNT(DISTINCT l.tc_lpn_id) AS oLPN_Count
+
+    FROM wm.orders o
+    JOIN wm.lpn l ON l.tc_order_id = o.tc_order_id
+    JOIN wm.ship_via on wm.ship_via.ship_via = l.ship_via
+      WHERE o.order_type = 'ECOMM'
+      AND l.tc_parent_lpn_id IS NOT NULL
+      AND l.lpn_facility_status <> '50'      
+      group by 
+                     wm.ship_via.description,
+           l.ship_via,
+         CASE
+            WHEN o.d_country_code = 'CA' THEN 'Domestic'
+            ELSE 'Cross-Border'
+        END
+        order by country
