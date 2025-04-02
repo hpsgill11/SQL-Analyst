@@ -10,12 +10,31 @@ SELECT
     wm.lpn.alt_TRACKING_NBR,
     wm.locn_hdr.dsp_locn AS Current_location,
     wm.lpn.TC_parent_LPN_id AS Pallet_ID,
-      wm.lpn.last_updated_dttm + INTERVAL '3' HOUR AS oLPN_Last_Updated_DTTM
+    CASE WHEN SDi.Divert_status IS NOT NULL THEN SDi.Divert_status ELSE 'NO DIVERSION' end as Divert_status,
+    SDi.Ship_lane,
+    SDi.Divert_Date_Time,
+    SDi.FACILITY,
+    wm.lpn.last_updated_dttm + INTERVAL '3' HOUR AS oLPN_Last_Updated_DTTM
 FROM wm.lpn
 LEFT JOIN wm.locn_hdr 
     ON wm.lpn.curr_sub_locn_id = wm.locn_hdr.locn_id 
 LEFT JOIN wm.orders on  wm.orders.tc_order_id = wm.lpn.tc_order_id
+LEFT JOIN (
+    SELECT
+         distinct REGEXP_SUBSTR(DBMS_LOB.SUBSTR(wm.cl_message.DATA, 4000), '[^\\^]+', 1, 3) AS oLPN,
+        REGEXP_SUBSTR(DBMS_LOB.SUBSTR(wm.cl_message.DATA, 4000), '[^\\^]+', 1, 4) AS Divert_status,
+        REGEXP_SUBSTR(DBMS_LOB.SUBSTR(wm.cl_message.DATA, 4000), '[^\\^]+', 1, 6) AS Ship_Lane,
+        wm.cl_message.when_created + INTERVAL '3' HOUR AS Divert_Date_Time,
+        CASE WHEN event_id = '2020000' THEN 'SAUGA'
+        WHEN event_id = '4040000' THEN 'MILTON' ELSE null END AS FACILITY
+
+    FROM
+        cl_message
+    WHERE
+        event_id in ('2020000','4040000')
+) SDi ON SDi.olpn = wm.lpn.tc_lpn_id
+
+
 WHERE  wm.lpn.TC_parent_LPN_id is null
-and
- (tc_lpn_id IN (SELECT val FROM list_values)
+ and (tc_lpn_id IN (SELECT val FROM list_values)
    OR wm.lpn.alt_TRACKING_NBR IN (SELECT val FROM list_values))
