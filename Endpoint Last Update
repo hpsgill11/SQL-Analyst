@@ -1,0 +1,26 @@
+SELECT 
+    wm.cl_endpoint.name AS endpoint_name,
+    COUNT(*) AS count,
+    MAX(wm.cl_endpoint_queue.when_queued + INTERVAL '3' HOUR) AS when_queued,
+    MAX(wm.cl_endpoint_queue.WHEN_STATUS_CHANGED + INTERVAL '3' HOUR) AS WHEN_STATUS_CHANGED,
+    CASE 
+        WHEN FLOOR((SYSDATE + 3/24) - (MAX(wm.cl_endpoint_queue.when_queued) + 3/24)) < 1 THEN
+            FLOOR(((SYSDATE + 3/24) - (MAX(wm.cl_endpoint_queue.when_queued) + 3/24)) * 24) 
+            || ' hr ' ||
+            FLOOR(MOD(((SYSDATE + 3/24) - (MAX(wm.cl_endpoint_queue.when_queued) + 3/24)) * 24 * 60, 60)) 
+            || ' min'
+        ELSE
+            FLOOR((SYSDATE + 3/24) - (MAX(wm.cl_endpoint_queue.when_queued) + 3/24)) 
+            || ' day ' ||
+            FLOOR(MOD(((SYSDATE + 3/24) - (MAX(wm.cl_endpoint_queue.when_queued) + 3/24)) * 24, 24)) 
+            || ' hr ' ||
+            FLOOR(MOD(((SYSDATE + 3/24) - (MAX(wm.cl_endpoint_queue.when_queued) + 3/24)) * 24 * 60, 60)) 
+            || ' min'
+    END AS last_update
+FROM 
+    wm.cl_endpoint_queue
+LEFT JOIN 
+    wm.cl_endpoint ON wm.cl_endpoint.ENDPOINT_ID = wm.cl_endpoint_queue.ENDPOINT_ID
+GROUP BY 
+    wm.cl_endpoint.name
+order by last_update desc
