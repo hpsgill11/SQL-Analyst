@@ -1,0 +1,86 @@
+SELECT
+ d.FACILITY
+, d.d_contact
+, to_char(min(d.created_dttm), 'MM/DD/YYYY') as oldest_draft
+, listagg( tc_order_id, ', ') WITHIN GROUP ( order by d.order_key) as draft_orders_oldest_first
+, nd.Orders_oldest_first as Non_Draft_Orders_Oldest_First
+
+--, nd.oldest_order as Oldest_Non_Draft_Order
+
+FROM
+(
+SELECT 
+o.tc_order_id
+, o.created_dttm
+, do.description as Order_Status
+, o.d_contact
+, o.d_address_1
+, o.d_address_2
+, o.d_address_3
+, o.d_city
+, o.d_state_prov
+, o.d_county
+, o.d_postal_code
+, o.d_contact||o.d_address_1||o.d_address_2||o.d_address_3||o.d_city||o.d_state_prov||o.d_county||o.d_postal_code as order_key
+   , case when pc.product_class in ('118','441','442','820','821','836','834','835','837') then 'Footwear' else 'Non-Footwear' end as footwear_indicator
+	, case when substr(o.o_facility_alias_id,1,3) = 'TOR' then
+        (case when oli.invn_type = 'E' then 'Mississauga' when oli.invn_type = 'R' then 'Milton' end)
+        else substr(o.o_facility_alias_id,1,3) end as FACILITY
+FROM 
+wm.orders o
+join order_line_item oli on o.order_id = oli.order_id
+inner join wm.do_status do on o.do_status = do.order_status
+  inner join wm.item_cbo ic on ic.item_id = oli.item_id
+    left outer join wm.product_class pc on ic.product_class_id = pc.product_class_id
+
+WHERE 
+o.order_type = 'ECOMM' 
+and o.do_status <= '105'
+and o.spl_instr_code_2 = 0
+ORDER BY
+o.created_dttm asc
+  ) d
+LEFT OUTER JOIN
+            (
+            SELECT
+            Order_Key
+            , min(created_dttm) as oldest_order
+         --   , listagg( tc_order_id||' ('||order_status||') (ordered: '||to_char(created_dttm,'MM/DD HH24:MI')||')', ', ') WITHIN GROUP ( order by order_key) as Orders_oldest_first
+             ,  listagg( ATG_Order, ', ') WITHIN GROUP ( order by order_key)  as Orders_oldest_first
+            
+            FROM
+            (
+            SELECT 
+            o.tc_order_id
+            , o.ext_purchase_order as ATG_Order
+            , o.created_dttm
+            , do.description as Order_Status
+            , o.d_contact
+            , o.d_address_1
+            , o.d_address_2
+            , o.d_address_3
+            , o.d_city
+            , o.d_state_prov
+            , o.d_county
+            , o.d_postal_code
+            , o.d_contact||o.d_address_1||o.d_address_2||o.d_address_3||o.d_city||o.d_state_prov||o.d_county||o.d_postal_code as order_key
+            FROM 
+            wm.orders o
+            inner join wm.do_status do on o.do_status = do.order_status
+            WHERE 
+            o.order_type = 'ECOMM' 
+            and o.do_status between '106' and '189'
+            ORDER BY
+            o.created_dttm asc
+            )
+            GROUP BY
+            order_key
+            , ATG_Order
+            ) nd on d.order_key = nd.order_key
+GROUP BY
+d.order_key
+, d.d_contact
+, nd.oldest_order
+, nd.Orders_oldest_first
+, d.FACILITY
+,d.footwear_indicator
