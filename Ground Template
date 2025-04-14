@@ -19,7 +19,7 @@ WITH order_demand AS (
       AND wm.order_line_item.invn_type = 'E'
       AND wm.orders.total_nbr_of_units >= 1
       AND (wm.orders.created_dttm + INTERVAL '3' HOUR) BETWEEN TO_DATE('04/10/2025 00:00:00', 'MM/DD/YYYY HH24:MI:SS') 
-                                                       AND TO_DATE('04/15/2025 23:59:59', 'MM/DD/YYYY HH24:MI:SS')
+                                                       AND TO_DATE('04/17/2025 23:59:59', 'MM/DD/YYYY HH24:MI:SS')
       AND wm.item_cbo.product_class_id NOT IN ('290','298','299','172')
       AND wm.item_facility_mapping_wms.pick_locn_assign_type NOT IN ('P09','P06')
       AND wm.item_cbo.item_bar_code != '000000082015'
@@ -60,7 +60,6 @@ inventory_data AS (
                         select 1
                         from int_alloc_lock_codes ialc
                         where ialc.lock_code = ll.inventory_lock_code
-                    
                             and ialc.cd_master_id = wm.wm_inventory.tc_company_id
                     ))
       
@@ -122,7 +121,6 @@ line_status AS (
         END AS line_allocation_status
     FROM consumption_final
 )
-
 SELECT 
     COUNT(ls.do_line_number) AS total_do_lines,
     SUM(ls.required_qty) AS required_units,
