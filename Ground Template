@@ -1,0 +1,132 @@
+WITH order_demand AS (
+    SELECT 
+        wm.orders.created_dttm + INTERVAL '3' HOUR AS order_create_date_est,
+        wm.orders.tc_order_id,
+        wm.order_line_item.tc_order_line_id AS do_line_number,
+        wm.order_line_item.item_name AS sku,
+        wm.order_line_item.order_qty - wm.order_line_item.allocated_qty AS required_qty
+    FROM wm.orders
+    INNER JOIN wm.order_line_item 
+        ON wm.orders.order_id = wm.order_line_item.order_id
+    INNER JOIN wm.item_cbo 
+        ON wm.order_line_item.item_id = wm.item_cbo.item_id
+    INNER JOIN wm.item_facility_mapping_wms 
+        ON wm.order_line_item.item_id = wm.item_facility_mapping_wms.item_id
+    WHERE 1=1
+      AND wm.orders.do_status IN ('110','120')
+      AND wm.order_line_item.do_dtl_status <= 120
+      AND wm.orders.order_type = 'ECOMM'
+      AND wm.order_line_item.invn_type = 'E'
+      AND wm.orders.total_nbr_of_units >= 1
+      AND (wm.orders.created_dttm + INTERVAL '3' HOUR) BETWEEN TO_DATE('04/10/2025 00:00:00', 'MM/DD/YYYY HH24:MI:SS') 
+                                                       AND TO_DATE('04/15/2025 23:59:59', 'MM/DD/YYYY HH24:MI:SS')
+      AND wm.item_cbo.product_class_id NOT IN ('290','298','299','172')
+      AND wm.item_facility_mapping_wms.pick_locn_assign_type NOT IN ('P09','P06')
+      AND wm.item_cbo.item_bar_code != '000000082015'
+      AND (
+           wm.orders.lane_name IN ('FDXD_90','FDXD_92','TFEC_ND','LSRS_LH','Smartpost','VEHO_LH','CP_95')
+           OR wm.orders.lane_name LIKE 'BBR%'
+      )
+),
+inventory_data AS (
+    SELECT 
+        wm.item_cbo.item_name AS sku,
+        SUM(
+            CASE 
+                WHEN wm.locn_hdr.work_grp IN ('SHLF', 'CRAK')
+                THEN wm.wm_inventory.on_hand_qty - wm.wm_inventory.wm_allocated_qty + wm.wm_inventory.to_be_filled_qty
+                ELSE 0
+            END
+        ) AS total_inventory
+    FROM wm.wm_inventory
+    INNER JOIN wm.locn_hdr 
+        ON wm.locn_hdr.locn_id = wm.wm_inventory.location_id
+    INNER JOIN wm.item_cbo 
+        ON wm.item_cbo.item_id = wm.wm_inventory.item_id
+    WHERE wm.wm_inventory.inventory_type = 'E'
+      AND wm.wm_inventory.locn_class IN ('A', 'R')
+      AND wm.wm_inventory.cntry_of_orgn != 'ZZ'
+      AND wm.wm_inventory.marked_for_delete = 'N'
+      AND wm.locn_hdr.work_grp IN ('SHLF', 'CRAK','PRAK')
+      AND wm.wm_inventory.allocatable = 'Y'
+      and not exists
+            (
+                select 1
+                from lpn_lock ll
+                where ll.lpn_id = wm.wm_inventory.lpn_id
+                    and not exists
+                    (
+                        select 1
+                        from int_alloc_lock_codes ialc
+                        where ialc.lock_code = ll.inventory_lock_code
+                    
+                            and ialc.cd_master_id = wm.wm_inventory.tc_company_id
+                    ))
+      
+    GROUP BY wm.item_cbo.item_name
+),
+consumption AS (
+    SELECT 
+        od.*,
+        NVL(inv.total_inventory,0) AS total_inventory,
+        ROW_NUMBER() OVER (PARTITION BY od.sku ORDER BY od.order_create_date_est, od.tc_order_id) AS allocation_sequence,
+        SUM(od.required_qty) OVER (PARTITION BY od.sku ORDER BY od.order_create_date_est, od.tc_order_id ROWS UNBOUNDED PRECEDING) AS running_consumed_qty
+    FROM order_demand od
+    LEFT JOIN inventory_data inv 
+        ON od.sku = inv.sku
+),
+line_status_pre AS (
+    SELECT 
+        order_create_date_est,
+        tc_order_id,
+        do_line_number,
+        sku,
+        required_qty,
+        total_inventory,
+        running_consumed_qty,
+        CASE 
+            WHEN running_consumed_qty <= total_inventory THEN 'ALLOCATED'
+            ELSE 'SHORT'
+        END AS line_allocation_status
+    FROM consumption
+),
+final_order_status AS (
+    SELECT 
+        tc_order_id,
+        MAX(CASE WHEN running_consumed_qty > total_inventory THEN 'SKIPPED' ELSE 'ALLOCATED' END) AS allocation_status
+    FROM line_status_pre
+    GROUP BY tc_order_id
+),
+consumption_final AS (
+    SELECT 
+        c.*,
+        SUM(CASE WHEN fos.allocation_status = 'ALLOCATED' THEN c.required_qty ELSE 0 END)
+            OVER (PARTITION BY c.sku ORDER BY c.order_create_date_est, c.tc_order_id ROWS UNBOUNDED PRECEDING) AS running_consumed_qty_final
+    FROM consumption c
+    JOIN final_order_status fos 
+        ON c.tc_order_id = fos.tc_order_id
+),
+line_status AS (
+    SELECT 
+        order_create_date_est,
+        tc_order_id,
+        do_line_number,
+        sku,
+        required_qty,
+        total_inventory,
+        running_consumed_qty_final AS running_consumed_qty,
+        CASE 
+            WHEN running_consumed_qty_final <= total_inventory THEN 'ALLOCATED'
+            ELSE 'SHORT'
+        END AS line_allocation_status
+    FROM consumption_final
+)
+
+SELECT 
+    COUNT(ls.do_line_number) AS total_do_lines,
+    SUM(ls.required_qty) AS required_units,
+    SUM(CASE WHEN fos.allocation_status = 'ALLOCATED' THEN ls.required_qty ELSE 0 END) AS allocated_units,
+    SUM(CASE WHEN fos.allocation_status = 'SKIPPED' THEN ls.required_qty ELSE 0 END) AS fallout_units
+FROM line_status ls
+INNER JOIN final_order_status fos
+    ON ls.tc_order_id = fos.tc_order_id
