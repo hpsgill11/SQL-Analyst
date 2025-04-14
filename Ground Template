@@ -33,7 +33,7 @@ inventory_data AS (
         wm.item_cbo.item_name AS sku,
         SUM(
             CASE 
-                WHEN wm.locn_hdr.work_grp IN ('SHLF', 'CRAK')
+                WHEN wm.locn_hdr.work_grp IN ('SHLF', 'CRAK','PRAK')
                 THEN wm.wm_inventory.on_hand_qty - wm.wm_inventory.wm_allocated_qty + wm.wm_inventory.to_be_filled_qty
                 ELSE 0
             END
@@ -46,6 +46,7 @@ inventory_data AS (
     WHERE wm.wm_inventory.inventory_type = 'E'
       AND wm.wm_inventory.locn_class IN ('A', 'R')
       AND wm.wm_inventory.cntry_of_orgn != 'ZZ'
+      AND wm.item_cbo.unit_volume <= 1500
       AND wm.wm_inventory.marked_for_delete = 'N'
       AND wm.locn_hdr.work_grp IN ('SHLF', 'CRAK','PRAK')
       AND wm.wm_inventory.allocatable = 'Y'
