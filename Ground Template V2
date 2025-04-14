@@ -1,0 +1,286 @@
+WITH
+/*---------------------------------------------------------------------
+  1) ORDER_DEMAND: all lines that need to be allocated
+---------------------------------------------------------------------*/
+order_demand AS (
+    SELECT 
+        wm.orders.created_dttm + INTERVAL '3' HOUR AS order_create_date_est,
+        wm.orders.tc_order_id,
+        wm.order_line_item.tc_order_line_id AS do_line_number,
+        wm.order_line_item.item_name AS sku,
+        wm.order_line_item.order_qty - wm.order_line_item.allocated_qty AS required_qty
+    FROM wm.orders
+    INNER JOIN wm.order_line_item 
+        ON wm.orders.order_id = wm.order_line_item.order_id
+    INNER JOIN wm.item_cbo 
+        ON wm.order_line_item.item_id = wm.item_cbo.item_id
+    INNER JOIN wm.item_facility_mapping_wms 
+        ON wm.order_line_item.item_id = wm.item_facility_mapping_wms.item_id
+    WHERE 1=1
+      AND wm.orders.do_status IN ('110','120')
+      AND wm.order_line_item.do_dtl_status <= 120
+      AND wm.orders.order_type = 'ECOMM'
+      AND wm.order_line_item.invn_type = 'E'
+      AND wm.orders.total_nbr_of_units >= 1
+      AND (wm.orders.created_dttm + INTERVAL '3' HOUR) BETWEEN TO_DATE('04/10/2025 00:00:00', 'MM/DD/YYYY HH24:MI:SS') 
+                                                       AND TO_DATE('04/17/2025 23:59:59', 'MM/DD/YYYY HH24:MI:SS')
+      AND wm.item_cbo.product_class_id NOT IN ('290','298','299','172')
+      AND wm.item_facility_mapping_wms.pick_locn_assign_type NOT IN ('P09','P06')
+      AND wm.item_cbo.item_bar_code != '000000082015'
+      AND (
+           wm.orders.lane_name IN ('FDXD_90','FDXD_92','TFEC_ND','LSRS_LH','Smartpost','VEHO_LH','CP_95')
+           OR wm.orders.lane_name LIKE 'BBR%'
+      )
+),
+/*---------------------------------------------------------------------
+  2) INVENTORY_DATA: total, active, reserve inventory per SKU
+     so we can see how to split allocated demand
+---------------------------------------------------------------------*/
+inventory_data AS (
+    SELECT 
+        wm.item_cbo.item_name AS sku,
+        /* Active only */
+        SUM(
+            CASE 
+                WHEN wm.locn_hdr.work_grp IN ('SHLF')
+                THEN wm.wm_inventory.on_hand_qty 
+                     - wm.wm_inventory.wm_allocated_qty 
+                     + wm.wm_inventory.to_be_filled_qty
+                ELSE 0
+            END
+        ) AS active_inventory,
+
+        /* Reserve only */
+        SUM(
+            CASE 
+                WHEN wm.locn_hdr.work_grp in ('CRAK','PRAK')
+                THEN wm.wm_inventory.on_hand_qty 
+                     - wm.wm_inventory.wm_allocated_qty 
+                     + wm.wm_inventory.to_be_filled_qty
+                ELSE 0
+            END
+        ) AS reserve_inventory,
+
+        /* Total = active + reserve */
+        SUM(
+            CASE 
+                WHEN wm.locn_hdr.work_grp IN ('SHLF','PRAK','CRAK')
+                THEN wm.wm_inventory.on_hand_qty 
+                     - wm.wm_inventory.wm_allocated_qty 
+                     + wm.wm_inventory.to_be_filled_qty
+                ELSE 0
+            END
+        ) AS total_inventory
+
+    FROM wm.wm_inventory
+    INNER JOIN wm.locn_hdr 
+        ON wm.locn_hdr.locn_id = wm.wm_inventory.location_id
+    INNER JOIN wm.item_cbo 
+        ON wm.item_cbo.item_id = wm.wm_inventory.item_id
+    WHERE wm.wm_inventory.inventory_type = 'E'
+      AND wm.wm_inventory.locn_class IN ('A', 'R')
+      AND wm.wm_inventory.cntry_of_orgn != 'ZZ'
+      AND wm.item_cbo.unit_volume <= 1500
+      AND wm.wm_inventory.marked_for_delete = 'N'
+      AND wm.locn_hdr.work_grp IN ('SHLF','PRAK','CRAK')
+      AND wm.wm_inventory.allocatable = 'Y'
+      AND NOT EXISTS (
+         SELECT 1
+         FROM lpn_lock ll
+         WHERE ll.lpn_id = wm.wm_inventory.lpn_id
+           AND NOT EXISTS (
+               SELECT 1
+               FROM int_alloc_lock_codes ialc
+               WHERE ialc.lock_code = ll.inventory_lock_code
+                 AND ialc.cd_master_id = wm.wm_inventory.tc_company_id
+           )
+      )
+    GROUP BY wm.item_cbo.item_name
+),
+/*---------------------------------------------------------------------
+  3) CONSUMPTION: initial running sum to see if line is short or not
+---------------------------------------------------------------------*/
+consumption AS (
+    SELECT 
+        od.*,
+        NVL(inv.total_inventory,0) AS total_inventory,
+        ROW_NUMBER() OVER (
+          PARTITION BY od.sku 
+          ORDER BY od.order_create_date_est, od.tc_order_id
+        ) AS allocation_sequence,
+
+        /* Raw running consumed qty ignoring skip logic */
+        SUM(od.required_qty) OVER (
+          PARTITION BY od.sku 
+          ORDER BY od.order_create_date_est, od.tc_order_id 
+          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS running_consumed_qty
+    FROM order_demand od
+    LEFT JOIN inventory_data inv 
+        ON od.sku = inv.sku
+),
+/*---------------------------------------------------------------------
+  4) LINE_STATUS_PRE: line-level allocated or short ignoring skip logic
+---------------------------------------------------------------------*/
+line_status_pre AS (
+    SELECT 
+        order_create_date_est,
+        tc_order_id,
+        do_line_number,
+        sku,
+        required_qty,
+        total_inventory,
+        running_consumed_qty,
+        CASE 
+            WHEN running_consumed_qty <= total_inventory 
+                 THEN 'ALLOCATED'
+            ELSE 'SHORT'
+        END AS line_allocation_status
+    FROM consumption
+),
+/*---------------------------------------------------------------------
+  5) FINAL_ORDER_STATUS: if any line is short => entire order is SKIPPED
+---------------------------------------------------------------------*/
+final_order_status AS (
+    SELECT 
+        tc_order_id,
+        MAX(
+          CASE WHEN running_consumed_qty > total_inventory 
+               THEN 'SKIPPED' 
+               ELSE 'ALLOCATED' 
+          END
+        ) AS allocation_status
+    FROM line_status_pre
+    GROUP BY tc_order_id
+),
+/*---------------------------------------------------------------------
+  6) CONSUMPTION_FINAL: recalc running sum ignoring SKIPPED orders
+     (i.e., only allocated orders actually consume inventory)
+---------------------------------------------------------------------*/
+consumption_final AS (
+    SELECT 
+        c.*,
+        SUM(
+          CASE WHEN fos.allocation_status = 'ALLOCATED' 
+               THEN c.required_qty 
+               ELSE 0 
+          END
+        ) OVER (
+           PARTITION BY c.sku 
+           ORDER BY c.order_create_date_est, c.tc_order_id 
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS running_consumed_qty_final
+    FROM consumption c
+    JOIN final_order_status fos 
+        ON c.tc_order_id = fos.tc_order_id
+),
+/*---------------------------------------------------------------------
+  7) LINE_STATUS: final line-level short/allocated 
+     ignoring skip orders in the consumption
+---------------------------------------------------------------------*/
+line_status AS (
+    SELECT 
+        order_create_date_est,
+        tc_order_id,
+        do_line_number,
+        sku,
+        required_qty,
+        total_inventory,
+        running_consumed_qty_final AS running_consumed_qty,
+        CASE 
+            WHEN running_consumed_qty_final <= total_inventory 
+                 THEN 'ALLOCATED'
+            ELSE 'SHORT'
+        END AS line_allocation_status
+    FROM consumption_final
+),
+/*---------------------------------------------------------------------
+  8) WAVE_SUMMARY: wave-level or final summary 
+     (existing columns from your current approach)
+---------------------------------------------------------------------*/
+wave_summary AS (
+    SELECT 
+        COUNT(ls.do_line_number) AS total_do_lines,
+        SUM(ls.required_qty) AS required_units,
+        SUM(
+          CASE WHEN fos.allocation_status = 'ALLOCATED' 
+               THEN ls.required_qty 
+               ELSE 0 
+          END
+        ) AS allocated_units,
+        SUM(
+          CASE WHEN fos.allocation_status = 'SKIPPED' 
+               THEN ls.required_qty 
+               ELSE 0 
+          END
+        ) AS fallout_units
+    FROM line_status ls
+    INNER JOIN final_order_status fos
+        ON ls.tc_order_id = fos.tc_order_id
+),
+/*---------------------------------------------------------------------
+  9) SKU_ALLOCATION: total allocated units per SKU 
+     so we know how many we need from active vs reserve
+---------------------------------------------------------------------*/
+sku_allocation AS (
+    SELECT
+        ls.sku,
+        SUM(CASE WHEN fos.allocation_status = 'ALLOCATED' THEN ls.required_qty ELSE 0 END) AS allocated_sku
+    FROM line_status ls
+    JOIN final_order_status fos 
+        ON ls.tc_order_id = fos.tc_order_id
+    GROUP BY ls.sku
+),
+/*---------------------------------------------------------------------
+ 10) PRIORITY_ALLOC: we say "use active first, leftover from reserve"
+     for each SKU that had allocated demand
+---------------------------------------------------------------------*/
+priority_alloc AS (
+    SELECT
+        sa.sku,
+        sa.allocated_sku,
+        NVL(inv.active_inventory, 0)  AS active_inv,
+        NVL(inv.reserve_inventory, 0) AS reserve_inv,
+
+        /* Allocate from active up to that limit */
+        CASE 
+           WHEN sa.allocated_sku <= NVL(inv.active_inventory, 0) 
+                THEN sa.allocated_sku
+           ELSE NVL(inv.active_inventory, 0)
+        END AS allocated_from_active,
+
+        /* Remainder from reserve if needed */
+        CASE 
+           WHEN sa.allocated_sku > NVL(inv.active_inventory, 0)
+                THEN sa.allocated_sku - NVL(inv.active_inventory, 0)
+           ELSE 0
+        END AS allocated_from_reserve
+    FROM sku_allocation sa
+    JOIN inventory_data inv 
+        ON sa.sku = inv.sku
+),
+/*---------------------------------------------------------------------
+ 11) FINAL_ALLOC: sums allocated_from_active & allocated_from_reserve
+     across ALL SKUs in the wave
+---------------------------------------------------------------------*/
+final_alloc AS (
+    SELECT
+        SUM(allocated_from_active)  AS total_active_alloc,
+        SUM(allocated_from_reserve) AS total_reserve_alloc
+    FROM priority_alloc
+)
+
+/*---------------------------------------------------------------------
+ 12) Finally, we CROSS JOIN the wave summary with 
+     the location-based allocation summary to produce 
+     "one row" with all your needed columns
+---------------------------------------------------------------------*/
+SELECT 
+    ws.total_do_lines,
+    ws.required_units,
+    ws.allocated_units,
+    ws.fallout_units,
+    fa.total_active_alloc  AS allocated_from_active,
+    fa.total_reserve_alloc AS allocated_from_reserve
+FROM wave_summary ws
+CROSS JOIN final_alloc fa;
