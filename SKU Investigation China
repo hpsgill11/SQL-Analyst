@@ -336,14 +336,17 @@ FROM
     LEFT JOIN WM.locn_hdr lh ON wmi.LOCATION_ID = lh.LOCN_ID
     LEFT JOIN WM.item_master im ON ic.item_id = im.item_id
     LEFT JOIN WM.facility f ON o.d_facility_id = f.facility_id
-    LEFT JOIN wm.lulu_coo_restriction on wm.lulu_coo_restriction.item_id = ic.item_name
+    LEFT JOIN wm.lulu_coo_restriction on wm.lulu_coo_restriction.item_id = ic.item_id and wm.lulu_coo_restriction.INVENTORY_TYPE = oli.invn_type
 WHERE 
     o.do_status IN ('110','120')
     AND oli.DO_DTL_STATUS <= 120
     AND o.order_type IN ('ECOMM')
    -- AND o.tc_order_id = '516780557'
-  -- AND  TRUNC(o.created_dttm) = TO_DATE('2025/04/24', 'YYYY/MM/DD')
+ -- AND  TRUNC(o.created_dttm) = TO_DATE('2025/04/25', 'YYYY/MM/DD') 
     --AND oli.invn_type = 'E'
+   and     oli.REF_FIELD4 != wm.lulu_coo_restriction.NEW_REF_VALUE 
+   -- and ic.item_name = '153833072'
+   -- and o.REF_FIELD_1 = 'en_US'
 GROUP BY 
     o.created_dttm,
     o.tc_order_id,
