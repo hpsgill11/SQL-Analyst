@@ -54,6 +54,7 @@ SELECT
     SUM(CASE 
             WHEN lh.work_grp IN ('CRAK','PRAK') 
                 AND oli.invn_type = wmi.inventory_type 
+               AND wmi.CNTRY_OF_ORGN NOT IN ('CN','HK')
                 AND wmi.ALLOCATABLE = 'Y' 
             THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) 
             ELSE 0 
@@ -62,6 +63,7 @@ SELECT
             WHEN lh.work_grp = 'MRAK' 
                 AND oli.invn_type = wmi.inventory_type 
                 AND wmi.ALLOCATABLE = 'Y' 
+                AND wmi.CNTRY_OF_ORGN NOT IN ('CN','HK')
             THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) 
             ELSE 0 
         END) AS "MIL Reserve Available", 
@@ -69,6 +71,7 @@ SELECT
             WHEN lh.work_grp = 'SHLF' 
                 AND oli.invn_type = wmi.inventory_type 
                 AND wmi.ALLOCATABLE = 'Y' 
+                AND wmi.CNTRY_OF_ORGN NOT IN ('CN','HK')
             THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) 
             ELSE 0 
         END) AS "MIS Active Available", 
@@ -76,6 +79,7 @@ SELECT
             WHEN lh.work_grp IN ('MFLW','MRPH','MACT') 
                 AND oli.invn_type = wmi.inventory_type 
                 AND wmi.ALLOCATABLE = 'Y' 
+                AND wmi.CNTRY_OF_ORGN NOT IN ('CN','HK')
             THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) 
             ELSE 0 
         END) AS "MIL Active Available", 
@@ -86,6 +90,7 @@ SELECT
                 AND lh.dsp_locn LIKE 'MN%'
                 AND lh.locn_class = 'A'
                 AND wmi.ALLOCATABLE = 'Y' 
+                AND wmi.CNTRY_OF_ORGN NOT IN ('CN','HK')
             THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) 
             ELSE 0 
         END) AS "MN Active Available", 
@@ -96,6 +101,7 @@ SELECT
                 AND lh.dsp_locn LIKE 'MH%'
                 AND lh.locn_class = 'A'
                 AND wmi.ALLOCATABLE = 'Y' 
+                AND wmi.CNTRY_OF_ORGN NOT IN ('CN','HK')
             THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) 
             ELSE 0 
         END) AS "MH Active Available", 
@@ -105,6 +111,7 @@ SELECT
                  oli.invn_type = wmi.inventory_type
                 AND lh.dsp_locn = 'MIL-SH-UN-T01'
                 AND lh.locn_class = 'R'
+                AND wmi.CNTRY_OF_ORGN NOT IN ('CN','HK')
                -- AND wmi.ALLOCATABLE = 'Y' 
             THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) 
             ELSE 0 
@@ -115,6 +122,7 @@ SELECT
                  oli.invn_type = wmi.inventory_type
                 AND lh.dsp_locn = 'MIS-SH-UN-T01'
                 AND lh.locn_class = 'R'
+                AND wmi.CNTRY_OF_ORGN NOT IN ('CN','HK')
                -- AND wmi.ALLOCATABLE = 'Y' 
             THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) 
             ELSE 0 
@@ -126,6 +134,7 @@ SELECT
                 AND lh.locn_brcd LIKE '%VAS%'
                 AND lh.locn_brcd NOT LIKE '%ICA-%'
                 AND lh.locn_class = 'R'
+                AND wmi.CNTRY_OF_ORGN NOT IN ('CN','HK')
                -- AND wmi.ALLOCATABLE = 'Y' 
             THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) 
             ELSE 0 
@@ -135,6 +144,7 @@ SELECT
             WHEN lh.work_grp NOT IN ('CRAK', 'MRAK', 'SHLF', 'MFLW','MRPH','MACT','PRAK') 
                 AND oli.invn_type = wmi.inventory_type 
                 AND wmi.ALLOCATABLE = 'Y' 
+                AND wmi.CNTRY_OF_ORGN NOT IN ('CN','HK')
             THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) 
             ELSE 0 
         END) AS "Needs Further Research",
@@ -144,10 +154,121 @@ SELECT
                 AND NOT lh.dsp_locn = 'MIS-SH-UN-T01'
                 AND NOT lh.dsp_locn = 'MIL-SH-UN-T01'
                 AND NOT lh.dsp_locn LIKE 'ICA%'
-                
+                AND wmi.CNTRY_OF_ORGN NOT IN ('CN','HK')
             THEN (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty) 
             ELSE 0 
         END) AS "Total Unallocatable",
+        
+     SUM(
+      CASE
+        WHEN wmi.CNTRY_OF_ORGN IN ('CN','HK')
+         AND lh.work_grp = 'SHLF'
+         AND oli.invn_type = wmi.inventory_type
+         AND wmi.ALLOCATABLE = 'Y'
+        THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+        ELSE 0
+      END
+    ) AS "MIS Active Available CNHK_US",
+    -- MIS Reserve only for CN/HK and US orders
+    SUM(
+      CASE
+        WHEN wmi.CNTRY_OF_ORGN IN ('CN','HK')
+         AND lh.work_grp IN ('CRAK','PRAK')
+         AND oli.invn_type = wmi.inventory_type
+         AND wmi.ALLOCATABLE = 'Y'
+        THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+        ELSE 0
+      END
+    ) AS "MIS Reserve Available CNHK_US",
+    -- MIL Active only for CN/HK and US orders
+    SUM(
+      CASE
+        WHEN wmi.CNTRY_OF_ORGN IN ('CN','HK')
+         AND lh.work_grp IN ('MFLW','MRPH','MACT')
+         AND oli.invn_type = wmi.inventory_type
+         AND wmi.ALLOCATABLE = 'Y'
+        THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+        ELSE 0
+      END
+    ) AS "MIL Active Available CNHK_US",
+    -- MIL Reserve only for CN/HK and US orders
+    SUM(
+      CASE
+        WHEN wmi.CNTRY_OF_ORGN IN ('CN','HK')
+         AND lh.work_grp = 'MRAK'
+         AND oli.invn_type = wmi.inventory_type
+         AND wmi.ALLOCATABLE = 'Y'
+        THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+        ELSE 0
+      END
+    ) AS "MIL Reserve Available CNHK_US",
+    -- MN Active only for CN/HK and US orders
+    SUM(
+      CASE
+        WHEN wmi.CNTRY_OF_ORGN IN ('CN','HK')
+         AND lh.dsp_locn LIKE 'MN%'
+         AND lh.locn_class = 'A'
+         AND oli.invn_type = wmi.inventory_type
+         AND wmi.ALLOCATABLE = 'Y'
+        THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+        ELSE 0
+      END
+    ) AS "MN Active Available CNHK_US",
+    -- MH Active only for CN/HK and US orders
+    SUM(
+      CASE
+        WHEN wmi.CNTRY_OF_ORGN IN ('CN','HK')
+         AND lh.dsp_locn LIKE 'MH%'
+         AND lh.locn_class = 'A'
+         AND oli.invn_type = wmi.inventory_type
+         AND wmi.ALLOCATABLE = 'Y'
+        THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+        ELSE 0
+      END
+    ) AS "MH Active Available CNHK_US",
+    -- MIL Shunt only for CN/HK and US orders
+    SUM(
+      CASE
+        WHEN wmi.CNTRY_OF_ORGN IN ('CN','HK')
+         AND lh.dsp_locn = 'MIL-SH-UN-T01'
+         AND lh.locn_class = 'R'
+        THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+        ELSE 0
+      END
+    ) AS "MIL_SHUNT CNHK_US",
+    -- MIS Shunt only for CN/HK and US orders
+    SUM(
+      CASE
+        WHEN wmi.CNTRY_OF_ORGN IN ('CN','HK')
+         AND lh.dsp_locn = 'MIS-SH-UN-T01'
+         AND lh.locn_class = 'R'
+        THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+        ELSE 0
+      END
+    ) AS "MIS_SHUNT CNHK_US",
+    -- VAS only for CN/HK and US orders
+    SUM(
+      CASE
+        WHEN wmi.CNTRY_OF_ORGN IN ('CN','HK')
+         AND lh.locn_brcd LIKE '%VAS%'
+         AND lh.locn_brcd NOT LIKE '%ICA-%'
+         AND lh.locn_class = 'R'
+        THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+        ELSE 0
+      END
+    ) AS "VAS CNHK_US",
+    -- Total Unallocatable only for CN/HK and US orders
+    SUM(
+      CASE
+        WHEN wmi.CNTRY_OF_ORGN IN ('CN','HK')
+         AND wmi.ALLOCATABLE = 'N'
+         AND NOT lh.dsp_locn IN ('MIS-SH-UN-T01','MIL-SH-UN-T01')
+         AND lh.locn_brcd NOT LIKE 'ICA-%'
+        THEN (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+        ELSE 0
+      END
+    ) AS "Total Unallocatable CNHK_US",
+        
 CASE 
     WHEN ifm.pick_locn_assign_type IN ('P06', 'PRK','P09') 
          OR ic.PRODUCT_CLASS_ID = 172 
@@ -339,11 +460,12 @@ WHERE
     o.do_status IN ('110','120')
     AND oli.DO_DTL_STATUS <= 120
     AND o.order_type IN ('ECOMM')
-   -- AND o.tc_order_id = '516780557'
-  -- AND  TRUNC(o.created_dttm) = TO_DATE('2025/04/24', 'YYYY/MM/DD')
- --  AND oli.invn_type = 'E'
- and oli.REF_FIELD4 = 'P'
- and o.REF_FIELD_1 = 'en_US'
+  --  AND o.tc_order_id = 'bca480121276310_202504251133238552968064'
+   AND  TRUNC(o.created_dttm) = TO_DATE('2025/04/23', 'YYYY/MM/DD')
+  -- AND oli.invn_type = 'E'
+ 
+ --and oli.ref_field4 = 'P' 
+--and o.REF_FIELD_1 = 'en_US'
 GROUP BY 
     o.created_dttm,
     o.tc_order_id,
@@ -467,6 +589,16 @@ TRIM(BOTH ',' FROM (
     MainTable."MIS_SHUNT", 
     MainTable."VAS", 
     MainTable."Total Unallocatable",
+  MainTable."MIS Active Available CNHK_US",
+  MainTable."MIS Reserve Available CNHK_US",
+  MainTable."MIL Active Available CNHK_US",
+  MainTable."MIL Reserve Available CNHK_US",
+  MainTable."MN Active Available CNHK_US",
+  MainTable."MH Active Available CNHK_US",
+  MainTable."MIL_SHUNT CNHK_US",
+  MainTable."MIS_SHUNT CNHK_US",
+  MainTable."VAS CNHK_US",
+  MainTable."Total Unallocatable CNHK_US",
     MainTable."Total Required",
     MainTable."Waveable Quantity",
     MainTable.Allocatable_Flag,
