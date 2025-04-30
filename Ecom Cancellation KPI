@@ -1,0 +1,71 @@
+select 
+  a."Date" as "Date", 
+  sum(a."Total Units")- sum(a."Shipped Units") as "Cancelled Units", 
+  sum(a."Total Orders")- sum(a."Shipped Orders") as "Cancelled Impacted Orders", 
+  sum(a."Total Cost")- sum (a."Shipped Cost") as " Total Cost - Cancelled Units", 
+  sum(a."Total Units") as "Total Units", 
+  sum(a."Total Orders") as "Total Orders" 
+from 
+  (
+    --Pull Shipped Units
+    select 
+      trunc(ol.last_updated_dttm) as "Date", 
+      sum(
+        nvl(
+          ol.ref_field3, ol.orig_order_qty
+        )
+      ) as "Shipped Units", 
+      count(distinct o.tc_order_id) as "Shipped Orders", 
+      sum(
+        nvl(
+          ol.ref_field3, ol.orig_order_qty
+        ) * ol.price
+      ) as "Shipped Cost", 
+      0 as "Total Cost", 
+      0 as "Total Units", 
+      0 as "Total Orders" 
+    from 
+      wm.orders o, 
+      wm.order_line_Item ol 
+    where 
+      o.order_id = ol.order_id 
+      and o.order_type = 'ECOMM' 
+      and trunc(ol.last_updated_dttm - 7 / 24) >= trunc(sysdate - 30) 
+      and trunc(ol.last_updated_dttm - 7 / 24) < trunc(sysdate - 7 / 24) 
+      and o.do_status = '190' 
+      and ol.do_dtl_status = '190' 
+      and o.spl_instr_code_7 is null 
+    group by 
+      trunc(ol.last_updated_dttm) 
+    union all 
+      --Pull Ordered Units
+    select 
+      trunc(ol.last_updated_dttm) as "Date", 
+      0 as "Shipped Units", 
+      0 as "Shipped Orders", 
+      0 as "Shipped Cost", 
+      sum(
+        nvl(
+          ol.ref_field3, ol.orig_order_qty
+        ) * ol.price
+      ) as "Total Cost", 
+      sum(ol.ref_field3) as "Total Units", 
+      count(distinct o.tc_order_id) as "Total Orders" 
+    from 
+      wm.orders o, 
+      wm.order_line_Item ol 
+    where 
+      o.order_id = ol.order_id 
+      and o.order_type = 'ECOMM' 
+      and trunc(ol.last_updated_dttm - 7 / 24) >= trunc(sysdate - 30) 
+      and trunc(ol.last_updated_dttm - 7 / 24) < trunc(sysdate - 7 / 24) 
+      and o.do_status >= '190' 
+      and ol.do_dtl_status >= '190' 
+      and o.spl_instr_code_7 is null 
+    group by 
+      trunc(ol.last_updated_dttm)
+  ) a 
+group by 
+  a."Date" 
+order by 
+  1
