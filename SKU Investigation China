@@ -342,11 +342,16 @@ WHERE
     AND oli.DO_DTL_STATUS <= 120
     AND o.order_type IN ('ECOMM')
    -- AND o.tc_order_id = '516780557'
- -- AND  TRUNC(o.created_dttm) = TO_DATE('2025/04/25', 'YYYY/MM/DD') 
-    --AND oli.invn_type = 'E'
-   and     oli.REF_FIELD4 != wm.lulu_coo_restriction.NEW_REF_VALUE 
+  AND  TRUNC(o.created_dttm) = TO_DATE('2025/05/01', 'YYYY/MM/DD') 
+   AND oli.invn_type = 'E'
+   --and     oli.REF_FIELD4 != wm.lulu_coo_restriction.NEW_REF_VALUE 
    -- and ic.item_name = '153833072'
-   -- and o.REF_FIELD_1 = 'en_US'
+ and o.d_country_code = 'US'
+AND (
+     oli.REF_FIELD4 <> 'A'   -- non‑A values
+  OR oli.REF_FIELD4 IS NULL  -- or when it’s NULL
+)
+
 GROUP BY 
     o.created_dttm,
     o.tc_order_id,
