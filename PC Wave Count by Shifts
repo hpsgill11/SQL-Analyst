@@ -1,0 +1,32 @@
+WITH adjusted AS (
+  SELECT
+    wave_nbr,
+    create_date_time,
+    create_date_time + INTERVAL '3' HOUR AS create_dt_est,
+    -- derive the hour (0–23) from the new timestamp
+    TO_NUMBER(TO_CHAR(create_date_time + INTERVAL '3' HOUR, 'HH24')) AS hr24
+  FROM wave_parm
+  WHERE wave_nbr IS NOT NULL
+      AND TRUNC(create_date_time + INTERVAL '3' HOUR, 'MM') = DATE '2025-04-01'
+)
+SELECT
+  CASE
+    WHEN hr24 BETWEEN  6 AND 13 THEN 'Morning Shift'   -- 06:00–13:59
+    WHEN hr24 BETWEEN 14 AND 21 THEN 'Afternoon Shift' -- 14:00–21:59
+    ELSE                               'Night Shift'   -- 22:00–23:59 & 00:00–05:59
+  END AS shift,
+  COUNT(DISTINCT wave_nbr) AS distinct_wave_count
+FROM adjusted
+GROUP BY
+  CASE
+    WHEN hr24 BETWEEN  6 AND 13 THEN 'Morning Shift'
+    WHEN hr24 BETWEEN 14 AND 21 THEN 'Afternoon Shift'
+    ELSE                              'Night Shift'
+  END
+ORDER BY
+  -- force a logical ordering rather than alphabetical
+  CASE
+    WHEN shift = 'Morning Shift'   THEN 1
+    WHEN shift = 'Afternoon Shift' THEN 2
+    WHEN shift = 'Night Shift'     THEN 3
+  END;
