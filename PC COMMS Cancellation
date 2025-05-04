@@ -1,0 +1,175 @@
+select 
+TO_CHAR(sp.CREATE_DATE_TIME, 'HH24:MI') as CREATE_TIME_24H,
+
+sp.ship_wave_nbr
+   -- ,sp.wave_desc
+
+    ,CASE when upper(sp.wave_desc) like ('%TRANSFER%') THEN 'Transfer'
+        when upper(sp.wave_desc) like ('%XFER%') THEN 'Transfer'
+        when upper(sp.wave_desc) like ('%CPP%') THEN 'CPP'
+        when upper(sp.wave_desc) like ('%RETAIL%') THEN 'Retail' 
+        when upper(sp.wave_desc) like ('%REPLEN%') THEN 'Retail'
+        when upper(sp.wave_desc) like ('%ALLOC%') THEN 'Retail'
+        when upper(sp.wave_desc) like ('%STRAT%') THEN 'Strat'
+        when upper(sp.wave_desc) like ('%E-COM%') THEN 'Ecom'
+        when upper(sp.wave_desc) like ('%ECOM%') THEN 'Ecom'
+        when upper(sp.wave_desc) like ('%OUTLET%') THEN 'Outlet'
+        --when upper(sp.wave_desc) like ('%SEPHORA%') THEN 'Sephora'
+        else 'Other'
+        end as "Wave Type"
+            , sp."User Wave Desc"
+
+
+    --, Wave_Status 
+    , NBR_LD_TASKS
+    , NBR_LD_DETAIL
+    , NBR_FP_TASKS
+    , NBR_FP_DETAIL
+    , NBR_PICK_TASKS
+  --  , nvl(oli.Orders,0) Nbr_of_Orders
+    , nvl(oli.Order_Lines,0) Order_Lines
+    , nvl(oli.ALLOC_UNITS,0) Alloc_Units
+    , nvl(oli.Units_Required,0) Units_Required
+    , nvl(oli.Units_Required,0) - nvl(oli.ALLOC_UNITS,0) "Fallout(Required-Alloc)"
+    , nvl(l.oLPNs,0) Nbr_of_oLPNs
+        , User_ID
+    --,Units_Cancelled
+    
+    
+from (
+    select ship_wave_nbr, wave_desc, "User Wave Desc", CREATE_DATE_TIME, User_ID, Wave_Status 
+        , count(distinct Pick_Task_ID) as NBR_PICK_TASKS
+        , count(distinct LD_Task_ID) as NBR_LD_TASKS
+        , count(distinct LD_Detail) as NBR_LD_DETAIL
+        , count(distinct FP_Task_ID) as NBR_FP_TASKS
+        , count(distinct FP_Detail) as NBR_FP_DETAIL
+        
+    from (
+        select swp.ship_wave_nbr
+            , swp.wave_desc
+            , wp.wave_desc as "User Wave Desc"
+            , (swp.create_date_time + wh.TIME_ZONE) as CREATE_DATE_TIME
+            , wq.login_user_id as User_ID
+            --, wrp.rule_name
+            , case when td.invn_need_type in ('50','55') 
+               --and td.stat_code < 99
+                then td.task_id end Pick_Task_ID
+                
+            , case when td.invn_need_type in ('1')
+                --and td.stat_code < 99
+            --    and upper(th.task_desc) not like '%FULL%'
+             --   and upper(th.task_desc) not like '%FP%' --3PL Full Pull task desc
+                then td.task_id end LD_Task_ID
+            , case when td.invn_need_type in ('1')
+                --and td.stat_code < 99
+           --   and upper(th.task_desc) not like '%FULL%'
+           --     and upper(th.task_desc) not like '%FP%' --3PL Full Pull task desc
+                then td.task_dtl_id end LD_Detail
+                
+            , case when td.invn_need_type in ('2')
+                --and td.stat_code < 99
+              --  and upper(th.task_desc) like '%FULL%'
+              --  or upper(th.task_desc) like '%FP%' --3PL Full Pull task desc
+               then td.task_id end FP_Task_ID
+            ,case when td.invn_need_type in ('2')
+                --and td.stat_code < 99
+             --   and upper(th.task_desc) like '%FULL%'
+             --   or upper(th.task_desc) like '%FP%' --3PL Full Pull task desc
+               then td.task_dtl_id end FP_Detail
+            , decode(wp.wave_stat_code, wp.wave_stat_code,(select code_desc from wm.sys_code where rec_type = 'S' and code_type = '595' and code_id =wp.wave_stat_code)) as Wave_Status   
+            , th.task_desc
+            , th.task_type||' - '||ys.code_desc as task_type
+            
+        from wm.ship_wave_parm swp
+        inner join wm.wave_parm wp on swp.wave_parm_id = wp.wave_parm_id
+        inner join wm.wave_queue wq on wq.ship_wave_parm_id = swp.ship_wave_parm_id
+        --inner join wm.wave_rule_parm wrp on wp.wave_nbr = wrp.wave_nbr
+        left outer join wm.task_dtl td on swp.ship_wave_nbr = td.task_genrtn_ref_nbr
+        left outer join wm.task_hdr th on th.task_id = td.task_hdr_id
+        left outer join (
+            select sc.code_desc, sc.code_id 
+            from wm.sys_code sc 
+            where sc.rec_type = 'S' and sc.code_type = '590'
+            ) ys on ys.code_id = td.task_type
+        -- GATHER PUTWALL TASKS?
+        /*left outer join (
+            select ptt.task_id
+            from wm.prod_trkg_tran ptt
+            inner join wm.orders o on ptt.tc_order_id = o.tc_order_id
+            inner join wm.order_line_item oli on o.order_id = oli.order_id
+            ) pt*/
+            -- ADJ TIMES
+            , (SELECT sum(case when trim(pay_scale) = 'TIME_ZONE' then to_number(pay_scale_desc)/24 end) as TIME_ZONE
+                , sum(case when trim(pay_scale) = 'UTC_ADJ' then to_number(pay_scale_desc)/24 end) as UTC_ADJ
+                , sum(case when trim(pay_scale) = 'SHIFT_ADJ' then to_number(pay_scale_desc)/24 end) as SHIFT_ADJ 
+                FROM wm.e_pay_scale 
+                WHERE pay_scale in ('TIME_ZONE','SHIFT_ADJ','UTC_ADJ')  ) wh
+        where swp.ship_wave_nbr is not null
+        AND wp.wave_stat_code != '99'
+            -- TESTING
+            --and (swp.create_date_time + wh.TIME_ZONE) = trunc(to_date(#Prompt('pDate')#))
+            --and upper(swp.wave_desc) like '%PUTWALL%'
+        ) 
+    group by ship_wave_nbr, wave_desc, "User Wave Desc", CREATE_DATE_TIME, User_ID, Wave_Status 
+    ) sp
+left outer join (
+    select  oli.ship_wave_nbr, count(distinct oli.order_id) Orders
+        , sum(oli.allocated_qty) ALLOC_UNITS, sum(nvl(oli.ref_field3,oli.order_qty)) as Units_Required, count(distinct oli.line_item_id) as Order_Lines,
+        
+             SUM(
+      CASE 
+        WHEN oli.do_dtl_status = 200 
+        THEN NVL(TO_NUMBER(oli.ref_field3), oli.order_qty) 
+        ELSE 0 
+      END
+    )   AS Units_Cancelled
+    from wm.order_line_item oli
+    inner join wm.orders o on oli.order_id = o.order_id
+    where do_dtl_status < 201
+        and (
+            (exists (select parent_order_id from wm.orders where parent_order_id = oli.order_id) and
+            not exists (select order_id from wm.orders where tc_order_id like 'c%' and order_id = oli.order_id))
+            or
+            o.order_type in ('ECOMM', 'STRAT', 'COMM')
+            )
+        -- TESTING
+       -- and ship_wave_nbr = '202505010360'
+    group by ship_wave_nbr
+    ) oli on sp.ship_wave_nbr = oli.ship_wave_nbr
+left outer join (
+    select distinct l.wave_nbr, count(distinct l.tc_lpn_id) as oLPNs
+        --, l.tc_lpn_id, l.total_lpn_qty
+        --, sum(ld.size_value) as UNITS
+        --, sum(l.total_lpn_qty) as UNITS
+    from wm.lpn l
+    --left outer join wm.lpn_detail ld on l.lpn_id = ld.lpn_id
+    where l.inbound_outbound_indicator = 'O'
+        --and ld.lpn_detail_status < 99
+        and l.lpn_facility_status < 99
+        -- TESTING
+        --and l.wave_nbr = '202012070031'
+    group by l.wave_nbr
+        --, l.tc_lpn_id
+    ) l on sp.ship_wave_nbr = l.wave_nbr
+--where sp.ship_wave_nbr = '202101210052'
+--Replaced date range with cognos filter
+where  --(sp.NBR_LD_TASKS+ sp.NBR_LD_DETAIL+ sp.NBR_FP_TASKS+ sp.NBR_FP_DETAIL+ sp.NBR_PICK_TASKS+ nvl(l.oLPNs, 0)) > 0
+
+ -- OR
+
+    -- opposite of that (i.e. sum = 0) but with cancellations
+    (
+      (sp.NBR_LD_TASKS 
+       + sp.NBR_LD_DETAIL 
+       + sp.NBR_FP_TASKS 
+       + sp.NBR_FP_DETAIL 
+       + sp.NBR_PICK_TASKS 
+       + NVL(l.oLPNs,0)
+      ) = 0
+      AND NVL(Units_Cancelled,0) > 0
+      and UPPER(sp.wave_desc) like ('%CLEAN%')
+    )
+
+--AND cast(sp.CREATE_DATE_TIME as timestamp) >= cast(to_date(substr(#Prompt('pStartDateTime')#,0,19),'YYYY-MM-DD"T"HH24:mi:ss') as timestamp)
+--and cast(sp.CREATE_DATE_TIME as timestamp) <= cast(to_date(substr(#Prompt('pEndDateTime')#,0,19),'YYYY-MM-DD"T"HH24:mi:ss') as timestamp)
+order by sp.ship_wave_nbr desc
