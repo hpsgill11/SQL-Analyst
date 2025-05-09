@@ -1,0 +1,43 @@
+/* ===========================================
+   Distinct-wave counts by date and shift
+   (Morning 06-13, Afternoon 14-21, Overnight 22-05)
+   =========================================== */
+
+WITH base AS (
+    /* Step 1: pull rows of interest and add 3 hours */
+    SELECT
+        wave_nbr,
+        (mod_date_time + INTERVAL '3' HOUR) AS adj_ts
+    FROM wave_parm
+    WHERE wave_stat_code = '97'
+),
+shifted AS (
+    /* Step 2: bucket each timestamp into a shift label */
+    SELECT
+        wave_nbr,
+        TRUNC(adj_ts) AS work_date,               -- calendar date *after* the +3 h bump
+        CASE
+            WHEN TO_NUMBER(TO_CHAR(adj_ts,'HH24')) BETWEEN  6 AND 13 THEN 'Morning'    -- 06:00-13:59
+            WHEN TO_NUMBER(TO_CHAR(adj_ts,'HH24')) BETWEEN 14 AND 21 THEN 'Afternoon'  -- 14:00-21:59
+            ELSE 'Overnight'                                                          -- 22:00-05:59
+        END AS shift
+    FROM base
+)
+/* Step 3 & 4: count DISTINCT wave_nbr, then pivot into columns */
+SELECT *
+FROM (
+    SELECT
+        work_date,
+        shift,
+        wave_nbr
+    FROM shifted
+)
+PIVOT (
+    COUNT(DISTINCT wave_nbr)
+    FOR shift IN (
+        'Morning'   AS morning_cnt,
+        'Afternoon' AS afternoon_cnt,
+        'Overnight' AS overnight_cnt
+    )
+)
+ORDER BY work_date;
