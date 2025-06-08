@@ -2,6 +2,7 @@ SELECT
 wm.task_dtl.create_date_time + INTERVAL '3' HOUR AS Create_Date_Time,
 wm.task_dtl.alloc_invn_dtl_id,
     wm.task_dtl.task_seq_nbr,
+    tge.TASK_GRP,
     wm.task_dtl.task_id,
     SysHeader.code_desc AS task_header_status,
     wm.INT_MASTER.int_desc AS Inventory_Need_Type,
@@ -84,7 +85,9 @@ FROM
                             AND  LPNStatus.inbound_outbound_indicator = 'I'
     LEFT JOIN wm.wave_parm ON    wm.task_dtl.task_genrtn_ref_nbr =  wm.wave_parm.wave_nbr
     LEFT JOIN wm.locn_hdr current_locn_lpn ON wm.lpn.curr_sub_locn_id = current_locn_lpn.locn_id
-where wm.task_hdr.task_id = '20618801'
+    left join task_grp_elgblty tge on tge.task_type = wm.task_dtl.task_type and tge.invn_need_type = wm.task_dtl.invn_need_type 
+    and tge.work_grp = wm.task_hdr.start_curr_work_grp and tge.work_area = wm.task_hdr.start_curr_work_area  
+where --wm.task_hdr.task_id = '20618801'
 --wm.task_dtl.misc_alpha_field_2 = 'EP0002'
 
 --wm.orders.tc_order_id IN ('501244425', '503708428', '503708503')
@@ -95,11 +98,12 @@ where wm.task_hdr.task_id = '20618801'
 --wm.orders.tc_order_id = 'c172856453673346_202410101145102431327638'
    -- wm.task_hdr.task_type = '14'--
      --SysTaskType.code_desc = 'Ecom Tote Multi'
---AND wm.task_hdr.stat_code = 10
+ wm.task_hdr.stat_code = 10
 --and wm.orders.order_type = 'SPECIAL'
---wm.task_hdr.invn_need_type = '1'
+and wm.task_hdr.invn_need_type = '50'
 --wm.task_hdr.STAT_CODE = 30 AND wm.task_dtl.misc_alpha_field_2 IS NULL 
 --AND wm.task_hdr.pick_to_tote_flag = 'Y'
 
 Order By
 wm.task_dtl.alloc_invn_dtl_id,wm.task_dtl.task_id,wm.task_dtl.task_seq_nbr
+
