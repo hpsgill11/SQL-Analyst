@@ -1,0 +1,18 @@
+SELECT
+    wm.facility_alias.facility_alias_id,
+        wm.facility.zone,
+    wm.facility_alias.facility_name,
+    wm.facility.facility_id,
+    wm.facility.address_1,
+    wm.facility.address_2,
+    wm.facility.address_3,
+    wm.facility.address_key_1,
+    wm.facility.city,
+    wm.facility.state_prov,
+    wm.facility.postal_code,
+    wm.facility.county,
+    wm.facility.country_code
+FROM
+    wm.facility
+    LEFT JOIN wm.facility_alias ON wm.facility_alias.facility_id = wm.facility.facility_id
+where wm.facility.zone is not  null
