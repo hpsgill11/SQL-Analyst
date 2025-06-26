@@ -1,0 +1,71 @@
+WITH order_flags AS (
+  SELECT
+    o.tc_order_id,
+    TO_CHAR(o.created_dttm + INTERVAL '3' HOUR, 'DD/MM/YYYY') AS order_create_date_est,
+    CASE 
+      WHEN o.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
+      ELSE 'Multi'
+    END AS order_type,
+
+    -- Flag if order has any P06 item
+    MAX(CASE WHEN im.pick_locn_assign_type = 'P06' THEN 1 ELSE 0 END) AS has_P06,
+
+    -- Aggregate 2-char style prefixes for non-P06 items
+    LISTAGG(DISTINCT CASE 
+                WHEN im.pick_locn_assign_type != 'P06' OR im.pick_locn_assign_type IS NULL
+                THEN SUBSTR(ic.item_style, 1, 2)
+              END, ',') 
+      WITHIN GROUP (ORDER BY SUBSTR(ic.item_style, 1, 2)) AS non_P06_styles
+
+  FROM wm.orders o
+  LEFT JOIN wm.order_line_item oli ON o.order_id = oli.order_id
+  LEFT JOIN wm.item_cbo ic ON oli.item_name = ic.item_name
+  LEFT JOIN wm.item_facility_mapping_wms im ON oli.item_id = im.item_id
+  WHERE oli.invn_type = 'E'
+    AND o.order_type = 'ECOMM'
+  GROUP BY o.tc_order_id, o.created_dttm, o.TOTAL_NBR_OF_UNITS
+),
+
+classified_orders AS (
+  SELECT
+    order_create_date_est,
+    order_type,
+    tc_order_id,
+    
+    CASE 
+      WHEN has_P06 = 1 AND non_P06_styles LIKE '%LM%' AND (non_P06_styles LIKE '%LW%' OR non_P06_styles LIKE '%LU%')
+        THEN 'P06 + LM + LW/LU'
+      WHEN has_P06 = 1 AND non_P06_styles LIKE '%LM%' 
+        THEN 'P06 + LM'
+      WHEN has_P06 = 1 AND (non_P06_styles LIKE '%LW%' OR non_P06_styles LIKE '%LU%')
+        THEN 'P06 + LW/LU'
+      WHEN has_P06 = 1 
+        THEN 'P06 Only'
+      WHEN non_P06_styles LIKE '%LM%' AND (non_P06_styles LIKE '%LW%' OR non_P06_styles LIKE '%LU%')
+        THEN 'LM + LW/LU'
+      WHEN non_P06_styles LIKE '%LM%' 
+        THEN 'LM Only'
+      WHEN non_P06_styles LIKE '%LW%' OR non_P06_styles LIKE '%LU%' 
+        THEN 'LW/LU Only'
+      ELSE 'Other'
+    END AS order_category
+  FROM order_flags
+)
+
+SELECT 
+  order_create_date_est,
+  order_type,
+  COUNT(DISTINCT tc_order_id) AS total_orders,
+  
+  COUNT(DISTINCT CASE WHEN order_category = 'P06 Only' THEN tc_order_id END) AS P06_ONLY,
+  COUNT(DISTINCT CASE WHEN order_category = 'P06 + LM' THEN tc_order_id END) AS P06_with_LM,
+  COUNT(DISTINCT CASE WHEN order_category = 'P06 + LW/LU' THEN tc_order_id END) AS P06_with_LW,
+  COUNT(DISTINCT CASE WHEN order_category = 'P06 + LM + LW/LU' THEN tc_order_id END) AS P06_with_LM_LW,
+  COUNT(DISTINCT CASE WHEN order_category = 'LM Only' THEN tc_order_id END) AS LM_ONLY,
+  COUNT(DISTINCT CASE WHEN order_category = 'LW/LU Only' THEN tc_order_id END) AS LW_ONLY,
+  COUNT(DISTINCT CASE WHEN order_category = 'LM + LW/LU' THEN tc_order_id END) AS LM_LW,
+  COUNT(DISTINCT CASE WHEN order_category = 'Other' THEN tc_order_id END) AS orders_uncategorized
+
+FROM classified_orders
+GROUP BY order_create_date_est, order_type
+ORDER BY TO_DATE(order_create_date_est, 'DD/MM/YYYY');
