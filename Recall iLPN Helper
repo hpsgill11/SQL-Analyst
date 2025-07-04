@@ -15,3 +15,4 @@ where
 1=1
 AND wm.lpn.REF_FIELD_1 like 'MIL_VAS_070325_BATCH_15'
 and wm.lpn.lpn_facility_status != 90 -- In Active Storage
+and wm.lpn.lpn_facility_status = 30 -- Putaway
