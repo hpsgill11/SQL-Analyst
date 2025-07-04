@@ -1,4 +1,5 @@
 Select 
+distinct
 wm.lpn.tc_lpn_id,
 wm.lpn.ref_field_1,
 LPNStatus.description,
