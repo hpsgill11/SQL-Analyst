@@ -1,0 +1,9 @@
+Select tc_lpn_id,ref_field_1,LPNStatus.description,current_locn_lpn.dsp_locn from wm.lpn 
+    LEFT JOIN wm.lpn_facility_status LPNStatus ON wm.LPN.lpn_facility_status = LPNStatus.lpn_facility_status
+                            AND  LPNStatus.inbound_outbound_indicator = 'I'
+    LEFT JOIN wm.locn_hdr current_locn_lpn ON wm.lpn.curr_sub_locn_id = current_locn_lpn.locn_id
+
+where 
+1=1
+--AND REF_FIELD_1 = 'MIL_VAS070325_BATCH14'
+and wm.lpn.lpn_facility_status != 90
