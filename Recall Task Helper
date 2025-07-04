@@ -1,0 +1,69 @@
+SELECT
+
+ destination_locn.dsp_locn AS Destination_Location,
+    wm.locn_hdr.work_grp,
+    CASE
+    WHEN wm.task_dtl.cntr_nbr IS NULL THEN wm.task_dtl.carton_nbr
+    ELSE wm.task_dtl.cntr_nbr
+    END AS LPN,
+        wm.task_hdr.task_desc,
+            wm.task_dtl.qty_alloc,
+            
+                wm.item_cbo.item_name,
+                wm.task_dtl.INVN_TYPE
+
+FROM
+    wm.task_dtl
+    LEFT JOIN wm.task_hdr ON wm.task_dtl.task_id = wm.task_hdr.task_id
+    LEFT JOIN wm.item_cbo ON wm.task_dtl.item_id = wm.item_cbo.item_id
+    LEFT JOIN wm.locn_hdr ON wm.task_dtl.pull_locn_id = wm.locn_hdr.locn_id
+    LEFT JOIN wm.locn_hdr current_locn ON wm.task_dtl.pull_locn_id = current_locn.locn_id
+    LEFT JOIN wm.locn_hdr destination_locn ON wm.task_dtl.dest_locn_id = destination_locn.locn_id
+
+    LEFT JOIN wm.sys_code SysHeader ON wm.task_hdr.stat_code = SysHeader.code_id
+                             AND SysHeader.code_type = '552'
+    LEFT JOIN  wm.INT_MASTER ON wm.task_dtl.invn_need_type = wm.INT_MASTER.invn_need_type and  wm.INT_MASTER.WHSE = 'TOR'
+
+    LEFT JOIN wm.sys_code SysTaskType ON wm.task_hdr.task_type = SysTaskType.code_id
+                             AND SysTaskType.code_type = '590'
+    LEFT JOIN wm.sys_code SysDetailHeader ON wm.task_dtl.stat_code = SysDetailHeader.code_id
+                             AND SysDetailHeader.code_type = '553'
+
+    LEFT JOIN wm.sys_code SysInv_Type ON wm.task_dtl.invn_type = SysInv_Type.code_id
+                             AND SysInv_Type.code_type = '064' and SysInv_Type.misc_flags IS NOT NULL
+    LEFT JOIN wm.orders ON wm.task_dtl.tc_order_id = wm.orders.tc_order_id
+    LEFT JOIN wm.lpn LPN ON wm.task_dtl.cntr_nbr = LPN.tc_lpn_id   
+    LEFT JOIN wm.lpn oLPN ON wm.task_dtl.carton_nbr = oLPN.tc_lpn_id
+    LEFT JOIN wm.lpn_facility_status oLPNStatus ON oLPN.lpn_facility_status = oLPNStatus.lpn_facility_status
+                            AND  oLPNStatus.inbound_outbound_indicator = 'O'
+
+    LEFT JOIN wm.lpn_facility_status LPNStatus ON LPN.lpn_facility_status = LPNStatus.lpn_facility_status
+                            AND  LPNStatus.inbound_outbound_indicator = 'I'
+    LEFT JOIN wm.wave_parm ON    wm.task_dtl.task_genrtn_ref_nbr =  wm.wave_parm.wave_nbr
+    LEFT JOIN wm.locn_hdr current_locn_lpn ON wm.lpn.curr_sub_locn_id = current_locn_lpn.locn_id
+    left join task_grp_elgblty tge on tge.task_type = wm.task_dtl.task_type and tge.invn_need_type = wm.task_dtl.invn_need_type 
+    and tge.work_grp = wm.task_hdr.start_curr_work_grp and tge.work_area = wm.task_hdr.start_curr_work_area  
+where 1=1
+and wm.task_dtl.create_date_time + INTERVAL '3' HOUR  > DATE '2025-06-16'
+--wm.task_hdr.task_id = '20618801'
+--wm.task_dtl.misc_alpha_field_2 = 'EP0002'
+and destination_locn.dsp_locn = 'VAS-SP-EC-PRJ'
+and wm.locn_hdr.work_grp = 'MRAK'
+
+--lpn.tc_lpn_id = ''
+--wm.orders.tc_order_id IN ('501244425', '503708428', '503708503')
+--oLPNStatus.description = 'Packed'
+--olpn.tc_lpn_id = '00000999990760145569'
+-- wm.task_dtl.task_genrtn_ref_nbr IN ('202410110297','202410120056','202410120097','202410120169','202410120181','202410120274')
+--LPN.TC_parent_LPN_id = 'PM1703732'
+--wm.orders.tc_order_id = 'c172856453673346_202410101145102431327638'
+   -- wm.task_hdr.task_type = '14'--
+     --SysTaskType.code_desc = 'Ecom Tote Multi'
+-- wm.task_hdr.stat_code = 10
+--and wm.orders.order_type = 'SPECIAL'
+and wm.task_hdr.invn_need_type = '92'
+--wm.task_hdr.STAT_CODE = 30 AND wm.task_dtl.misc_alpha_field_2 IS NULL 
+--AND wm.task_hdr.pick_to_tote_flag = 'Y'
+
+Order By
+wm.task_dtl.create_date_time desc, wm.task_dtl.alloc_invn_dtl_id,wm.task_dtl.task_id,wm.task_dtl.task_seq_nbr
