@@ -1,0 +1,76 @@
+SELECT
+    TO_CHAR(o.created_dttm + INTERVAL '3' HOUR, 'MM/DD/YYYY') AS order_date,
+    COUNT(DISTINCT o.tc_order_id)                      AS affected_order_count
+FROM
+    wm.orders o
+    LEFT JOIN wm.order_line_item li
+      ON o.order_id = li.order_id
+    LEFT JOIN wm.do_status ds
+      ON o.do_status = ds.order_status
+    LEFT JOIN wm.item_cbo ic
+      ON li.item_name = ic.item_name
+    LEFT JOIN wm.item_facility_mapping_wms ifm
+      ON li.item_id = ifm.item_id
+    LEFT JOIN wm.alloc_invn_dtl aid
+      ON li.line_item_id = aid.line_item_id
+     AND aid.tc_order_id = o.tc_order_id
+     AND aid.task_cmpl_ref_code = 6
+     AND aid.task_genrtn_ref_code = 1
+    LEFT JOIN wm.task_dtl td
+      ON aid.alloc_invn_dtl_id = td.alloc_invn_dtl_id
+     AND td.carton_nbr = aid.carton_nbr
+     AND td.task_genrtn_ref_code = '1'
+    LEFT JOIN wm.task_hdr th
+      ON td.task_id = th.task_id
+    LEFT JOIN wm.wave_parm wp
+      ON wp.wave_nbr = aid.task_genrtn_ref_nbr
+    LEFT JOIN wm.locn_hdr lh
+      ON aid.pull_locn_id = lh.locn_id
+    LEFT JOIN wm.lpn
+      ON aid.task_cmpl_ref_nbr = lpn.tc_lpn_id
+    LEFT JOIN wm.lpn_facility_status lfs
+      ON lpn.lpn_facility_status = lfs.lpn_facility_status
+     AND lfs.inbound_outbound_indicator = 'O'
+    LEFT JOIN wm.task_dtl td2
+      ON td2.alloc_invn_dtl_id    = aid.alloc_invn_dtl_id
+     AND td2.line_item_id         = li.line_item_id
+     AND td2.task_cmpl_ref_code   = '15'
+    LEFT JOIN wm.alloc_invn_dtl aid2
+      ON aid2.carton_nbr       = td.carton_nbr
+     AND td.carton_seq_nbr     = aid2.carton_seq_nbr
+     AND aid2.invn_need_type   = 52
+    LEFT JOIN wm.picking_short_item psi
+      ON td.line_item_id     = psi.line_item_id
+     AND td.tc_order_id      = psi.tc_order_id
+     AND psi.locn_id         = lh.locn_id
+     AND psi.ship_wave_nbr   = td2.task_genrtn_ref_nbr
+    LEFT JOIN wm.locn_hdr lh2
+      ON lpn.curr_sub_locn_id = lh2.locn_id
+    LEFT JOIN wm.prod_trkg_tran ptt
+      ON ptt.cntr_nbr         = lpn.tc_lpn_id
+     AND ptt.menu_optn_name   = 'Split Cmbne All oLPN'
+     AND ptt.module_name      = 'Modify'
+     AND ptt.line_item_id     = aid.line_item_id
+WHERE
+    o.order_type = 'ECOMM'
+  AND li.do_dtl_status NOT IN ('200')
+  AND (
+        aid.task_cmpl_ref_nbr = lpn.tc_lpn_id
+     OR (aid.task_cmpl_ref_nbr IS NULL AND lpn.tc_lpn_id IS NULL)
+  )
+  AND aid.task_cmpl_ref_nbr IN (
+    SELECT
+      td2.carton_nbr
+    FROM
+      wm.task_dtl td2
+    WHERE
+      td2.task_genrtn_ref_code = '1'
+    GROUP BY
+      td2.carton_nbr
+    HAVING
+      COUNT(DISTINCT td2.task_id) > 1
+  )
+GROUP BY
+    TO_CHAR(o.created_dttm + INTERVAL '3' HOUR, 'MM/DD/YYYY')
+ORDER BY
+    TO_DATE(TO_CHAR(o.created_dttm + INTERVAL '3' HOUR, 'MM/DD/YYYY'), 'MM/DD/YYYY');
