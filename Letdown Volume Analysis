@@ -1,0 +1,300 @@
+WITH cte AS (
+  SELECT
+    wave_parm.create_date_time + INTERVAL '3' HOUR                                      AS wave_ran_dt,
+    TO_CHAR(wave_parm.create_date_time + INTERVAL '3' HOUR, 'DD-Mon HH:MI AM')           AS wave_ran_time,
+    CASE
+      WHEN MAX(
+             CASE WHEN SysDetailHeader.code_desc <> 'Task complete' THEN 1 ELSE 0 END
+           ) OVER (PARTITION BY task_dtl.task_genrtn_ref_nbr) = 0
+      THEN TO_CHAR(
+             MAX(task_dtl.mod_date_time + INTERVAL '3' HOUR)
+               OVER (PARTITION BY task_dtl.task_genrtn_ref_nbr),
+             'DD-Mon HH:MI AM'
+           )
+      ELSE 'Not Completed'
+    END                                                                                AS Max_Mod_Date_Time,
+    3.5                                                                                AS goal,
+    CASE
+      WHEN MAX(
+             CASE WHEN SysDetailHeader.code_desc <> 'Task complete' THEN 1 ELSE 0 END
+           ) OVER (PARTITION BY task_dtl.task_genrtn_ref_nbr) = 0
+      THEN 'Completed'
+      ELSE 'In Progress'
+    END                                                                                AS Wave_Status,
+    COUNT(DISTINCT task_dtl.cntr_nbr)
+      OVER (PARTITION BY task_dtl.task_genrtn_ref_nbr)                                   AS Total_iLPNs,
+    COUNT(DISTINCT task_dtl.task_id)
+      OVER (PARTITION BY task_dtl.task_genrtn_ref_nbr)                                   AS Total_Tasks,
+    COUNT(DISTINCT CASE WHEN SysDetailHeader.code_desc <> 'Task complete'
+                        THEN task_dtl.cntr_nbr END)
+      OVER (PARTITION BY task_dtl.task_genrtn_ref_nbr)                                   AS Pending_iLPNs,
+    COUNT(DISTINCT CASE WHEN SysHeader.code_desc <> 'Complete'
+                        THEN task_dtl.task_id END)
+      OVER (PARTITION BY task_dtl.task_genrtn_ref_nbr)                                   AS Pending_Tasks,
+    CASE
+      WHEN SUBSTR(dest_locn.dsp_locn,1,3)
+           IN ('AS1','AS2','AS3','PA1','PA2','PA3') THEN 'Mississauga'
+      ELSE 'Milton'
+    END                                                                                AS Facility,
+    SysHeader.code_desc                                                                AS task_header_status,
+    SysDetailHeader.code_desc                                                          AS Detail_Header,
+    TO_CHAR(task_dtl.create_date_time + INTERVAL '3' HOUR, 'DD-Mon HH:MI AM')          AS Create_Date_Time,
+    TO_CHAR(task_dtl.mod_date_time + INTERVAL '3' HOUR, 'DD-Mon HH:MI AM')             AS Mod_Date_Time,
+    TO_CHAR(
+      FLOOR(((task_dtl.mod_date_time+3/24)
+             - (task_dtl.create_date_time+3/24)) * 24),
+      'FM9990'
+    )
+    || ':' ||
+    LPAD(
+      TO_CHAR(
+        ROUND(
+          ((((task_dtl.mod_date_time+3/24)
+             - (task_dtl.create_date_time+3/24)) * 24)
+           - FLOOR(((task_dtl.mod_date_time+3/24)
+                    - (task_dtl.create_date_time+3/24)) * 24)
+          ) * 60
+        )
+      ),
+      2,'0'
+    )                                                                                  AS Detail_Hours_To_Complete,
+    ROUND(
+      (((task_dtl.mod_date_time+3/24) - (task_dtl.create_date_time+3/24)) * 24)
+      / 3.5 * 100,
+      2
+    )                                                                                  AS Detail_Completion_Percentage,
+    TO_CHAR(
+      FLOOR(
+        AVG(
+          ROUND(
+            ((task_dtl.mod_date_time+3/24)
+             - (task_dtl.create_date_time+3/24)) * 24,
+            2
+          )
+        ) OVER (PARTITION BY task_dtl.task_id)
+      ),
+      'FM9990'
+    )
+    || ':' ||
+    LPAD(
+      TO_CHAR(
+        ROUND(
+          (
+            AVG(
+              ROUND(
+                ((task_dtl.mod_date_time+3/24)
+                 - (task_dtl.create_date_time+3/24)) * 24,
+                2
+              )
+            ) OVER (PARTITION BY task_dtl.task_id)
+            - FLOOR(
+                AVG(
+                  ROUND(
+                    ((task_dtl.mod_date_time+3/24)
+                     - (task_dtl.create_date_time+3/24)) * 24,
+                    2
+                  )
+                ) OVER (PARTITION BY task_dtl.task_id)
+              )
+          ) * 60
+        )
+      ),
+      2,'0'
+    )                                                                                  AS Avg_Hours_Per_Task,
+    ROUND(
+      (
+        AVG(
+          ROUND(
+            ((task_dtl.mod_date_time+3/24)
+             - (task_dtl.create_date_time+3/24)) * 24,
+            2
+          )
+        ) OVER (PARTITION BY task_dtl.task_id)
+        / 3.5
+      ) * 100,
+      2
+    )                                                                                  AS Avg_Completion_Percentage_Per_Task,
+    TO_CHAR(
+      FLOOR(
+        AVG(
+          ROUND(
+            ((task_dtl.mod_date_time+3/24)
+             - (task_dtl.create_date_time+3/24)) * 24,
+            2
+          )
+        ) OVER (PARTITION BY task_dtl.task_genrtn_ref_nbr)
+      ),
+      'FM9990'
+    )
+    || ':' ||
+    LPAD(
+      TO_CHAR(
+        ROUND(
+          (
+            AVG(
+              ROUND(
+                ((task_dtl.mod_date_time+3/24)
+                 - (task_dtl.create_date_time+3/24)) * 24,
+                2
+              )
+            ) OVER (PARTITION BY task_dtl.task_genrtn_ref_nbr)
+            - FLOOR(
+                AVG(
+                  ROUND(
+                    ((task_dtl.mod_date_time+3/24)
+                     - (task_dtl.create_date_time+3/24)) * 24,
+                    2
+                  )
+                ) OVER (PARTITION BY task_dtl.task_genrtn_ref_nbr)
+              )
+          ) * 60
+        )
+      ),
+      2,'0'
+    )                                                                                  AS Avg_Hours_Per_Wave_Nbr,
+    ROUND(
+      (
+        AVG(
+          ROUND(
+            ((task_dtl.mod_date_time+3/24)
+             - (task_dtl.create_date_time+3/24)) * 24,
+            2
+          )
+        ) OVER (PARTITION BY task_dtl.task_genrtn_ref_nbr)
+        / 3.5
+      ) * 100,
+      2
+    )                                                                                  AS Avg_Completion_Percentage_Per_RefNbr,
+    task_dtl.task_id,
+    task_hdr.task_type,
+    task_hdr.task_desc,
+    SysTaskType.code_desc                                                             AS Task_Type_Description,
+    SysInv_Type.code_desc                                                              AS Inv_Type,
+    ORDER_TYPE.ORDER_TYPE,
+    task_hdr.user_id,
+    wave_parm.wave_desc,
+    task_dtl.task_genrtn_ref_nbr,
+    curr_locn_lpn.dsp_locn                                                             AS LPN_Current_Location,
+    curr_locn.dsp_locn                                                                 AS Current_Location,
+    dest_locn.dsp_locn                                                                 AS Destination_Location,
+    SUBSTR(dest_locn.dsp_locn,1,3)                                                     AS Floor,
+    CASE
+      WHEN SUBSTR(dest_locn.dsp_locn,1,3) IN ('AS1','AS2','AS3','PA1','PA2','PA3')
+      THEN CONCAT(
+             SUBSTR(dest_locn.dsp_locn,3,1),
+             CASE WHEN TO_NUMBER(SUBSTR(dest_locn.dsp_locn,8,2)) <= 20 THEN '1' ELSE '3' END
+           )
+      ELSE NULL
+    END                                                                                AS Zone,
+    CASE
+      WHEN SUBSTR(curr_locn_lpn.dsp_locn,1,4) = 'ZONE' THEN 'Inducted'
+      WHEN SUBSTR(curr_locn_lpn.dsp_locn,1,3) = 'APT'  THEN 'Drop Zone'
+      WHEN SUBSTR(curr_locn_lpn.dsp_locn,1,3) = 'AS5'  THEN 'Drop Zone'
+      WHEN LPNStatus.description IN ('Allocated','In Active Storage') THEN 'Pending Pull'
+      WHEN LPNStatus.description = 'Allocated and Pulled' THEN 'Pull Complete'
+      ELSE 'Not Inducted'
+    END                                                                                AS Induct_Status,
+    task_dtl.orig_reqmt                                                                AS Required_QTY,
+    task_dtl.qty_alloc,
+    task_dtl.qty_pulld,
+    CASE
+      WHEN task_dtl.cntr_nbr IS NULL THEN task_dtl.carton_nbr
+      ELSE task_dtl.cntr_nbr
+    END                                                                                AS LPN,
+    CASE
+      WHEN oLPNStatus.description IS NULL THEN LPNStatus.description
+      ELSE oLPNStatus.description
+    END                                                                                AS LPN_Status,
+    ROW_NUMBER()
+      OVER (PARTITION BY task_dtl.task_genrtn_ref_nbr
+            ORDER BY task_dtl.task_id)                                                 AS rn
+  FROM wm.task_dtl
+  LEFT JOIN wm.task_hdr           ON task_dtl.task_id            = task_hdr.task_id
+  LEFT JOIN wm.item_cbo           ON task_dtl.item_id            = item_cbo.item_id
+  LEFT JOIN wm.locn_hdr           ON task_dtl.pull_locn_id        = locn_hdr.locn_id
+  LEFT JOIN wm.locn_hdr curr_locn ON task_dtl.pull_locn_id        = curr_locn.locn_id
+  LEFT JOIN wm.locn_hdr dest_locn ON task_dtl.dest_locn_id        = dest_locn.locn_id
+  LEFT JOIN wm.sys_code SysHeader ON task_hdr.stat_code           = SysHeader.code_id
+                                  AND SysHeader.code_type        = '552'
+  LEFT JOIN wm.int_master         ON task_dtl.invn_need_type     = int_master.invn_need_type
+                                  AND int_master.whse           = 'TOR'
+  LEFT JOIN wm.sys_code SysTaskType
+                                  ON task_hdr.task_type         = SysTaskType.code_id
+                                  AND SysTaskType.code_type     = '590'
+  LEFT JOIN wm.sys_code SysDetailHeader
+                                  ON task_dtl.stat_code         = SysDetailHeader.code_id
+                                  AND SysDetailHeader.code_type = '553'
+  LEFT JOIN wm.sys_code SysInv_Type
+                                  ON task_dtl.invn_type         = SysInv_Type.code_id
+                                  AND SysInv_Type.code_type     = '064'
+                                  AND SysInv_Type.misc_flags    IS NOT NULL
+  LEFT JOIN wm.orders             ON task_dtl.tc_order_id        = orders.tc_order_id
+  LEFT JOIN wm.lpn curr_lpn       ON task_dtl.cntr_nbr           = curr_lpn.tc_lpn_id
+  LEFT JOIN wm.lpn oLPN           ON task_dtl.carton_nbr         = oLPN.tc_lpn_id
+  LEFT JOIN wm.lpn_facility_status oLPNStatus
+                                  ON oLPN.lpn_facility_status    = oLPNStatus.lpn_facility_status
+                                  AND oLPNStatus.inbound_outbound_indicator = 'O'
+  LEFT JOIN wm.lpn_facility_status LPNStatus
+                                  ON curr_lpn.lpn_facility_status = LPNStatus.lpn_facility_status
+                                  AND LPNStatus.inbound_outbound_indicator  = 'I'
+  LEFT JOIN wm.wave_parm          ON wave_parm.wave_nbr          = task_dtl.task_genrtn_ref_nbr
+  LEFT JOIN wm.locn_hdr curr_locn_lpn
+                                  ON curr_lpn.curr_sub_locn_id   = curr_locn_lpn.locn_id
+                                  
+ left join (Select DISTINCT
+wm.alloc_invn_dtl.TASK_GENRTN_REF_NBR,
+WM.ORDERS.ORDER_TYPE
+
+from wm.alloc_invn_dtl
+inner JOIN WM.ORDERS ON WM.ORDERS.TC_ORDER_ID = WM.ALLOC_INVN_DTL.TC_ORDER_ID) ORDER_TYPE ON ORDER_TYPE.TASK_GENRTN_REF_NBR = wave_parm.wave_nbr
+  WHERE task_dtl.invn_need_type    = '1'
+    AND task_dtl.stat_code         NOT IN ('99')
+    AND LPNStatus.lpn_facility_status != '90'
+    and wave_parm.WAVE_STAT_CODE != 99
+)
+SELECT
+  TRUNC(wave_ran_dt)                                        AS wave_ran_date,
+    CASE
+    WHEN EXTRACT(HOUR FROM wave_ran_dt) >= 6
+     AND EXTRACT(HOUR FROM wave_ran_dt) < 14 THEN 'Morning'
+    WHEN EXTRACT(HOUR FROM wave_ran_dt) >= 14
+     AND EXTRACT(HOUR FROM wave_ran_dt) < 22 THEN 'Afternoon'
+    ELSE 'Overnights'
+  END                                AS Wave_Ran_Shift,
+  facility,
+  ORDER_TYPE,
+  task_genrtn_ref_nbr               AS Wave_number,
+  wave_ran_time,
+  Max_Mod_Date_Time                 AS Wave_Complete_Time,
+  goal                              AS SLA_target_in_hours,
+  wave_status,
+  wave_desc,
+  CASE
+    WHEN Max_Mod_Date_Time <> 'Not Completed'
+    THEN TO_CHAR(
+           TO_DATE('00:00','HH24:MI')
+           + (TO_DATE(Max_Mod_Date_Time,'DD-Mon HH:MI AM')
+              - TO_DATE(wave_ran_time,'DD-Mon HH:MI AM')),
+           'HH24:MI'
+         )
+    ELSE 'Not Completed'
+  END                                AS Total_Duration,
+  total_ilpns,
+  total_tasks,
+  pending_ilpns,
+  pending_tasks,
+  avg_hours_per_wave_nbr             AS Average_Hour_Completion,
+  avg_completion_percentage_per_refnbr AS Average_SLA,
+  CASE
+    WHEN Max_Mod_Date_Time <> 'Not Completed'
+    THEN ROUND(
+           ((TO_DATE(Max_Mod_Date_Time,'DD-Mon HH:MI AM')
+             - TO_DATE(wave_ran_time,'DD-Mon HH:MI AM')) * 24)
+           / 3.5 * 100,
+           2
+         )
+    ELSE 0
+  END                                AS SLA_Total
+FROM cte
+WHERE rn = 1
+ORDER BY task_genrtn_ref_nbr DESC;
