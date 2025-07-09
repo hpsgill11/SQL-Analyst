@@ -1,0 +1,13 @@
+SELECT
+  COUNT(DISTINCT CASE WHEN o.do_status = '200' THEN o.tc_order_id END) AS done_count,
+  COUNT(DISTINCT o.tc_order_id)                                     AS total_count,
+  ROUND(
+    COUNT(DISTINCT CASE WHEN o.do_status = '200' THEN o.tc_order_id END)
+    / COUNT(DISTINCT o.tc_order_id)
+    * 100,
+    2
+  )                                                                  AS Completion_Percentage
+FROM wm.orders o
+JOIN wm.order_line_item oli
+  ON o.order_id = oli.order_id
+WHERE oli.wave_nbr = '202507080438';
