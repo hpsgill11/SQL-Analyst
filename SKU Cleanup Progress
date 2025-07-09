@@ -15,21 +15,32 @@ status_counts AS (
   GROUP BY do_status
 ),
 totals AS (
-  -- total distinct orders in this wave
-  SELECT COUNT(DISTINCT tc_order_id) AS total_count
+  SELECT
+    COUNT(DISTINCT tc_order_id) AS total_count
   FROM base
 ),
 done AS (
-  -- total distinct “done” orders (do_status = 200)
-  SELECT COUNT(DISTINCT tc_order_id) AS done_count
+  SELECT
+    COUNT(DISTINCT tc_order_id) AS done_count
   FROM base
   WHERE do_status = '200'
+),
+wave_info AS (
+  SELECT
+    sc.code_desc AS wave_stat_desc
+  FROM wm.wave_parm wp
+  LEFT JOIN sys_code sc
+    ON sc.code_type = '595'
+   AND sc.code_id   = wp.wave_stat_code
+  WHERE wp.wave_nbr = '202507080438'
 )
 SELECT
   sc.do_status,
   sc.status_count,
-  ROUND(d.done_count / t.total_count * 100, 2) AS pct_done
+  wi.wave_stat_desc,
+  TO_CHAR(ROUND(d.done_count / t.total_count * 100, 2)) || '%' AS Progress
 FROM status_counts sc
 CROSS JOIN totals t
-CROSS JOIN done    d
+CROSS JOIN done d
+CROSS JOIN wave_info wi
 ORDER BY sc.do_status;
