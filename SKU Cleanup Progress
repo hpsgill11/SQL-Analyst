@@ -1,13 +1,35 @@
+WITH base AS (
+  SELECT
+    o.tc_order_id,
+    o.do_status
+  FROM wm.orders o
+  JOIN wm.order_line_item oli
+    ON o.order_id = oli.order_id
+  WHERE oli.wave_nbr = '202507080438'
+),
+status_counts AS (
+  SELECT
+    do_status,
+    COUNT(DISTINCT tc_order_id) AS status_count
+  FROM base
+  GROUP BY do_status
+),
+totals AS (
+  -- total distinct orders in this wave
+  SELECT COUNT(DISTINCT tc_order_id) AS total_count
+  FROM base
+),
+done AS (
+  -- total distinct “done” orders (do_status = 200)
+  SELECT COUNT(DISTINCT tc_order_id) AS done_count
+  FROM base
+  WHERE do_status = '200'
+)
 SELECT
-  COUNT(DISTINCT CASE WHEN o.do_status = '200' THEN o.tc_order_id END) AS done_count,
-  COUNT(DISTINCT o.tc_order_id)                                     AS total_count,
-  ROUND(
-    COUNT(DISTINCT CASE WHEN o.do_status = '200' THEN o.tc_order_id END)
-    / COUNT(DISTINCT o.tc_order_id)
-    * 100,
-    2
-  )                                                                  AS Completion_Percentage
-FROM wm.orders o
-JOIN wm.order_line_item oli
-  ON o.order_id = oli.order_id
-WHERE oli.wave_nbr = '202507080438';
+  sc.do_status,
+  sc.status_count,
+  ROUND(d.done_count / t.total_count * 100, 2) AS pct_done
+FROM status_counts sc
+CROSS JOIN totals t
+CROSS JOIN done    d
+ORDER BY sc.do_status;
