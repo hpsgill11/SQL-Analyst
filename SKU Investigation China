@@ -5,6 +5,10 @@ SELECT
     to_char(o.created_dttm + INTERVAL '3' HOUR, 'HH24') as Hour,
     o.DELIVERY_END_DTTM,
     o.tc_order_id,
+    CASE 
+        WHEN o.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
+    ELSE 'Multi'
+END AS Single_Multi_Flag,
     ds.description AS ORDER_STATUS,
     oli.invn_type,
     
@@ -374,18 +378,21 @@ WHERE
 and o.order_type IN ('ECOMM')
 --and ifm.pick_locn_assign_type = 'P09'
 --AND    TRUNC(o.DELIVERY_END_DTTM) = TO_DATE('2025/07/07', 'YYYY/MM/DD') 
---and o.MARK_FOR= 'Special FO Aged Week 21'
+--and o.MARK_FOR= 'Special FO Straggler Week 23'
 
---   and o.tc_order_id like ('c175096338165053_20250627120320257485313')
---AND   not TRUNC(o.created_dttm) = TO_DATE('2025/06/28', 'YYYY/MM/DD') 
+   --and o.tc_order_id like ('c174405257290051_20250703182211431364260')
+--AND   not TRUNC(o.created_dttm) = TO_DATE('2025/07/02', 'YYYY/MM/DD') 
+AND   not TRUNC(o.created_dttm) = TO_DATE('2025/07/15', 'YYYY/MM/DD') 
 --AND o.created_dttm = TO_DATE('2025/05/07 00:00', 'YYYY/MM/DD HH24:MI')
-AND oli.invn_type = 'R'
---and  upper(o.d_city) not in ('APO','FPO','DPO')  and upper(o.d_city) not like ('%AFG')       ----- APO
+AND oli.invn_type = 'E'
+--AND NOT (  upper(o.d_city) IN ('APO','FPO','DPO')  OR upper(o.d_city) LIKE '%AFG%')
+--and   o.d_city  not  IN ('APO','FPO','DPO')
+--and o.lane_name not like ('CP%')
 --AND  SUBSTR(f.Region, 1, 1) = '1'
    --and     oli.REF_FIELD4 != wm.lulu_coo_restriction.NEW_REF_VALUE 
    -- and ic.item_name = '153833072'
-and o.d_country_code = 'US' and oli.REF_FIELD4 = 'A'
---AND (o.d_country_code = 'US' and  oli.REF_FIELD4 <> 'A'   OR oli.REF_FIELD4 IS NULL  OR oli.REF_FIELD4 = 'P'  )
+--and o.d_country_code = 'US' and oli.REF_FIELD4 = 'A'
+AND  (o.d_country_code = 'US' and  oli.REF_FIELD4 <> 'A'   OR oli.REF_FIELD4 IS NULL  OR oli.REF_FIELD4 = 'P'  )
 
 GROUP BY 
     o.created_dttm,
@@ -405,6 +412,10 @@ GROUP BY
     else null 
     end,
     o.order_type,
+       CASE 
+        WHEN o.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
+    ELSE 'Multi'
+END ,
     oli.item_name,
     ds.description,
     ic.REF_FIELD2,
@@ -430,6 +441,7 @@ SELECT
     MainTable.Hour as Created_Hour,
     MainTable.DELIVERY_END_DTTM,
     MainTable.tc_order_id,
+    MainTable.Single_Multi_Flag,
     MainTable.ORDER_STATUS,
     MainTable.invn_type,
     MainTable.REF_FIELD4,
@@ -556,4 +568,5 @@ TRIM(BOTH ',' FROM (
         THEN 'Waving Issue'
         ELSE 'Waveable'
     END AS Waving_Issue
-FROM MainTable;
+FROM MainTable
+--where MainTable.Ref_field4 = 'A';
