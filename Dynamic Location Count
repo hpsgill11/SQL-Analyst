@@ -1,0 +1,45 @@
+SELECT
+  wm.item_cbo.item_name,
+  
+  wm.wm_inventory.inventory_type,
+  COUNT(DISTINCT wm.wm_inventory.location_id) AS location_count
+FROM wm.wm_inventory
+inner join wm.item_cbo on wm.item_cbo.item_id = wm.wm_inventory.item_id
+inner join (WITH filtered AS (
+  SELECT 
+    t.cntr_nbr,
+    h.locn_id,
+    h.dsp_locn,
+    t.menu_optn_name,
+    t.create_date_time
+  FROM wm.prod_trkg_tran t
+  LEFT JOIN wm.locn_hdr h 
+    ON h.locn_id = t.to_locn
+  WHERE t.menu_optn_name 
+    IN ('Fill Actv User Dir','Generate Replenishment')
+),
+ranked AS (
+  SELECT
+    f.*,
+    ROW_NUMBER() OVER (
+      PARTITION BY f.dsp_locn
+      ORDER BY f.create_date_time DESC
+    ) AS rn
+  FROM filtered f
+)
+SELECT
+  cntr_nbr,
+locn_id,
+  dsp_locn,
+  menu_optn_name,
+  create_date_time
+FROM ranked
+WHERE rn = 1
+and menu_optn_name = 'Generate Replenishment'
+
+
+) test on test.locn_id = wm.wm_inventory.location_id
+
+WHERE wm.wm_inventory.locn_class = 'A'
+GROUP BY wm.item_cbo.item_name, wm.wm_inventory.inventory_type
+ORDER BY location_count desc
