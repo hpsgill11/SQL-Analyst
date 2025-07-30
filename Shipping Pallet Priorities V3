@@ -98,7 +98,7 @@ where wm.lpn.lpn_type = '2') facility on  facility.p = l.tc_parent_lpn_id
 
     WHERE o.order_type = 'ECOMM'
       AND l.tc_parent_lpn_id IS NOT NULL
-      AND l.lpn_facility_status <> '50'     
+      AND l.lpn_facility_status < '50'     
     GROUP BY 
         CASE
             WHEN TRUNC(o.created_dttm + INTERVAL '3' HOUR) = TRUNC(SYSDATE + INTERVAL '3' HOUR)
@@ -190,7 +190,7 @@ via_list AS (
         ON l.tc_order_id = o.tc_order_id
     WHERE o.order_type = 'ECOMM'
       AND l.tc_parent_lpn_id IS NOT NULL
-      AND l.lpn_facility_status <> '50'
+      AND l.lpn_facility_status < '50'
     GROUP BY l.tc_parent_lpn_id
 )
 SELECT
