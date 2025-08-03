@@ -182,174 +182,159 @@ END AS Single_Multi_Flag,
             ELSE 0 
         END) AS "Total Unallocatable",
         
+--------------------------------------------------------------------------------------
+        
 CASE
-  WHEN ifm.pick_locn_assign_type IN ('P06','PRK','P09')
-       OR ic.PRODUCT_CLASS_ID = 172
-       OR ic.ITEM_STYLE LIKE 'LM%'
-       OR oli.INVN_TYPE IN ('R','S','B','C','O')
+  WHEN     ifm.pick_locn_assign_type = 'P09'
+        OR ic.PRODUCT_CLASS_ID       = 172
+        OR ifm.pick_locn_assign_type = 'P06'
+        OR (ic.item_style LIKE 'LM%' AND oli.invn_type = 'E')
+        OR oli.invn_type            != 'E'
   THEN
     CASE
-      WHEN SUM(
-             CASE
-               WHEN lh.WORK_GRP IN ('MFLW','MRPH','MACT','MRAK')
-                    AND oli.INVN_TYPE = wmi.INVENTORY_TYPE
-                    AND wmi.ALLOCATABLE = 'Y'
-                    AND wmi.CNTRY_OF_ORGN       IS NOT NULL
-                    AND wmi.CNTRY_OF_ORGN      <> 'ZZ'
-                    AND wmi.CNTRY_OF_ORGN      <> '*'
-                    AND ic.UNIT_VOLUME        <= 1499
-               THEN GREATEST(0, wmi.ON_HAND_QTY - wmi.WM_ALLOCATED_QTY + wmi.TO_BE_FILLED_QTY)
-               ELSE 0
-             END
-           )
-           > SUM(oli.ORDER_QTY - oli.ALLOCATED_QTY)
-               OVER (
-                 PARTITION BY
-                   o.ORDER_TYPE,
-                   SUBSTR(f.REGION,1,1),
-                   oli.INVN_TYPE,
-                   oli.ITEM_NAME,
-                   CASE
-                     WHEN o.ORDER_TYPE = 'ECOMM' THEN TO_CHAR(o.CREATED_DTTM,'YYYY/MM/DD')
-                     WHEN o.ORDER_TYPE = 'STRAT' THEN TO_CHAR(o.CREATED_DTTM,'YYYY/MM/DD')
-                     WHEN o.ORDER_TYPE = 'FINISHER'
-                         THEN o.TC_ORDER_ID
-                     WHEN o.ORDER_TYPE IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE')
-                         THEN o.TC_ORDER_ID
-                     WHEN o.ORDER_TYPE = 'SPECIAL'
-                         THEN o.MARK_FOR
-                     WHEN o.ORDER_TYPE = 'ALLOC'
-                         THEN TO_CHAR(o.DELIVERY_END_DTTM,'YYYY/MM/DD')
-                   END
-               )
-      THEN SUM(
-             CASE
-               WHEN lh.WORK_GRP IN ('MFLW','MRPH','MACT','MRAK')
-                    AND oli.INVN_TYPE = wmi.INVENTORY_TYPE
-                    AND wmi.ALLOCATABLE = 'Y'
-                    AND wmi.CNTRY_OF_ORGN       IS NOT NULL
-                    AND wmi.CNTRY_OF_ORGN      <> 'ZZ'
-                    AND wmi.CNTRY_OF_ORGN      <> '*'
-                    AND ic.UNIT_VOLUME        <= 1499
-               THEN GREATEST(0, wmi.ON_HAND_QTY - wmi.WM_ALLOCATED_QTY + wmi.TO_BE_FILLED_QTY)
-               ELSE 0
-             END
-           )
-      ELSE SUM(
-             CASE
-               WHEN lh.WORK_GRP IN ('MFLW','MRPH','MACT','MRAK')
-                    AND oli.INVN_TYPE = wmi.INVENTORY_TYPE
-                    AND wmi.ALLOCATABLE = 'Y'
-                    AND wmi.CNTRY_OF_ORGN       IS NOT NULL
-                    AND wmi.CNTRY_OF_ORGN      <> 'ZZ'
-                    AND wmi.CNTRY_OF_ORGN      <> '*'
-                    AND ic.UNIT_VOLUME        <= 1499
-               THEN GREATEST(0, wmi.ON_HAND_QTY - wmi.WM_ALLOCATED_QTY + wmi.TO_BE_FILLED_QTY)
-               ELSE 0
-             END
-           )
-           - SUM(oli.ORDER_QTY - oli.ALLOCATED_QTY)
-               OVER (
-                 PARTITION BY
-                   o.ORDER_TYPE,
-                   SUBSTR(f.REGION,1,1),
-                   oli.INVN_TYPE,
-                   oli.ITEM_NAME,
-                   CASE
-                     WHEN o.ORDER_TYPE = 'ECOMM' THEN TO_CHAR(o.CREATED_DTTM,'YYYY/MM/DD')
-                     WHEN o.ORDER_TYPE = 'STRAT' THEN TO_CHAR(o.CREATED_DTTM,'YYYY/MM/DD')
-                     WHEN o.ORDER_TYPE = 'FINISHER'
-                         THEN o.TC_ORDER_ID
-                     WHEN o.ORDER_TYPE IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE')
-                         THEN o.TC_ORDER_ID
-                     WHEN o.ORDER_TYPE = 'SPECIAL'
-                         THEN o.MARK_FOR
-                     WHEN o.ORDER_TYPE = 'ALLOC'
-                         THEN TO_CHAR(o.DELIVERY_END_DTTM,'YYYY/MM/DD')
-                   END
-               )
+      WHEN
+        SUM(
+          CASE
+            WHEN lh.work_grp IN ('MFLW','MRPH','MACT','MRAK')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+            THEN GREATEST(0, wmi.on_hand_qty
+                           - wmi.WM_ALLOCATED_QTY
+                           + wmi.to_be_filled_qty)
+            ELSE 0
+          END
+        )
+        >
+        SUM(oli.order_qty - oli.allocated_qty)
+          OVER (
+            PARTITION BY
+              o.order_type,
+              SUBSTR(f.Region,1,1),
+              oli.invn_type,
+              oli.item_name,
+              CASE
+                WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm,'YYYY/MM/DD')
+                WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm,'YYYY/MM/DD')
+                WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE')
+                     THEN o.tc_order_id
+                WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
+                WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm,'YYYY/MM/DD')
+              END
+          )
+      THEN
+        SUM(
+          CASE
+            WHEN lh.work_grp IN ('MFLW','MRPH','MACT','MRAK')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+            THEN GREATEST(0, wmi.on_hand_qty
+                           - wmi.WM_ALLOCATED_QTY
+                           + wmi.to_be_filled_qty)
+            ELSE 0
+          END
+        )
+      ELSE
+        SUM(
+          CASE
+            WHEN lh.work_grp IN ('MFLW','MRPH','MACT','MRAK')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+            THEN GREATEST(0, wmi.on_hand_qty
+                           - wmi.WM_ALLOCATED_QTY
+                           + wmi.to_be_filled_qty)
+            ELSE 0
+          END
+        )
+        -
+        SUM(oli.order_qty - oli.allocated_qty)
+          OVER (
+            PARTITION BY
+              o.order_type,
+              SUBSTR(f.Region,1,1),
+              oli.invn_type,
+              oli.item_name,
+              CASE
+                WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm,'YYYY/MM/DD')
+                WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm,'YYYY/MM/DD')
+                WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE')
+                     THEN o.tc_order_id
+                WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
+                WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm,'YYYY/MM/DD')
+              END
+          )
     END
   ELSE
     CASE
-      WHEN SUM(
-             CASE
-               WHEN lh.WORK_GRP IN ('CRAK','SHLF','PRAK')
-                    AND oli.INVN_TYPE = wmi.INVENTORY_TYPE
-                    AND wmi.ALLOCATABLE = 'Y'
-                    AND wmi.CNTRY_OF_ORGN       IS NOT NULL
-                    AND wmi.CNTRY_OF_ORGN      <> 'ZZ'
-                    AND wmi.CNTRY_OF_ORGN      <> '*'
-                    AND ic.UNIT_VOLUME        <= 1499
-               THEN GREATEST(0, wmi.ON_HAND_QTY - wmi.WM_ALLOCATED_QTY + wmi.TO_BE_FILLED_QTY)
-               ELSE 0
-             END
-           )
-           > SUM(oli.ORDER_QTY - oli.ALLOCATED_QTY)
-               OVER (
-                 PARTITION BY
-                   o.ORDER_TYPE,
-                   SUBSTR(f.REGION,1,1),
-                   oli.INVN_TYPE,
-                   oli.ITEM_NAME,
-                   CASE
-                     WHEN o.ORDER_TYPE = 'ECOMM' THEN TO_CHAR(o.CREATED_DTTM,'YYYY/MM/DD')
-                     WHEN o.ORDER_TYPE = 'STRAT' THEN TO_CHAR(o.CREATED_DTTM,'YYYY/MM/DD')
-                     WHEN o.ORDER_TYPE = 'FINISHER'
-                         THEN o.TC_ORDER_ID
-                     WHEN o.ORDER_TYPE IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE')
-                         THEN o.TC_ORDER_ID
-                     WHEN o.ORDER_TYPE = 'SPECIAL'
-                         THEN o.MARK_FOR
-                     WHEN o.ORDER_TYPE = 'ALLOC'
-                         THEN TO_CHAR(o.DELIVERY_END_DTTM,'YYYY/MM/DD')
-                   END
-               )
-      THEN SUM(
-             CASE
-               WHEN lh.WORK_GRP IN ('CRAK','SHLF','PRAK')
-                    AND oli.INVN_TYPE = wmi.INVENTORY_TYPE
-                    AND wmi.ALLOCATABLE = 'Y'
-                    AND wmi.CNTRY_OF_ORGN       IS NOT NULL
-                    AND wmi.CNTRY_OF_ORGN      <> 'ZZ'
-                    AND wmi.CNTRY_OF_ORGN      <> '*'
-                    AND ic.UNIT_VOLUME        <= 1499
-               THEN GREATEST(0, wmi.ON_HAND_QTY - wmi.WM_ALLOCATED_QTY + wmi.TO_BE_FILLED_QTY)
-               ELSE 0
-             END
-           )
-      ELSE SUM(
-             CASE
-               WHEN lh.WORK_GRP IN ('CRAK','SHLF','PRAK')
-                    AND oli.INVN_TYPE = wmi.INVENTORY_TYPE
-                    AND wmi.ALLOCATABLE = 'Y'
-                    AND wmi.CNTRY_OF_ORGN       IS NOT NULL
-                    AND wmi.CNTRY_OF_ORGN      <> 'ZZ'
-                    AND wmi.CNTRY_OF_ORGN      <> '*'
-                    AND ic.UNIT_VOLUME        <= 1499
-               THEN GREATEST(0, wmi.ON_HAND_QTY - wmi.WM_ALLOCATED_QTY + wmi.TO_BE_FILLED_QTY)
-               ELSE 0
-             END
-           )
-           - SUM(oli.ORDER_QTY - oli.ALLOCATED_QTY)
-               OVER (
-                 PARTITION BY
-                   o.ORDER_TYPE,
-                   SUBSTR(f.REGION,1,1),
-                   oli.INVN_TYPE,
-                   oli.ITEM_NAME,
-                   CASE
-                     WHEN o.ORDER_TYPE = 'ECOMM' THEN TO_CHAR(o.CREATED_DTTM,'YYYY/MM/DD')
-                     WHEN o.ORDER_TYPE = 'STRAT' THEN TO_CHAR(o.CREATED_DTTM,'YYYY/MM/DD')
-                     WHEN o.ORDER_TYPE = 'FINISHER'
-                         THEN o.TC_ORDER_ID
-                     WHEN o.ORDER_TYPE IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE')
-                         THEN o.TC_ORDER_ID
-                     WHEN o.ORDER_TYPE = 'SPECIAL'
-                         THEN o.MARK_FOR
-                     WHEN o.ORDER_TYPE = 'ALLOC'
-                         THEN TO_CHAR(o.DELIVERY_END_DTTM,'YYYY/MM/DD')
-                   END
-               )
+      WHEN
+        SUM(
+          CASE
+            WHEN lh.work_grp IN ('CRAK','SHLF','PRAK')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+            THEN GREATEST(0, wmi.on_hand_qty
+                           - wmi.WM_ALLOCATED_QTY
+                           + wmi.to_be_filled_qty)
+            ELSE 0
+          END
+        )
+        >
+        SUM(oli.order_qty - oli.allocated_qty)
+          OVER (
+            PARTITION BY
+              o.order_type,
+              SUBSTR(f.Region,1,1),
+              oli.invn_type,
+              oli.item_name,
+              CASE
+                WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm,'YYYY/MM/DD')
+                WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm,'YYYY/MM/DD')
+                WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE')
+                     THEN o.tc_order_id
+                WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
+                WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm,'YYYY/MM/DD')
+              END
+          )
+      THEN
+        SUM(
+          CASE
+            WHEN lh.work_grp IN ('CRAK','SHLF','PRAK')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+            THEN GREATEST(0, wmi.on_hand_qty
+                           - wmi.WM_ALLOCATED_QTY
+                           + wmi.to_be_filled_qty)
+            ELSE 0
+          END
+        )
+      ELSE
+        SUM(
+          CASE
+            WHEN lh.work_grp IN ('CRAK','SHLF','PRAK')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+            THEN GREATEST(0, wmi.on_hand_qty
+                           - wmi.WM_ALLOCATED_QTY
+                           + wmi.to_be_filled_qty)
+            ELSE 0
+          END
+        )
+        -
+        SUM(oli.order_qty - oli.allocated_qty)
+          OVER (
+            PARTITION BY
+              o.order_type,
+              SUBSTR(f.Region,1,1),
+              oli.invn_type,
+              oli.item_name,
+              CASE
+                WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm,'YYYY/MM/DD')
+                WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm,'YYYY/MM/DD')
+                WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE')
+                     THEN o.tc_order_id
+                WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
+                WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm,'YYYY/MM/DD')
+              END
+          )
     END
 END AS "WAVEABLE QUANTITY",
 
@@ -427,7 +412,7 @@ WHERE
     o.do_status IN ('110','120')
    AND oli.DO_DTL_STATUS <= 120
     --and o.d_facility_alias_id = '752'
---and o.order_type IN ('ECOMM')
+and o.order_type IN ('ECOMM')
 --and ifm.pick_locn_assign_type = 'P09'
 --AND    TRUNC(o.DELIVERY_END_DTTM) = TO_DATE('2025/08/07', 'YYYY/MM/DD') 
 --and o.MARK_FOR= 'Special FO Straggler Week 23'
@@ -436,7 +421,7 @@ WHERE
 --AND   not TRUNC(o.created_dttm) = TO_DATE('2025/08/02', 'YYYY/MM/DD') 
 --AND   not TRUNC(o.created_dttm) = TO_DATE('2025/07/30', 'YYYY/MM/DD') 
 --AND o.created_dttm = TO_DATE('2025/05/07 00:00', 'YYYY/MM/DD HH24:MI')
---AND oli.invn_type = 'E'
+AND oli.invn_type = 'E'
 --AND NOT (  upper(o.d_city) IN ('APO','FPO','DPO')  OR upper(o.d_city) LIKE '%AFG%')
 --and   o.d_city  not  IN ('APO','FPO','DPO')
 --and o.lane_name not like ('CP%')
