@@ -565,6 +565,37 @@ CASE
       THEN 'Waving Issue'
       ELSE 'Waveable'
     END
-END AS WAVING_ISSUE
+END AS WAVING_ISSUE,
+
+CASE 
+    WHEN MainTable."WAVEABLE QUANTITY" < 0 THEN
+      CASE
+        /* if this row is in the “MIL” group, try MIS inventory */
+        WHEN ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
+             OR MainTable.PRODUCT_CLASS_ID       = 172
+             OR MainTable.PICK_LOCN_ASSIGN_TYPE = 'P06'
+             OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
+             OR MainTable.INVN_TYPE            != 'E'
+             )
+         AND ( MainTable."MIS Active Available"
+             + MainTable."MIS Reserve Available" ) > 0
+        THEN 'Shunt to MIL'
+
+        /* otherwise (i.e. “MIS” group), try MIL inventory */
+        WHEN NOT ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
+                OR MainTable.PRODUCT_CLASS_ID       = 172
+                OR MainTable.PICK_LOCN_ASSIGN_TYPE = 'P06'
+                OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
+                OR MainTable.INVN_TYPE            != 'E'
+                )
+         AND ( MainTable."MIL Active Available"
+             + MainTable."MIL Reserve Available" ) > 0
+        THEN 'Shunt to MIS'
+
+        /* neither building has spare, send to research */
+        ELSE 'Research Further'
+      END
+    ELSE NULL
+  END AS ACTION
 FROM MainTable
 --where MainTable."MIS Active Available" like ('%ZZ%')
