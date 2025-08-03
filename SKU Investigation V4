@@ -44,6 +44,7 @@ END AS Single_Multi_Flag,
                 CASE 
         WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
         WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD') 
+        WHEN o.order_type = 'FINISHER' THEN o.tc_order_id     
         WHEN o.order_type = 'DCTRANSFER' THEN o.tc_order_id
         WHEN o.order_type = 'INTERCOMPANY' THEN o.tc_order_id
         WHEN o.order_type = 'RETAIL' THEN o.tc_order_id
@@ -215,7 +216,7 @@ CASE
               CASE
                 WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm,'YYYY/MM/DD')
                 WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm,'YYYY/MM/DD')
-                WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE')
+                WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE','FINISHER')
                      THEN o.tc_order_id
                 WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
                 WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm,'YYYY/MM/DD')
@@ -256,7 +257,7 @@ CASE
               CASE
                 WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm,'YYYY/MM/DD')
                 WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm,'YYYY/MM/DD')
-                WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE')
+                WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE','FINISHER')
                      THEN o.tc_order_id
                 WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
                 WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm,'YYYY/MM/DD')
@@ -288,7 +289,7 @@ CASE
               CASE
                 WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm,'YYYY/MM/DD')
                 WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm,'YYYY/MM/DD')
-                WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE')
+                WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE','FINISHER')
                      THEN o.tc_order_id
                 WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
                 WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm,'YYYY/MM/DD')
@@ -329,7 +330,7 @@ CASE
               CASE
                 WHEN o.order_type = 'ECOMM' THEN TO_CHAR(o.created_dttm,'YYYY/MM/DD')
                 WHEN o.order_type = 'STRAT' THEN TO_CHAR(o.created_dttm,'YYYY/MM/DD')
-                WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE')
+                WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE','FINISHER')
                      THEN o.tc_order_id
                 WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
                 WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm,'YYYY/MM/DD')
