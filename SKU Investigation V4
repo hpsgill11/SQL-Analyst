@@ -431,7 +431,7 @@ AND oli.invn_type = 'E'
    -- and ic.item_name = '153833072'
 --and o.d_country_code = 'US' and oli.REF_FIELD4 = 'A'
 --AND  (o.d_country_code = 'US' AND oli.ref_field4 = 'A')
---AND  not (     o.d_country_code = 'US'    AND NVL(oli.ref_field4, '¤') = 'A' )
+AND  not (     o.d_country_code = 'US'    AND NVL(oli.ref_field4, '¤') = 'A' )
 
 
 --AND  (o.d_country_code = 'US' and  oli.REF_FIELD4 <> 'A'   OR oli.REF_FIELD4 IS NULL  OR oli.REF_FIELD4 = 'P'  )
