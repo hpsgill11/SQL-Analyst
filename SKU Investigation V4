@@ -567,35 +567,116 @@ CASE
     END
 END AS WAVING_ISSUE,
 
-CASE 
-    WHEN MainTable."WAVEABLE QUANTITY" < 0 THEN
-      CASE
-        /* if this row is in the “MIL” group, try MIS inventory */
-        WHEN ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
-             OR MainTable.PRODUCT_CLASS_ID       = 172
-             OR MainTable.PICK_LOCN_ASSIGN_TYPE = 'P06'
-             OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
-             OR MainTable.INVN_TYPE            != 'E'
+CASE
+  WHEN MainTable."WAVEABLE QUANTITY" < 0 THEN
+
+    CASE
+      /* 1) existing shunt */
+      WHEN (MainTable."MIL_SHUNT" + MainTable."MIS_SHUNT") > 0 THEN
+
+        /* if incoming covers the whole deficit */
+        CASE
+          WHEN (MainTable."MIL_SHUNT" + MainTable."MIS_SHUNT") 
+               >= ABS(MainTable."WAVEABLE QUANTITY")
+          THEN
+            CASE 
+              WHEN MainTable."MIL_SHUNT" > 0 
+              THEN 'Shunt Coming from MIS: ' 
+                   || TO_CHAR(MainTable."MIL_SHUNT")
+              ELSE 'Shunt Coming from MIL: ' 
+                   || TO_CHAR(MainTable."MIS_SHUNT")
+            END
+
+          /* incoming < deficit: top up from the other building */
+          ELSE
+            CASE
+              /* if MIL→MIS row, supplement from MIL */
+              WHEN MainTable."MIL_SHUNT" > 0
+                AND (MainTable."MIL Active Available" 
+                     + MainTable."MIL Reserve Available") > 0
+              THEN
+                'Shunt Supplement from MIL: '
+                || TO_CHAR(
+                     LEAST(
+                       ABS(MainTable."WAVEABLE QUANTITY")
+                       - (MainTable."MIL_SHUNT" + MainTable."MIS_SHUNT"),
+                       MainTable."MIL Active Available"
+                       + MainTable."MIL Reserve Available"
+                     )
+                   )
+                || ' units to complete'
+
+              /* if MIS→MIL row, supplement from MIS */
+              WHEN MainTable."MIS_SHUNT" > 0
+                AND (MainTable."MIS Active Available" 
+                     + MainTable."MIS Reserve Available") > 0
+              THEN
+                'Shunt Supplement from MIS: '
+                || TO_CHAR(
+                     LEAST(
+                       ABS(MainTable."WAVEABLE QUANTITY")
+                       - (MainTable."MIL_SHUNT" + MainTable."MIS_SHUNT"),
+                       MainTable."MIS Active Available"
+                       + MainTable."MIS Reserve Available"
+                     )
+                   )
+                || ' units to complete'
+
+              ELSE
+                'Research Further'
+            END
+        END
+
+      /* 2) no existing shunt → original shortage logic */
+      WHEN 
+           ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
+           OR MainTable.PRODUCT_CLASS_ID       = 172
+           OR MainTable.PICK_LOCN_ASSIGN_TYPE = 'P06'
+           OR (MainTable.ITEM_STYLE LIKE 'LM%' 
+               AND MainTable.INVN_TYPE = 'E')
+           OR MainTable.INVN_TYPE            <> 'E'
+           )
+        AND ( MainTable."MIS Active Available"
+            + MainTable."MIS Reserve Available" ) > 0
+      THEN
+        'Shunt to MIL: '
+        || TO_CHAR(
+             LEAST(
+               ABS(MainTable."WAVEABLE QUANTITY"),
+               MainTable."MIS Active Available"
+               + MainTable."MIS Reserve Available"
              )
-         AND ( MainTable."MIS Active Available"
-             + MainTable."MIS Reserve Available" ) > 0
-        THEN 'Shunt to MIL'
+           )
 
-        /* otherwise (i.e. “MIS” group), try MIL inventory */
-        WHEN NOT ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
-                OR MainTable.PRODUCT_CLASS_ID       = 172
-                OR MainTable.PICK_LOCN_ASSIGN_TYPE = 'P06'
-                OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
-                OR MainTable.INVN_TYPE            != 'E'
-                )
-         AND ( MainTable."MIL Active Available"
-             + MainTable."MIL Reserve Available" ) > 0
-        THEN 'Shunt to MIS'
+      WHEN NOT (
+           MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
+        OR MainTable.PRODUCT_CLASS_ID       = 172
+        OR MainTable.PICK_LOCN_ASSIGN_TYPE = 'P06'
+        OR (MainTable.ITEM_STYLE LIKE 'LM%' 
+            AND MainTable.INVN_TYPE = 'E')
+        OR MainTable.INVN_TYPE            <> 'E'
+           )
+        AND ( MainTable."MIL Active Available"
+            + MainTable."MIL Reserve Available" ) > 0
+      THEN
+        'Shunt to MIS: '
+        || TO_CHAR(
+             LEAST(
+               ABS(MainTable."WAVEABLE QUANTITY"),
+               MainTable."MIL Active Available"
+               + MainTable."MIL Reserve Available"
+             )
+           )
 
-        /* neither building has spare, send to research */
-        ELSE 'Research Further'
-      END
-    ELSE NULL
-  END AS ACTION
+      /* 3) nothing works */
+      ELSE
+        'Research Further'
+
+    END
+
+  ELSE
+    NULL
+END AS ACTION
+
 FROM MainTable
 --where MainTable."MIS Active Available" like ('%ZZ%')
