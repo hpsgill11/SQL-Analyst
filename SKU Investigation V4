@@ -545,11 +545,25 @@ SELECT
     MainTable."Total Required"          AS TOTAL_REQUIRED,
     MainTable."WAVEABLE QUANTITY"       AS WAVEABLE_QUANTITY,
     MainTable.allocatable_flag      AS ALLOCATABLE_FLAG,
+CASE
+  -- for ECOMM or STRAT, look across the entire order
+  WHEN MainTable.order_type IN ('ECOMM','STRAT') THEN
     CASE 
-      WHEN SUM(CASE WHEN MainTable."WAVEABLE QUANTITY" < 0 THEN 1 ELSE 0 END)
-           OVER (PARTITION BY MainTable.tc_order_id) > 0
+      WHEN SUM(
+             CASE WHEN MainTable."WAVEABLE QUANTITY" < 0 
+                  THEN 1 ELSE 0 
+             END
+           ) OVER (PARTITION BY MainTable.tc_order_id) > 0
       THEN 'Waving Issue'
       ELSE 'Waveable'
-    END                            AS WAVING_ISSUE
+    END
+  -- for all other order types, just check this row’s value
+  ELSE
+    CASE 
+      WHEN MainTable."WAVEABLE QUANTITY" < 0 
+      THEN 'Waving Issue'
+      ELSE 'Waveable'
+    END
+END AS WAVING_ISSUE
 FROM MainTable
 --where MainTable."MIS Active Available" like ('%ZZ%')
