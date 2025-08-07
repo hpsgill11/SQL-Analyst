@@ -172,8 +172,9 @@ where  Invoice != 'Bad')
 SELECT *
 FROM final_output
 where 1=1
---and final_output.Age_Category not in ('Less than 24','More than 24')
---and final_output.Investigation != 'On Pallet'
---and final_output.Investigation != 'Investigate'
---and final_output.facility != 'Milton'
+and final_output.Age_Category not in ('Less than 24','More than 24')
+and final_output.Investigation != 'On Pallet'
+and final_output.Investigation != 'Invalid'
+and final_output.Investigation != 'Investigate'
+and final_output.facility != 'Milton'
 ORDER BY Order_Create_Date_EST,tc_order_id
