@@ -178,6 +178,7 @@ END AS Single_Multi_Flag,
             WHEN lh.work_grp NOT IN ('CRAK', 'MRAK', 'SHLF', 'MFLW','MRPH','MACT','PRAK')
                 AND oli.invn_type = wmi.inventory_type
                 AND wmi.ALLOCATABLE = 'Y'
+                  AND lh.locn_brcd NOT LIKE '%VAS%'
             THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
             ELSE 0
         END) AS "Needs Further Research",
@@ -186,6 +187,7 @@ END AS Single_Multi_Flag,
                 AND oli.invn_type = wmi.inventory_type
                 AND NOT lh.dsp_locn = 'MIS-SH-UN-T01'
                 AND NOT lh.dsp_locn = 'MIL-SH-UN-T01'
+                   AND lh.locn_brcd NOT LIKE '%VAS%'
                 AND NOT lh.dsp_locn LIKE 'ICA%'
 
             THEN (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
@@ -592,27 +594,6 @@ SELECT
     MainTable."WAVEABLE QUANTITY"       AS WAVEABLE_QUANTITY,
     MainTable.allocatable_flag      AS ALLOCATABLE_FLAG,
 CASE
-  -- for ECOMM or STRAT, look across the entire order
-  WHEN MainTable.order_type IN ('ECOMM','STRAT') THEN
-    CASE
-      WHEN SUM(
-             CASE WHEN MainTable."WAVEABLE QUANTITY" < 0
-                  THEN 1 ELSE 0
-             END
-           ) OVER (PARTITION BY MainTable.tc_order_id) > 0
-      THEN 'Waving Issue'
-      ELSE 'Waveable'
-    END
-  -- for all other order types, just check this row’s value
-  ELSE
-    CASE
-      WHEN MainTable."WAVEABLE QUANTITY" < 0
-      THEN 'Waving Issue'
-      ELSE 'Waveable'
-    END
-END AS WAVING_ISSUE,
-
-CASE
   WHEN MainTable."WAVEABLE QUANTITY" < 0 THEN
 
     CASE
@@ -653,13 +634,13 @@ CASE
 
           /* 2. (Situation A4) No shunt is coming to MIL. We need to create a new one from MIS. */
           WHEN (MainTable."MIS Active Available" + MainTable."MIS Reserve Available") > 0
-          THEN 'Shunt from MIS Needed: ' ||
+          THEN 'Shunt ' ||
                TO_CHAR(
                  LEAST(
                    ABS(MainTable."WAVEABLE QUANTITY"),
                    MainTable."MIS Active Available" + MainTable."MIS Reserve Available"
                  )
-               ) || ' units.'
+               ) || ' units from MIS'
 
           /* 3. (Situation A5) Nothing works. */
           ELSE 'Research Further'
@@ -696,13 +677,13 @@ CASE
 
           /* 2. (Situation B4) No shunt is coming to MIS. We need to create a new one from MIL. */
           WHEN (MainTable."MIL Active Available" + MainTable."MIL Reserve Available") > 0
-          THEN 'Shunt from MIL Needed: ' ||
+          THEN 'Shunt ' ||
                TO_CHAR(
                  LEAST(
                    ABS(MainTable."WAVEABLE QUANTITY"),
                    MainTable."MIL Active Available" + MainTable."MIL Reserve Available"
                  )
-               ) || ' units.'
+               ) || ' units from MIL'
 
           /* 3. (Situation B5) Nothing works. */
           ELSE 'Research Further'
