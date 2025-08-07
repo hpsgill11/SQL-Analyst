@@ -653,7 +653,7 @@ CASE
 
           /* 2. (Situation A4) No shunt is coming to MIL. We need to create a new one from MIS. */
           WHEN (MainTable."MIS Active Available" + MainTable."MIS Reserve Available") > 0
-          THEN 'Shunt to MIL Needed: ' ||
+          THEN 'Shunt from MIS Needed: ' ||
                TO_CHAR(
                  LEAST(
                    ABS(MainTable."WAVEABLE QUANTITY"),
@@ -662,7 +662,7 @@ CASE
                ) || ' units.'
 
           /* 3. (Situation A5) Nothing works. */
-          ELSE 'Research Further (No stock in MIS to shunt to MIL).'
+          ELSE 'Research Further'
         END
 
       /****************************************************************************
@@ -696,7 +696,7 @@ CASE
 
           /* 2. (Situation B4) No shunt is coming to MIS. We need to create a new one from MIL. */
           WHEN (MainTable."MIL Active Available" + MainTable."MIL Reserve Available") > 0
-          THEN 'Shunt to MIS Needed: ' ||
+          THEN 'Shunt from MIL Needed: ' ||
                TO_CHAR(
                  LEAST(
                    ABS(MainTable."WAVEABLE QUANTITY"),
