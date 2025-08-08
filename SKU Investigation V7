@@ -466,7 +466,7 @@ and o.order_type IN ('ECOMM')
 --and o.MARK_FOR= 'Special FO Straggler Week 23'
 
    --and o.tc_order_id like ('c174405257290051_20250703182211431364260')
---AND   not TRUNC(o.created_dttm) = TO_DATE('2025/08/02', 'YYYY/MM/DD')
+AND   not TRUNC(o.created_dttm) = TO_DATE('2025/08/08', 'YYYY/MM/DD')
 --AND   not TRUNC(o.created_dttm) = TO_DATE('2025/07/30', 'YYYY/MM/DD')
 --AND o.created_dttm = TO_DATE('2025/05/07 00:00', 'YYYY/MM/DD HH24:MI')
 AND oli.invn_type = 'E'
@@ -478,7 +478,7 @@ AND oli.invn_type = 'E'
    -- and ic.item_name = '153833072'
 --and o.d_country_code = 'US' and oli.REF_FIELD4 = 'A'
 --AND  (o.d_country_code = 'US' AND oli.ref_field4 = 'A')
---AND   (     o.d_country_code = 'US'    AND NVL(oli.ref_field4, '¤') = 'A' )
+AND  not (     o.d_country_code = 'US'    AND NVL(oli.ref_field4, '¤') = 'A' )
 
 
 --AND  (o.d_country_code = 'US' and  oli.REF_FIELD4 <> 'A'   OR oli.REF_FIELD4 IS NULL  OR oli.REF_FIELD4 = 'P'  )
@@ -593,6 +593,26 @@ SELECT
     MainTable."Total Required"          AS TOTAL_REQUIRED,
     MainTable."WAVEABLE QUANTITY"       AS WAVEABLE_QUANTITY,
     MainTable.allocatable_flag      AS ALLOCATABLE_FLAG,
+    CASE
+  -- for ECOMM or STRAT, look across the entire order
+  WHEN MainTable.order_type IN ('ECOMM','STRAT') THEN
+    CASE
+      WHEN SUM(
+             CASE WHEN MainTable."WAVEABLE QUANTITY" < 0
+                  THEN 1 ELSE 0
+             END
+           ) OVER (PARTITION BY MainTable.tc_order_id) > 0
+      THEN 'Waving Issue'
+      ELSE 'Waveable'
+    END
+  -- for all other order types, just check this row’s value
+  ELSE
+    CASE
+      WHEN MainTable."WAVEABLE QUANTITY" < 0
+      THEN 'Waving Issue'
+      ELSE 'Waveable'
+    END
+END AS WAVING_ISSUE,
 CASE
   WHEN MainTable."WAVEABLE QUANTITY" < 0 THEN
 
@@ -691,14 +711,16 @@ CASE
     END
   ELSE
     NULL
-END AS ACTION
+END AS ACTION,
+CASE
+  WHEN MainTable."WAVEABLE QUANTITY" < 0 THEN INVESTIGATION.area_list end as Test
 
 FROM MainTable
 LEFT JOIN (SELECT
   ib.item_name,
   inv.inventory_type,
   -- list all distinct areas for this SKU+type, comma-separated
-  LISTAGG(DISTINCT lh.area || lh.zone, ',') 
+  LISTAGG(DISTINCT lh.dsp_locn, ',') 
     WITHIN GROUP (ORDER BY lh.area || lh.zone) AS area_list,
   -- your existing total calculation
   SUM(
@@ -711,10 +733,27 @@ LEFT JOIN wm.wm_inventory inv
   ON inv.item_id = ib.item_id
 LEFT JOIN wm.locn_hdr    lh
   ON lh.locn_id = inv.location_id
+left join wm.lpn_lock ON wm.lpn_lock.tc_lpn_id = inv.TC_LPN_ID
 WHERE
-  lh.work_grp   NOT IN ('CRAK','MRAK','SHLF','MFLW','MRPH','MACT','PRAK')
-  AND inv.allocatable = 'Y'
-  AND lh.locn_brcd NOT LIKE '%VAS%'
+  lh.work_grp   NOT IN ('MPDK','CRAK','MRAK','SHLF','MFLW','MRPH','MACT','PRAK')
+-- AND inv.allocatable = 'Y'
+    AND NOT dsp_locn = 'MIL-SH-UN-T01'
+    AND NOT dsp_locn = 'MIS-SH-UN-T01'
+  --AND lh.locn_brcd NOT LIKE '%VAS%'
+AND (
+       lh.dsp_locn LIKE 'ERS%'
+    OR NOT EXISTS (
+         SELECT 1
+           FROM wm.lpn_lock bad
+          WHERE bad.tc_lpn_id = inv.tc_lpn_id
+            AND bad.inventory_lock_code IN (
+               'B6','CD','CE','CI','CR','DM','DN','DT','ED',
+               'ER','RA','RD','RE','RI','RV','SE','SI','WT',
+               'YE','YR'
+            )
+       )
+    )
+  --and ib.item_name = '107403426'
 GROUP BY
   ib.item_name,
   inv.inventory_type) INVESTIGATION ON INVESTIGATION.ITEM_NAME = Maintable.Item_name and Maintable.invn_type = INVESTIGATION.inventory_type
