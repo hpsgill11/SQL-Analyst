@@ -202,6 +202,9 @@ CASE
             WHEN lh.work_grp IN ('MFLW','MRPH','MACT','MRAK')
              AND oli.invn_type = wmi.inventory_type
              AND wmi.ALLOCATABLE = 'Y'
+             -- *** ADDED CONDITION STARTS HERE ***
+             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+             -- *** ADDED CONDITION ENDS HERE ***
             THEN GREATEST(0, wmi.on_hand_qty
                            - wmi.WM_ALLOCATED_QTY
                            + wmi.to_be_filled_qty)
@@ -240,6 +243,9 @@ CASE
             WHEN lh.work_grp IN ('MFLW','MRPH','MACT','MRAK')
              AND oli.invn_type = wmi.inventory_type
              AND wmi.ALLOCATABLE = 'Y'
+             -- *** ADDED CONDITION STARTS HERE ***
+             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+             -- *** ADDED CONDITION ENDS HERE ***
             THEN GREATEST(0, wmi.on_hand_qty
                            - wmi.WM_ALLOCATED_QTY
                            + wmi.to_be_filled_qty)
@@ -252,6 +258,9 @@ CASE
             WHEN lh.work_grp IN ('MFLW','MRPH','MACT','MRAK')
              AND oli.invn_type = wmi.inventory_type
              AND wmi.ALLOCATABLE = 'Y'
+             -- *** ADDED CONDITION STARTS HERE ***
+             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+             -- *** ADDED CONDITION ENDS HERE ***
             THEN GREATEST(0, wmi.on_hand_qty
                            - wmi.WM_ALLOCATED_QTY
                            + wmi.to_be_filled_qty)
@@ -293,6 +302,9 @@ CASE
             WHEN lh.work_grp IN ('CRAK','SHLF','PRAK','GIFT')
              AND oli.invn_type = wmi.inventory_type
              AND wmi.ALLOCATABLE = 'Y'
+             -- *** ADDED CONDITION STARTS HERE ***
+             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+             -- *** ADDED CONDITION ENDS HERE ***
             THEN GREATEST(0, wmi.on_hand_qty
                            - wmi.WM_ALLOCATED_QTY
                            + wmi.to_be_filled_qty)
@@ -331,6 +343,9 @@ CASE
             WHEN lh.work_grp IN ('CRAK','SHLF','PRAK','GIFT')
              AND oli.invn_type = wmi.inventory_type
              AND wmi.ALLOCATABLE = 'Y'
+             -- *** ADDED CONDITION STARTS HERE ***
+             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+             -- *** ADDED CONDITION ENDS HERE ***
             THEN GREATEST(0, wmi.on_hand_qty
                            - wmi.WM_ALLOCATED_QTY
                            + wmi.to_be_filled_qty)
@@ -343,6 +358,9 @@ CASE
             WHEN lh.work_grp IN ('CRAK','SHLF','PRAK','GIFT')
              AND oli.invn_type = wmi.inventory_type
              AND wmi.ALLOCATABLE = 'Y'
+             -- *** ADDED CONDITION STARTS HERE ***
+             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+             -- *** ADDED CONDITION ENDS HERE ***
             THEN GREATEST(0, wmi.on_hand_qty
                            - wmi.WM_ALLOCATED_QTY
                            + wmi.to_be_filled_qty)
