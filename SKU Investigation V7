@@ -476,7 +476,7 @@ and o.order_type IN ('ECOMM')
 --and o.MARK_FOR= 'Special FO Straggler Week 23'
 
    --and o.tc_order_id like ('c174405257290051_20250703182211431364260')
-AND    TRUNC(o.created_dttm) = TO_DATE('2025/08/08', 'YYYY/MM/DD')
+--AND    TRUNC(o.created_dttm) = TO_DATE('2025/08/08', 'YYYY/MM/DD')
 --AND   not TRUNC(o.created_dttm) = TO_DATE('2025/07/30', 'YYYY/MM/DD')
 --AND o.created_dttm = TO_DATE('2025/05/07 00:00', 'YYYY/MM/DD HH24:MI')
 AND oli.invn_type = 'E'
@@ -488,7 +488,7 @@ AND oli.invn_type = 'E'
    -- and ic.item_name = '153833072'
 --and o.d_country_code = 'US' and oli.REF_FIELD4 = 'A'
 --AND  (o.d_country_code = 'US' AND oli.ref_field4 = 'A')
-AND  not (     o.d_country_code = 'US'    AND NVL(oli.ref_field4, '¤') = 'A' )
+AND   (     o.d_country_code = 'US'    AND NVL(oli.ref_field4, '¤') = 'A' )
 
 
 --AND  (o.d_country_code = 'US' and  oli.REF_FIELD4 <> 'A'   OR oli.REF_FIELD4 IS NULL  OR oli.REF_FIELD4 = 'P'  )
@@ -625,101 +625,89 @@ SELECT
 END AS WAVING_ISSUE,
 
 CASE
+
   WHEN MainTable."WAVEABLE QUANTITY" < 0 THEN
-    (CASE WHEN MainTable.unit_volume > 1499 THEN 'Volume Issue, ' ELSE '' END) ||
-    (CASE
-      /****************************************************************************
-       LOGIC FOR ITEMS THAT SHOULD BE IN MILTON (MIL)
-      ****************************************************************************/
-      WHEN ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
-           OR MainTable.PRODUCT_CLASS_ID       = 172
-           OR MainTable.PICK_LOCN_ASSIGN_TYPE = 'P06'
-           OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
-           OR MainTable.INVN_TYPE            <> 'E'
-           )
-      THEN
-        CASE
-          /* 1. A shunt is already coming TO MIL from MIS. */
-          WHEN MainTable."MIS_SHUNT" > 0 THEN
-            CASE
-              /* 1a. (Situation A1) The incoming shunt is enough to cover the entire deficit. */
-              WHEN MainTable."MIS_SHUNT" >= ABS(MainTable."WAVEABLE QUANTITY")
-              THEN 'Shunt Incoming to MIL: ' || TO_CHAR(MainTable."MIS_SHUNT") || ' units'
-
-              /* 1b. The incoming shunt is partial. */
-              ELSE
-                CASE
-                  /* (Situation A2) We can supplement the rest from MIS. */
-                  WHEN (MainTable."MIS Active Available" + MainTable."MIS Reserve Available") > 0
-                  THEN 'Partial Shunt to MIL Incoming. Shunt Extra ' ||
-                       TO_CHAR(
-                         LEAST(
-                           ABS(MainTable."WAVEABLE QUANTITY") - MainTable."MIS_SHUNT", -- The remaining deficit
-                           MainTable."MIS Active Available" + MainTable."MIS Reserve Available"
-                         )
-                       ) || ' units from MIS'
-                  /* (Situation A3) No additional stock is available in MIS to supplement. */
-                  ELSE 'Partial Shunt to MIL Incoming'
-                END
-            END
-
-          /* 2. (Situation A4) No shunt is coming to MIL. We need to create a new one from MIS. */
-          WHEN (MainTable."MIS Active Available" + MainTable."MIS Reserve Available") > 0
-          THEN 'Shunt ' ||
-               TO_CHAR(
-                 LEAST(
-                   ABS(MainTable."WAVEABLE QUANTITY"),
-                   MainTable."MIS Active Available" + MainTable."MIS Reserve Available"
-                 )
-               ) || ' units from MIS'
-
-          /* 3. (Situation A5) Nothing works. */
-          ELSE 'Research Further'
-        END
-
-      /****************************************************************************
-       LOGIC FOR ITEMS THAT SHOULD BE IN MISSISSAUGA (MIS)
-      ****************************************************************************/
-      ELSE
-        CASE
-          /* 1. A shunt is already coming TO MIS from MIL. */
-          WHEN MainTable."MIL_SHUNT" > 0 THEN
-            CASE
-              /* 1a. (Situation B1) The incoming shunt is enough to cover the entire deficit. */
-              WHEN MainTable."MIL_SHUNT" >= ABS(MainTable."WAVEABLE QUANTITY")
-              THEN 'Shunt Incoming to MIS: ' || TO_CHAR(MainTable."MIL_SHUNT") || ' units'
-
-              /* 1b. The incoming shunt is partial. */
-              ELSE
-                CASE
-                  /* (Situation B2) We can supplement the rest from MIL. */
-                  WHEN (MainTable."MIL Active Available" + MainTable."MIL Reserve Available") > 0
-                  THEN 'Partial Shunt to MIS Incoming. Shunt Extra ' ||
-                       TO_CHAR(
-                         LEAST(
-                           ABS(MainTable."WAVEABLE QUANTITY") - MainTable."MIL_SHUNT", -- The remaining deficit
-                           MainTable."MIL Active Available" + MainTable."MIL Reserve Available"
-                         )
-                       ) || ' units from MIL'
-                  /* (Situation B3) No additional stock is available in MIL to supplement. */
-                  ELSE 'Partial Shunt to MIS Incoming'
-                END
-            END
-
-          /* 2. (Situation B4) No shunt is coming to MIS. We need to create a new one from MIL. */
-          WHEN (MainTable."MIL Active Available" + MainTable."MIL Reserve Available") > 0
-          THEN 'Shunt ' ||
-               TO_CHAR(
-                 LEAST(
-                   ABS(MainTable."WAVEABLE QUANTITY"),
-                   MainTable."MIL Active Available" + MainTable."MIL Reserve Available"
-                 )
-               ) || ' units from MIL'
-
-          /* 3. (Situation B5) Nothing works. */
-          ELSE 'Research Further'
-        END
-    END)
+    (
+      (CASE WHEN MainTable.unit_volume > 1499 THEN 'Volume Issue, ' ELSE '' END) ||
+      (CASE
+        /****************************************************************************
+         LOGIC FOR ITEMS THAT SHOULD BE IN MILTON (MIL)
+        ****************************************************************************/
+        WHEN ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
+             OR MainTable.PRODUCT_CLASS_ID       = 172
+             OR MainTable.PICK_LOCN_ASSIGN_TYPE = 'P06'
+             OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
+             OR MainTable.INVN_TYPE            <> 'E'
+             )
+        THEN
+          CASE
+            WHEN MainTable."MIS_SHUNT" > 0 THEN
+              CASE
+                WHEN MainTable."MIS_SHUNT" >= ABS(MainTable."WAVEABLE QUANTITY")
+                THEN 'Shunt Incoming to MIL: ' || TO_CHAR(MainTable."MIS_SHUNT") || ' units'
+                ELSE
+                  CASE
+                    WHEN (MainTable."MIS Active Available" + MainTable."MIS Reserve Available") > 0
+                    THEN 'Partial Shunt to MIL Incoming. Shunt Extra ' ||
+                         TO_CHAR(
+                           LEAST(
+                             ABS(MainTable."WAVEABLE QUANTITY") - MainTable."MIS_SHUNT",
+                             MainTable."MIS Active Available" + MainTable."MIS Reserve Available"
+                           )
+                         ) || ' units from MIS'
+                    ELSE 'Partial Shunt to MIL Incoming'
+                  END
+              END
+            WHEN (MainTable."MIS Active Available" + MainTable."MIS Reserve Available") > 0
+            THEN 'Shunt ' ||
+                 TO_CHAR(
+                   LEAST(
+                     ABS(MainTable."WAVEABLE QUANTITY"),
+                     MainTable."MIS Active Available" + MainTable."MIS Reserve Available"
+                   )
+                 ) || ' units from MIS'
+            ELSE 'Research Further'
+          END
+        /****************************************************************************
+         LOGIC FOR ITEMS THAT SHOULD BE IN MISSISSAUGA (MIS)
+        ****************************************************************************/
+        ELSE
+          CASE
+            WHEN MainTable."MIL_SHUNT" > 0 THEN
+              CASE
+                WHEN MainTable."MIL_SHUNT" >= ABS(MainTable."WAVEABLE QUANTITY")
+                THEN 'Shunt Incoming to MIS: ' || TO_CHAR(MainTable."MIL_SHUNT") || ' units'
+                ELSE
+                  CASE
+                    WHEN (MainTable."MIL Active Available" + MainTable."MIL Reserve Available") > 0
+                    THEN 'Partial Shunt to MIS Incoming. Shunt Extra ' ||
+                         TO_CHAR(
+                           LEAST(
+                             ABS(MainTable."WAVEABLE QUANTITY") - MainTable."MIL_SHUNT",
+                             MainTable."MIL Active Available" + MainTable."MIL Reserve Available"
+                           )
+                         ) || ' units from MIL'
+                    ELSE 'Partial Shunt to MIS Incoming'
+                  END
+              END
+            WHEN (MainTable."MIL Active Available" + MainTable."MIL Reserve Available") > 0
+            THEN 'Shunt ' ||
+                 TO_CHAR(
+                   LEAST(
+                     ABS(MainTable."WAVEABLE QUANTITY"),
+                     MainTable."MIL Active Available" + MainTable."MIL Reserve Available"
+                   )
+                 ) || ' units from MIL'
+            ELSE 'Research Further'
+          END
+      END)
+    ) 
+    || 
+    CASE 
+      WHEN INVESTIGATION.area_list IS NOT NULL 
+      THEN ' | Available in - ' || INVESTIGATION.area_list
+      ELSE ''
+    END
   ELSE
     NULL
 END AS ACTION,
