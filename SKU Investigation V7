@@ -731,7 +731,7 @@ WHERE
 -- AND inv.allocatable = 'Y'
     AND NOT dsp_locn = 'MIL-SH-UN-T01'
     AND NOT dsp_locn = 'MIS-SH-UN-T01'
-  --AND lh.locn_brcd NOT LIKE '%VAS%'
+  AND lh.LOCN_CLASS = 'R'
 AND (
        lh.dsp_locn LIKE 'ERS%'
     OR NOT EXISTS (
