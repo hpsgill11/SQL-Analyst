@@ -87,7 +87,7 @@ END AS Single_Multi_Flag,
             ELSE 0
         END) AS "MIL Reserve Available",
     SUM(CASE
-            WHEN lh.work_grp = 'SHLF'
+            WHEN lh.work_grp in ('SHLF','GIFT')
                 AND oli.invn_type = wmi.inventory_type
                 AND wmi.ALLOCATABLE = 'Y'
             THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
@@ -95,14 +95,6 @@ END AS Single_Multi_Flag,
         END) AS "MIS Active Available",
 
 
-            SUM(CASE
-            WHEN lh.work_grp = 'SHLF'
-                AND oli.invn_type = wmi.inventory_type
-                AND lh.dsp_locn LIKE 'AS3%'
-                AND wmi.ALLOCATABLE = 'Y'
-            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
-            ELSE 0
-        END) AS "AS3 Active Available",
 
     SUM(CASE
             WHEN lh.work_grp IN ('MFLW','MRPH','MACT')
@@ -175,7 +167,7 @@ END AS Single_Multi_Flag,
 
 
     SUM(CASE
-            WHEN lh.work_grp NOT IN ('CRAK', 'MRAK', 'SHLF', 'MFLW','MRPH','MACT','PRAK')
+            WHEN lh.work_grp NOT IN ('GIFT','CRAK', 'MRAK', 'SHLF', 'MFLW','MRPH','MACT','PRAK')
                 AND oli.invn_type = wmi.inventory_type
                 AND wmi.ALLOCATABLE = 'Y'
                   AND lh.locn_brcd NOT LIKE '%VAS%'
@@ -298,7 +290,7 @@ CASE
       WHEN
         SUM(
           CASE
-            WHEN lh.work_grp IN ('CRAK','SHLF','PRAK')
+            WHEN lh.work_grp IN ('CRAK','SHLF','PRAK','GIFT')
              AND oli.invn_type = wmi.inventory_type
              AND wmi.ALLOCATABLE = 'Y'
             THEN GREATEST(0, wmi.on_hand_qty
@@ -336,7 +328,7 @@ CASE
       THEN
         SUM(
           CASE
-            WHEN lh.work_grp IN ('CRAK','SHLF','PRAK')
+            WHEN lh.work_grp IN ('CRAK','SHLF','PRAK','GIFT')
              AND oli.invn_type = wmi.inventory_type
              AND wmi.ALLOCATABLE = 'Y'
             THEN GREATEST(0, wmi.on_hand_qty
@@ -348,7 +340,7 @@ CASE
       ELSE
         SUM(
           CASE
-            WHEN lh.work_grp IN ('CRAK','SHLF','PRAK')
+            WHEN lh.work_grp IN ('CRAK','SHLF','PRAK','GIFT')
              AND oli.invn_type = wmi.inventory_type
              AND wmi.ALLOCATABLE = 'Y'
             THEN GREATEST(0, wmi.on_hand_qty
@@ -402,7 +394,7 @@ END AS "WAVEABLE QUANTITY",
                 ELSE 0
             END)
             + SUM(CASE
-                WHEN lh.work_grp = 'SHLF'
+                WHEN lh.work_grp IN ('SHLF','GIFT')
                     AND oli.invn_type = wmi.inventory_type
                     AND wmi.ALLOCATABLE = 'Y'
                 THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
@@ -416,7 +408,7 @@ END AS "WAVEABLE QUANTITY",
                 ELSE 0
             END)
             + SUM(CASE
-                WHEN lh.work_grp NOT IN ('CRAK', 'MRAK', 'SHLF', 'MFLW','MRPH','MACT','PRAK')
+                WHEN lh.work_grp NOT IN ('GIFT','CRAK', 'MRAK', 'SHLF', 'MFLW','MRPH','MACT','PRAK')
                     AND oli.invn_type = wmi.inventory_type
                     AND wmi.ALLOCATABLE = 'Y'
                 THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
@@ -466,7 +458,7 @@ and o.order_type IN ('ECOMM')
 --and o.MARK_FOR= 'Special FO Straggler Week 23'
 
    --and o.tc_order_id like ('c174405257290051_20250703182211431364260')
-AND   not TRUNC(o.created_dttm) = TO_DATE('2025/08/08', 'YYYY/MM/DD')
+AND    TRUNC(o.created_dttm) = TO_DATE('2025/08/08', 'YYYY/MM/DD')
 --AND   not TRUNC(o.created_dttm) = TO_DATE('2025/07/30', 'YYYY/MM/DD')
 --AND o.created_dttm = TO_DATE('2025/05/07 00:00', 'YYYY/MM/DD HH24:MI')
 AND oli.invn_type = 'E'
@@ -735,7 +727,7 @@ LEFT JOIN wm.locn_hdr    lh
   ON lh.locn_id = inv.location_id
 left join wm.lpn_lock ON wm.lpn_lock.tc_lpn_id = inv.TC_LPN_ID
 WHERE
-  lh.work_grp   NOT IN ('MPDK','CRAK','MRAK','SHLF','MFLW','MRPH','MACT','PRAK')
+  lh.work_grp   NOT IN ('GIFT','MPDK','CRAK','MRAK','SHLF','MFLW','MRPH','MACT','PRAK')
 -- AND inv.allocatable = 'Y'
     AND NOT dsp_locn = 'MIL-SH-UN-T01'
     AND NOT dsp_locn = 'MIS-SH-UN-T01'
