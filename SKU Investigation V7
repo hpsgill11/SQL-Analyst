@@ -623,10 +623,11 @@ SELECT
       ELSE 'Waveable'
     END
 END AS WAVING_ISSUE,
+
 CASE
   WHEN MainTable."WAVEABLE QUANTITY" < 0 THEN
-
-    CASE
+    (CASE WHEN MainTable.unit_volume > 1499 THEN 'Volume Issue, ' ELSE '' END) ||
+    (CASE
       /****************************************************************************
        LOGIC FOR ITEMS THAT SHOULD BE IN MILTON (MIL)
       ****************************************************************************/
@@ -718,10 +719,12 @@ CASE
           /* 3. (Situation B5) Nothing works. */
           ELSE 'Research Further'
         END
-    END
+    END)
   ELSE
     NULL
 END AS ACTION,
+
+
 CASE
   WHEN MainTable."WAVEABLE QUANTITY" < 0 THEN INVESTIGATION.area_list end as Test
 
