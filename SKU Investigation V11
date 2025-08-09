@@ -579,6 +579,27 @@ SELECT
     END AS WAVING_ISSUE,
 
 CASE
+  WHEN MainTable.allocatable_flag = 'Zero Allocatable'
+   AND (
+         MainTable."MIS Active Available"
+       + MainTable."MIS Reserve Available"
+       + MainTable."MIL Reserve Available"
+       + MainTable."MIL Active Available"
+       + MainTable."MIS Active Available COO"
+       + MainTable."MIS Reserve Available COO"
+       + MainTable."MIL Active Available COO"
+       + MainTable."MIL Reserve Available COO"
+       + MainTable."MA Active Available"
+       + MainTable."MN Active Available"
+       + MainTable."MH Active Available"
+       + MainTable."Needs Further Research"
+       + MainTable."MIL_SHUNT"
+       + MainTable."MIS_SHUNT"
+       + MainTable."VAS"
+       + MainTable."Total Unallocatable"
+   ) = 0
+  THEN 'No Inventory Available'
+
   WHEN MainTable."WAVEABLE QUANTITY" < 0 THEN
     /* ---------------- Shunt plan ---------------- */
     (
