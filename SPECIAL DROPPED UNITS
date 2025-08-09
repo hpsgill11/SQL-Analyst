@@ -1,0 +1,10 @@
+Select 
+f.region,
+sum (wm.orders.TOTAL_NBR_OF_UNITS) as Total
+from wm.orders
+    LEFT JOIN WM.facility f ON wm.orders.d_facility_id = f.facility_id
+
+
+where  wm.orders.MARK_FOR= 'SPECIAL FO SD WK27 - ISD 08/19'
+group by 
+f.region
