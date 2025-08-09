@@ -1,0 +1,858 @@
+WITH MainTable AS (
+SELECT
+    o.order_type,
+    o.created_dttm,
+    to_char(o.created_dttm, 'HH24') as Hour,
+    o.DELIVERY_END_DTTM,
+    o.tc_order_id,
+    CASE
+        WHEN o.TOTAL_NBR_OF_UNITS = 1 THEN 'Single'
+        ELSE 'Multi'
+    END AS Single_Multi_Flag,
+    ds.description AS ORDER_STATUS,
+    oli.invn_type,
+
+    CASE
+      WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN oli.REF_FIELD4
+      ELSE NULL
+    END AS Ref_field4,
+
+    CASE
+      WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN wm.lulu_coo_restriction.NEW_REF_VALUE
+      ELSE NULL
+    END AS Actual_Ref_Field_4,
+
+    f.Region,
+    f.zone,
+    o.d_facility_alias_id AS Store,
+    o.MARK_FOR,
+    o.d_country_code,
+    o.d_city,
+    o.LANE_NAME AS LANE_NAME,
+    o.ref_field_8,
+    o.REF_FIELD_1,
+    oli_status.code_desc as Order_Line_Status,
+    oli.item_name,
+    oli.order_qty,
+    oli.ALLOCATED_QTY,
+    oli.order_qty - oli.ALLOCATED_QTY AS required_quantity,
+
+    /* ------------ Total Required (existing window) ------------ */
+    SUM(
+        CASE
+            WHEN
+                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN oli.REF_FIELD4 ELSE NULL END) = 'A'
+                OR
+                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN wm.lulu_coo_restriction.NEW_REF_VALUE ELSE NULL END) = 'A'
+            THEN 0
+            ELSE oli.order_qty - oli.ALLOCATED_QTY
+        END
+    ) OVER (
+       PARTITION BY
+         o.order_type,
+         CASE WHEN o.order_type = 'REPLEN' THEN 'ALL' ELSE SUBSTR(f.region, 1, 1) END,
+         oli.invn_type,
+         oli.item_name,
+         CASE
+           WHEN o.order_type IN ('ECOMM','STRAT','REPLEN') THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD')
+           WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE','FINISHER') THEN o.tc_order_id
+           WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
+           WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm, 'YYYY/MM/DD')
+         END
+    ) AS "Total Required",
+
+    ic.REF_FIELD2,
+    ic.REF_FIELD3,
+    ic.item_style,
+    ic.Unit_Volume,
+    oli.description,
+    ifm.pick_locn_assign_type,
+    ic.PRODUCT_CLASS_ID,
+    im.PROD_GROUP AS PRODUCT_CLASS,
+
+    /* ------------ Unfiltered availability (existing) ------------ */
+    SUM(CASE
+            WHEN lh.work_grp IN ('CRAK','PRAK')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+            ELSE 0
+        END) AS "MIS Reserve Available",
+
+    SUM(CASE
+            WHEN lh.work_grp = 'MRAK'
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+            ELSE 0
+        END) AS "MIL Reserve Available",
+
+    SUM(CASE
+            WHEN lh.work_grp in ('SHLF','GIFT')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+            ELSE 0
+        END) AS "MIS Active Available",
+
+    SUM(CASE
+            WHEN lh.work_grp IN ('MFLW','MRPH','MACT')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+            ELSE 0
+        END) AS "MIL Active Available",
+
+    /* ------------ COO-filtered availability (NEW) ------------ */
+    SUM(CASE
+            WHEN lh.work_grp in ('SHLF','GIFT')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+             AND wmi.CNTRY_OF_ORGN IS NOT NULL
+             AND wmi.CNTRY_OF_ORGN <> 'ZZ'
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+            ELSE 0
+        END) AS "MIS Active Available COO",
+
+    SUM(CASE
+            WHEN lh.work_grp IN ('CRAK','PRAK')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+             AND wmi.CNTRY_OF_ORGN IS NOT NULL
+             AND wmi.CNTRY_OF_ORGN <> 'ZZ'
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+            ELSE 0
+        END) AS "MIS Reserve Available COO",
+
+    SUM(CASE
+            WHEN lh.work_grp IN ('MFLW','MRPH','MACT')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+             AND wmi.CNTRY_OF_ORGN IS NOT NULL
+             AND wmi.CNTRY_OF_ORGN <> 'ZZ'
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+            ELSE 0
+        END) AS "MIL Active Available COO",
+
+    SUM(CASE
+            WHEN lh.work_grp = 'MRAK'
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+             AND wmi.CNTRY_OF_ORGN IS NOT NULL
+             AND wmi.CNTRY_OF_ORGN <> 'ZZ'
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+            ELSE 0
+        END) AS "MIL Reserve Available COO",
+
+    /* ------------ Other buckets unchanged ------------ */
+    SUM(CASE
+            WHEN lh.work_grp NOT IN ('SHLF')
+             AND oli.invn_type = wmi.inventory_type
+             AND lh.dsp_locn LIKE 'MA%'
+             AND lh.locn_class = 'A'
+             AND wmi.ALLOCATABLE = 'Y'
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+            ELSE 0
+        END) AS "MA Active Available",
+
+    SUM(CASE
+            WHEN lh.work_grp NOT IN ('SHLF')
+             AND oli.invn_type = wmi.inventory_type
+             AND lh.dsp_locn LIKE 'MN%'
+             AND lh.locn_class = 'A'
+             AND wmi.ALLOCATABLE = 'Y'
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+            ELSE 0
+        END) AS "MN Active Available",
+
+    SUM(CASE
+            WHEN lh.work_grp NOT IN ('SHLF')
+             AND oli.invn_type = wmi.inventory_type
+             AND lh.dsp_locn LIKE 'MH%'
+             AND lh.locn_class = 'A'
+             AND wmi.ALLOCATABLE = 'Y'
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+            ELSE 0
+        END) AS "MH Active Available",
+
+    SUM(CASE
+            WHEN oli.invn_type = wmi.inventory_type
+             AND lh.dsp_locn = 'MIL-SH-UN-T01'
+             AND lh.locn_class = 'R'
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+            ELSE 0
+        END) AS "MIL_SHUNT",
+
+    SUM(CASE
+            WHEN oli.invn_type = wmi.inventory_type
+             AND lh.dsp_locn = 'MIS-SH-UN-T01'
+             AND lh.locn_class = 'R'
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+            ELSE 0
+        END) AS "MIS_SHUNT",
+
+    SUM(CASE
+            WHEN oli.invn_type = wmi.inventory_type
+             AND lh.locn_brcd LIKE '%VAS%'
+             AND lh.locn_brcd NOT LIKE '%ICA-%'
+             AND lh.locn_class = 'R'
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+            ELSE 0
+        END) AS "VAS",
+
+    SUM(CASE
+            WHEN lh.work_grp NOT IN ('GIFT','CRAK','MRAK','SHLF','MFLW','MRPH','MACT','PRAK')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+             AND lh.locn_brcd NOT LIKE '%VAS%'
+            THEN GREATEST(0, (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+            ELSE 0
+        END) AS "Needs Further Research",
+
+    SUM(CASE
+            WHEN wmi.ALLOCATABLE = 'N'
+             AND oli.invn_type = wmi.inventory_type
+             AND NOT lh.dsp_locn = 'MIS-SH-UN-T01'
+             AND NOT lh.dsp_locn = 'MIL-SH-UN-T01'
+             AND lh.locn_brcd NOT LIKE '%VAS%'
+             AND NOT lh.dsp_locn LIKE 'ICA%'
+            THEN (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+            ELSE 0
+        END) AS "Total Unallocatable",
+
+/* ------------ WAVEABLE QUANTITY (unchanged except existing COO/volume exclusion) ------------ */
+CASE
+  WHEN     ifm.pick_locn_assign_type = 'P09'
+        OR ic.PRODUCT_CLASS_ID       = 172
+        OR ifm.pick_locn_assign_type = 'P06'
+        OR (ic.item_style LIKE 'LM%' AND oli.invn_type = 'E')
+        OR oli.invn_type            != 'E'
+  THEN
+    CASE
+      WHEN
+        SUM(
+          CASE
+            WHEN lh.work_grp IN ('MFLW','MRPH','MACT','MRAK')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+            THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+            ELSE 0
+          END
+        )
+        >
+        SUM(
+          CASE
+            WHEN
+                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN oli.REF_FIELD4 ELSE NULL END) = 'A'
+                OR
+                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN wm.lulu_coo_restriction.NEW_REF_VALUE ELSE NULL END) = 'A'
+            THEN 0
+            ELSE oli.order_qty - oli.allocated_qty
+          END
+        )
+          OVER (
+            PARTITION BY
+              o.order_type,
+              CASE WHEN o.order_type = 'REPLEN' THEN 'ALL' ELSE SUBSTR(f.region, 1, 1) END,
+              oli.invn_type,
+              oli.item_name,
+              CASE
+                WHEN o.order_type IN ('ECOMM','STRAT','REPLEN') THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD')
+                WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE','FINISHER') THEN o.tc_order_id
+                WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
+                WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm, 'YYYY/MM/DD')
+              END
+          )
+      THEN
+        SUM(
+          CASE
+            WHEN lh.work_grp IN ('MFLW','MRPH','MACT','MRAK')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+            THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+            ELSE 0
+          END
+        )
+      ELSE
+        SUM(
+          CASE
+            WHEN lh.work_grp IN ('MFLW','MRPH','MACT','MRAK')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+            THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+            ELSE 0
+          END
+        )
+        -
+        SUM(
+          CASE
+            WHEN
+                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN oli.REF_FIELD4 ELSE NULL END) = 'A'
+                OR
+                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN wm.lulu_coo_restriction.NEW_REF_VALUE ELSE NULL END) = 'A'
+            THEN 0
+            ELSE oli.order_qty - oli.allocated_qty
+          END
+        )
+          OVER (
+            PARTITION BY
+              o.order_type,
+              CASE WHEN o.order_type = 'REPLEN' THEN 'ALL' ELSE SUBSTR(f.region, 1, 1) END,
+              oli.invn_type,
+              oli.item_name,
+              CASE
+                WHEN o.order_type IN ('ECOMM','STRAT','REPLEN') THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD')
+                WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE','FINISHER') THEN o.tc_order_id
+                WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
+                WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm, 'YYYY/MM/DD')
+              END
+          )
+    END
+  ELSE
+    CASE
+      WHEN
+        SUM(
+          CASE
+            WHEN lh.work_grp IN ('CRAK','SHLF','PRAK','GIFT')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+            THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+            ELSE 0
+          END
+        )
+        >
+        SUM(
+          CASE
+            WHEN
+                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN oli.REF_FIELD4 ELSE NULL END) = 'A'
+                OR
+                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN wm.lulu_coo_restriction.NEW_REF_VALUE ELSE NULL END) = 'A'
+            THEN 0
+            ELSE oli.order_qty - oli.allocated_qty
+          END
+        )
+          OVER (
+            PARTITION BY
+              o.order_type,
+              CASE WHEN o.order_type = 'REPLEN' THEN 'ALL' ELSE SUBSTR(f.region, 1, 1) END,
+              oli.invn_type,
+              oli.item_name,
+              CASE
+                WHEN o.order_type IN ('ECOMM','STRAT','REPLEN') THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD')
+                WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE','FINISHER') THEN o.tc_order_id
+                WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
+                WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm, 'YYYY/MM/DD')
+              END
+          )
+      THEN
+        SUM(
+          CASE
+            WHEN lh.work_grp IN ('CRAK','SHLF','PRAK','GIFT')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+            THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+            ELSE 0
+          END
+        )
+      ELSE
+        SUM(
+          CASE
+            WHEN lh.work_grp IN ('CRAK','SHLF','PRAK','GIFT')
+             AND oli.invn_type = wmi.inventory_type
+             AND wmi.ALLOCATABLE = 'Y'
+             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+            THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+            ELSE 0
+          END
+        )
+        -
+        SUM(
+          CASE
+            WHEN
+                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN oli.REF_FIELD4 ELSE NULL END) = 'A'
+                OR
+                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN wm.lulu_coo_restriction.NEW_REF_VALUE ELSE NULL END) = 'A'
+            THEN 0
+            ELSE oli.order_qty - oli.allocated_qty
+          END
+        )
+          OVER (
+            PARTITION BY
+              o.order_type,
+              CASE WHEN o.order_type = 'REPLEN' THEN 'ALL' ELSE SUBSTR(f.region, 1, 1) END,
+              oli.invn_type,
+              oli.item_name,
+              CASE
+                WHEN o.order_type IN ('ECOMM','STRAT','REPLEN') THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD')
+                WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE','FINISHER') THEN o.tc_order_id
+                WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
+                WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm, 'YYYY/MM/DD')
+              END
+          )
+    END
+END AS "WAVEABLE QUANTITY",
+
+    /* ------------ Allocatable flag (unchanged) ------------ */
+    CASE
+        WHEN
+          SUM(CASE WHEN lh.work_grp IN ('CRAK','PRAK') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+        + SUM(CASE WHEN lh.work_grp = 'MRAK' AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+        + SUM(CASE WHEN lh.work_grp IN ('SHLF','GIFT') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+        + SUM(CASE WHEN lh.work_grp IN ('MFLW','MRPH','MACT') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+        + SUM(CASE WHEN lh.work_grp NOT IN ('GIFT','CRAK','MRAK','SHLF','MFLW','MRPH','MACT','PRAK') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+        = 0
+        THEN 'Zero Allocatable'
+        ELSE 'Allocatable'
+    END AS Allocatable_Flag,
+
+    /* ------------ Wave_Building (unchanged) ------------ */
+    CASE
+      WHEN oli.invn_type = 'E' AND ifm.pick_locn_assign_type = 'P09'            THEN 'Milton - Footwear'
+      WHEN oli.invn_type = 'E' AND ic.PRODUCT_CLASS_ID = 172                    THEN 'Milton - Mats'
+      WHEN oli.invn_type = 'E' AND ifm.pick_locn_assign_type = 'P06'            THEN 'Milton - Bags'
+      WHEN oli.invn_type = 'E' AND ic.item_style LIKE 'LM%'                     THEN 'Milton - Mens'
+      WHEN oli.invn_type = 'E' AND ic.item_style LIKE 'LW%'                     THEN 'Mississauga - Womens'
+      WHEN oli.invn_type = 'E' AND ic.item_style LIKE 'LU%'                     THEN 'Mississauga - Accessories'
+      WHEN ifm.pick_locn_assign_type = 'P09'                                    THEN 'Milton - Footwear'
+      WHEN ic.PRODUCT_CLASS_ID = 172                                            THEN 'Milton - Mats'
+      WHEN o.order_type in ('ALLOC','REPLEN','SPECIAL') AND oli.invn_type = 'R' AND ifm.pick_locn_assign_type IN ('P06','P05') THEN 'Milton - Accessories'
+      WHEN o.order_type in ('ALLOC','REPLEN','SPECIAL') AND oli.invn_type = 'R' AND ifm.pick_locn_assign_type NOT IN ('P06','P05') THEN 'Milton - Apparel'
+      WHEN oli.invn_type <> 'E'                                                 THEN 'Milton'
+      ELSE NULL
+    END AS Wave_Building
+
+FROM
+    WM.orders o
+    LEFT JOIN WM.order_line_item oli ON o.order_id = oli.order_id
+    LEFT JOIN WM.item_facility_mapping_wms ifm ON ifm.item_id = oli.item_id
+    LEFT JOIN WM.do_status ds ON ds.order_status = o.do_status
+    LEFT JOIN WM.item_cbo ic ON oli.item_name = ic.item_name
+    LEFT JOIN WM.wm_inventory wmi ON oli.item_id = wmi.ITEM_ID AND oli.invn_type = wmi.inventory_type
+    LEFT JOIN WM.locn_hdr lh ON wmi.LOCATION_ID = lh.LOCN_ID
+    LEFT JOIN WM.item_master im ON ic.item_id = im.item_id
+    LEFT JOIN WM.facility f ON o.d_facility_id = f.facility_id
+    LEFT JOIN wm.lulu_coo_restriction on wm.lulu_coo_restriction.item_id = ic.item_id and wm.lulu_coo_restriction.INVENTORY_TYPE = oli.invn_type
+    LEFT JOIN wm.sys_code oli_status on oli_status.code_id = oli.DO_DTL_STATUS and oli_status.code_type = '119'
+WHERE
+    o.do_status IN ('110','120')
+    AND oli.DO_DTL_STATUS <= 120
+  --  AND o.order_type IN ('ECOMM')
+GROUP BY
+    o.created_dttm,
+    o.tc_order_id,
+    o.d_city,
+    o.LANE_NAME,
+    o.ref_field_8,
+    o.REF_FIELD_1,
+    oli.invn_type,
+    CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN oli.REF_FIELD4 ELSE NULL END,
+    CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN wm.lulu_coo_restriction.NEW_REF_VALUE ELSE NULL END,
+    o.order_type,
+    CASE WHEN o.TOTAL_NBR_OF_UNITS = 1 THEN 'Single' ELSE 'Multi' END,
+    oli.item_name,
+    oli_status.code_desc,
+    ds.description,
+    ic.REF_FIELD2,
+    ic.REF_FIELD3,
+    ic.item_style,
+    ic.Unit_Volume,
+    oli.description,
+    oli.order_qty,
+    oli.ALLOCATED_QTY,
+    ifm.pick_locn_assign_type,
+    ic.PRODUCT_CLASS_ID,
+    im.PROD_GROUP,
+    o.d_country_code,
+    f.zone,
+    f.Region,
+    o.d_facility_alias_id,
+    o.MARK_FOR,
+    o.DELIVERY_END_DTTM
+)
+
+SELECT
+    MainTable.order_type            AS ORDER_TYPE,
+    MainTable.created_dttm          AS CREATED_DTTM,
+    MainTable.Hour                  AS CREATED_HOUR,
+    MainTable.delivery_end_dttm     AS DELIVERY_END_DTTM,
+    MainTable.tc_order_id           AS TC_ORDER_ID,
+    MainTable.single_multi_flag     AS SINGLE_MULTI_FLAG,
+    MainTable.order_status          AS ORDER_STATUS,
+    MainTable.invn_type             AS INVN_TYPE,
+    MainTable.ref_field4            AS REF_FIELD4,
+    MainTable.actual_ref_field_4    AS ACTUAL_REF_FIELD_4,
+    MainTable.zone                  AS ZONE,
+    MainTable.region                AS REGION,
+    MainTable.store                 AS STORE,
+    MainTable.mark_for              AS MARK_FOR,
+    MainTable.d_country_code        AS D_COUNTRY_CODE,
+    MainTable.d_city                AS D_CITY,
+    MainTable.lane_name             AS LANE_NAME,
+    MainTable.ref_field_8           AS REF_FIELD_8,
+    MainTable.ref_field_1           AS REF_FIELD_1,
+    MainTable.order_line_status     AS ORDER_LINE_STATUS,
+
+    TRIM(BOTH ',' FROM (
+        CASE WHEN COUNT(CASE WHEN MainTable.product_class_id = 172 THEN 1 END) OVER (PARTITION BY MainTable.tc_order_id) > 0 THEN 'Mats' ELSE '' END
+      || CASE WHEN COUNT(CASE WHEN MainTable.pick_locn_assign_type = 'P06' THEN 1 END) OVER (PARTITION BY MainTable.tc_order_id) > 0 THEN 'Bags' ELSE '' END
+      || CASE WHEN COUNT(CASE WHEN MainTable.pick_locn_assign_type = 'P09' THEN 1 END) OVER (PARTITION BY MainTable.tc_order_id) > 0 THEN ',Footwear' ELSE '' END
+      || CASE WHEN COUNT(CASE WHEN MainTable.item_style LIKE 'LM%' AND MainTable.pick_locn_assign_type NOT IN ('P06','P09') AND MainTable.product_class_id <> 172 THEN 1 END) OVER (PARTITION BY MainTable.tc_order_id) > 0 THEN ',Mens' ELSE '' END
+      || CASE WHEN COUNT(CASE WHEN MainTable.item_style LIKE 'LW%' AND MainTable.pick_locn_assign_type NOT IN ('P06','P09') AND MainTable.product_class_id <> 172 THEN 1 END) OVER (PARTITION BY MainTable.tc_order_id) > 0 THEN ',Womens' ELSE '' END
+      || CASE WHEN COUNT(CASE WHEN MainTable.item_style LIKE 'LU%' AND MainTable.pick_locn_assign_type NOT IN ('P06','P09') AND MainTable.product_class_id <> 172 THEN 1 END) OVER (PARTITION BY MainTable.tc_order_id) > 0 THEN ',Accessories' ELSE '' END
+    )) AS ORDER_INVENTORY_FLAGS,
+
+    MainTable.wave_building         AS WAVE_BUILDING,
+    MainTable.item_name             AS ITEM_NAME,
+    MainTable.order_qty             AS ORDER_QTY,
+    MainTable.allocated_qty         AS ALLOCATED_QTY,
+    MainTable.required_quantity     AS REQUIRED_QUANTITY,
+    MainTable.ref_field2            AS REF_FIELD2,
+    MainTable.ref_field3            AS REF_FIELD3,
+    MainTable.item_style            AS ITEM_STYLE,
+    MainTable.unit_volume           AS UNIT_VOLUME,
+    MainTable.description           AS DESCRIPTION,
+    MainTable.pick_locn_assign_type AS PICK_LOCN_ASSIGN_TYPE,
+    MainTable.product_class_id      AS PRODUCT_CLASS_ID,
+    MainTable.product_class         AS PRODUCT_CLASS,
+
+    MainTable."MIS Active Available"   AS MIS_ACTIVE_AVAILABLE,
+    MainTable."MIS Reserve Available"  AS MIS_RESERVE_AVAILABLE,
+    MainTable."MIL Reserve Available"  AS MIL_RESERVE_AVAILABLE,
+    MainTable."MIL Active Available"   AS MIL_ACTIVE_AVAILABLE,
+
+    /* expose COO-filtered (for visibility / debugging) */
+  --  MainTable."MIS Active Available COO"  AS MIS_ACTIVE_AVAILABLE_COO,
+  --  MainTable."MIS Reserve Available COO" AS MIS_RESERVE_AVAILABLE_COO,
+  --  MainTable."MIL Active Available COO"  AS MIL_ACTIVE_AVAILABLE_COO,
+  --  MainTable."MIL Reserve Available COO" AS MIL_RESERVE_AVAILABLE_COO,
+
+    MainTable."MA Active Available"    AS MA_ACTIVE_AVAILABLE,
+    MainTable."MN Active Available"    AS MN_ACTIVE_AVAILABLE,
+    MainTable."MH Active Available"    AS MH_ACTIVE_AVAILABLE,
+    MainTable."Needs Further Research" AS NEEDS_FURTHER_RESEARCH,
+    MainTable."MIL_SHUNT"               AS MIL_SHUNT,
+    MainTable."MIS_SHUNT"               AS MIS_SHUNT,
+    MainTable."VAS"                     AS VAS,
+    MainTable."Total Unallocatable"     AS TOTAL_UNALLOCATABLE,
+    MainTable."Total Required"          AS TOTAL_REQUIRED,
+    MainTable."WAVEABLE QUANTITY"       AS WAVEABLE_QUANTITY,
+    MainTable.allocatable_flag          AS ALLOCATABLE_FLAG,
+
+    CASE
+      WHEN MainTable.order_type IN ('ECOMM','STRAT') THEN
+        CASE
+          WHEN SUM(CASE WHEN MainTable."WAVEABLE QUANTITY" < 0 THEN 1 ELSE 0 END) OVER (PARTITION BY MainTable.tc_order_id) > 0
+          THEN 'Waving Issue'
+          ELSE 'Waveable'
+        END
+      ELSE
+        CASE WHEN MainTable."WAVEABLE QUANTITY" < 0 THEN 'Waving Issue' ELSE 'Waveable' END
+    END AS WAVING_ISSUE,
+
+CASE
+  WHEN MainTable."WAVEABLE QUANTITY" < 0 THEN
+    /* ---------------- Shunt plan ---------------- */
+    (
+      CASE
+        /* Belongs to MIL (source = MIS) */
+        WHEN ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
+            OR MainTable.PRODUCT_CLASS_ID       = 172
+            OR MainTable.PICK_LOCN_ASSIGN_TYPE  = 'P06'
+            OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
+            OR MainTable.INVN_TYPE             <> 'E'
+             )
+        THEN
+          CASE
+            WHEN MainTable."MIS_SHUNT" > 0 THEN
+              CASE
+                WHEN MainTable."MIS_SHUNT" >= ABS(MainTable."WAVEABLE QUANTITY") THEN
+                  'Shunt incoming to MIL: ' || TO_CHAR(MainTable."MIS_SHUNT") || ' units — shortage fully covered'
+                WHEN (MainTable."MIS Active Available" + MainTable."MIS Reserve Available") > 0 THEN
+                  'Shunt incoming to MIL: ' || TO_CHAR(MainTable."MIS_SHUNT") || ' units. Additional ' ||
+                  TO_CHAR( LEAST( ABS(MainTable."WAVEABLE QUANTITY") - MainTable."MIS_SHUNT",
+                                  MainTable."MIS Active Available" + MainTable."MIS Reserve Available") ) ||
+                  ' units available to shunt from MIS'
+                ELSE
+                  'Shunt incoming to MIL: ' || TO_CHAR(MainTable."MIS_SHUNT") || ' units'
+              END
+            WHEN (MainTable."MIS Active Available" + MainTable."MIS Reserve Available") > 0 THEN
+              TO_CHAR( LEAST( ABS(MainTable."WAVEABLE QUANTITY"),
+                              MainTable."MIS Active Available" + MainTable."MIS Reserve Available") ) ||
+              ' units available to shunt from MIS'
+            ELSE
+              ''  /* no shunt text */
+          END
+
+        /* Belongs to MIS (source = MIL) */
+        ELSE
+          CASE
+            WHEN MainTable."MIL_SHUNT" > 0 THEN
+              CASE
+                WHEN MainTable."MIL_SHUNT" >= ABS(MainTable."WAVEABLE QUANTITY") THEN
+                  'Shunt incoming to MIS: ' || TO_CHAR(MainTable."MIL_SHUNT") || ' units — shortage fully covered'
+                WHEN (MainTable."MIL Active Available" + MainTable."MIL Reserve Available") > 0 THEN
+                  'Shunt incoming to MIS: ' || TO_CHAR(MainTable."MIL_SHUNT") || ' units. Additional ' ||
+                  TO_CHAR( LEAST( ABS(MainTable."WAVEABLE QUANTITY") - MainTable."MIL_SHUNT",
+                                  MainTable."MIL Active Available" + MainTable."MIL Reserve Available") ) ||
+                  ' units available to shunt from MIL'
+                ELSE
+                  'Shunt incoming to MIS: ' || TO_CHAR(MainTable."MIL_SHUNT") || ' units'
+              END
+            WHEN (MainTable."MIL Active Available" + MainTable."MIL Reserve Available") > 0 THEN
+              TO_CHAR( LEAST( ABS(MainTable."WAVEABLE QUANTITY"),
+                              MainTable."MIL Active Available" + MainTable."MIL Reserve Available") ) ||
+              ' units available to shunt from MIL'
+            ELSE
+              ''  /* no shunt text */
+          END
+      END
+    )
+
+    /* ---------------- Available in ---------------- */
+    ||
+    CASE
+      WHEN INVESTIGATION.area_list IS NOT NULL THEN
+        /* prefix with " | " only if we emitted a shunt plan */
+        CASE
+          WHEN (
+                /* has_shunt? (belongs MIL and MIS has something) */
+                ( ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
+                 OR MainTable.PRODUCT_CLASS_ID       = 172
+                 OR MainTable.PICK_LOCN_ASSIGN_TYPE  = 'P06'
+                 OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
+                 OR MainTable.INVN_TYPE             <> 'E'
+                  )
+                  AND ( MainTable."MIS_SHUNT" > 0
+                     OR (MainTable."MIS Active Available" + MainTable."MIS Reserve Available") > 0 )
+                )
+                /* OR belongs MIS and MIL has something */
+                OR (
+                  NOT ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
+                     OR MainTable.PRODUCT_CLASS_ID       = 172
+                     OR MainTable.PICK_LOCN_ASSIGN_TYPE  = 'P06'
+                     OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
+                     OR MainTable.INVN_TYPE             <> 'E' )
+                  AND ( MainTable."MIL_SHUNT" > 0
+                     OR (MainTable."MIL Active Available" + MainTable."MIL Reserve Available") > 0 )
+                )
+              )
+          THEN ' | Available in: ' || INVESTIGATION.area_list
+          ELSE 'Available in: ' || INVESTIGATION.area_list
+        END
+      ELSE
+        ''
+    END
+
+    /* ---------------- Volume Issue tag ---------------- */
+    ||
+    CASE
+      WHEN MainTable.Unit_Volume > 1499 THEN
+        /* prefix if shunt or available-in exists */
+        CASE
+          WHEN (
+                /* has_shunt? */
+                ( ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
+                 OR MainTable.PRODUCT_CLASS_ID       = 172
+                 OR MainTable.PICK_LOCN_ASSIGN_TYPE  = 'P06'
+                 OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
+                 OR MainTable.INVN_TYPE             <> 'E'
+                  )
+                  AND ( MainTable."MIS_SHUNT" > 0
+                     OR (MainTable."MIS Active Available" + MainTable."MIS Reserve Available") > 0 )
+                )
+                OR (
+                  NOT ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
+                     OR MainTable.PRODUCT_CLASS_ID       = 172
+                     OR MainTable.PICK_LOCN_ASSIGN_TYPE  = 'P06'
+                     OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
+                     OR MainTable.INVN_TYPE             <> 'E' )
+                  AND ( MainTable."MIL_SHUNT" > 0
+                     OR (MainTable."MIL Active Available" + MainTable."MIL Reserve Available") > 0 )
+                )
+                OR INVESTIGATION.area_list IS NOT NULL
+              )
+          THEN ' | Volume Issue'
+          ELSE 'Volume Issue'
+        END
+      ELSE ''
+    END
+
+    /* ---------------- COO restriction tags ---------------- */
+    ||
+    /* First COO tag depends on belonging side */
+    CASE
+      /* Belongs to MIL */
+      WHEN ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
+          OR MainTable.PRODUCT_CLASS_ID       = 172
+          OR MainTable.PICK_LOCN_ASSIGN_TYPE  = 'P06'
+          OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
+          OR MainTable.INVN_TYPE             <> 'E'
+           )
+      THEN
+        /* blocked on MIL side? */
+        CASE
+          WHEN GREATEST(0,
+                (MainTable."MIL Active Available" + MainTable."MIL Reserve Available")
+                - (MainTable."MIL Active Available COO" + MainTable."MIL Reserve Available COO")
+               ) > 0
+          THEN
+            CASE
+              WHEN (
+                    /* any prior text present? shunt or available-in or volume */
+                    ( ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
+                     OR MainTable.PRODUCT_CLASS_ID       = 172
+                     OR MainTable.PICK_LOCN_ASSIGN_TYPE  = 'P06'
+                     OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
+                     OR MainTable.INVN_TYPE             <> 'E' )
+                      AND ( MainTable."MIS_SHUNT" > 0
+                         OR (MainTable."MIS Active Available" + MainTable."MIS Reserve Available") > 0 )
+                    )
+                    OR (
+                      NOT ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
+                         OR MainTable.PRODUCT_CLASS_ID       = 172
+                         OR MainTable.PICK_LOCN_ASSIGN_TYPE  = 'P06'
+                         OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
+                         OR MainTable.INVN_TYPE             <> 'E' )
+                      AND ( MainTable."MIL_SHUNT" > 0
+                         OR (MainTable."MIL Active Available" + MainTable."MIL Reserve Available") > 0 )
+                    )
+                    OR INVESTIGATION.area_list IS NOT NULL
+                    OR MainTable.Unit_Volume > 1499
+                  )
+              THEN ' | COO restriction (MIL: ' ||
+                   TO_CHAR(GREATEST(0,
+                     (MainTable."MIL Active Available" + MainTable."MIL Reserve Available")
+                     - (MainTable."MIL Active Available COO" + MainTable."MIL Reserve Available COO")
+                   )) || ' units)'
+              ELSE 'COO restriction (MIL: ' ||
+                   TO_CHAR(GREATEST(0,
+                     (MainTable."MIL Active Available" + MainTable."MIL Reserve Available")
+                     - (MainTable."MIL Active Available COO" + MainTable."MIL Reserve Available COO")
+                   )) || ' units)'
+            END
+          ELSE ''
+        END
+      /* Belongs to MIS */
+      ELSE
+        /* blocked on MIS side? */
+        CASE
+          WHEN GREATEST(0,
+                (MainTable."MIS Active Available" + MainTable."MIS Reserve Available")
+                - (MainTable."MIS Active Available COO" + MainTable."MIS Reserve Available COO")
+               ) > 0
+          THEN
+            CASE
+              WHEN (
+                    /* any prior text present? shunt or available-in or volume */
+                    ( ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
+                     OR MainTable.PRODUCT_CLASS_ID       = 172
+                     OR MainTable.PICK_LOCN_ASSIGN_TYPE  = 'P06'
+                     OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
+                     OR MainTable.INVN_TYPE             <> 'E' )
+                      AND ( MainTable."MIS_SHUNT" > 0
+                         OR (MainTable."MIS Active Available" + MainTable."MIS Reserve Available") > 0 )
+                    )
+                    OR (
+                      NOT ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
+                         OR MainTable.PRODUCT_CLASS_ID       = 172
+                         OR MainTable.PICK_LOCN_ASSIGN_TYPE  = 'P06'
+                         OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
+                         OR MainTable.INVN_TYPE             <> 'E' )
+                      AND ( MainTable."MIL_SHUNT" > 0
+                         OR (MainTable."MIL Active Available" + MainTable."MIL Reserve Available") > 0 )
+                    )
+                    OR INVESTIGATION.area_list IS NOT NULL
+                    OR MainTable.Unit_Volume > 1499
+                  )
+              THEN ' | COO restriction (MIS: ' ||
+                   TO_CHAR(GREATEST(0,
+                     (MainTable."MIS Active Available" + MainTable."MIS Reserve Available")
+                     - (MainTable."MIS Active Available COO" + MainTable."MIS Reserve Available COO")
+                   )) || ' units)'
+              ELSE 'COO restriction (MIS: ' ||
+                   TO_CHAR(GREATEST(0,
+                     (MainTable."MIS Active Available" + MainTable."MIS Reserve Available")
+                     - (MainTable."MIS Active Available COO" + MainTable."MIS Reserve Available COO")
+                   )) || ' units)'
+            END
+          ELSE ''
+        END
+    END
+
+    ||
+    /* Second COO tag: show source-side block if any */
+    CASE
+      /* Belongs to MIL → source is MIS */
+      WHEN ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
+          OR MainTable.PRODUCT_CLASS_ID       = 172
+          OR MainTable.PICK_LOCN_ASSIGN_TYPE  = 'P06'
+          OR (MainTable.ITEM_STYLE LIKE 'LM%' AND MainTable.INVN_TYPE = 'E')
+          OR MainTable.INVN_TYPE             <> 'E'
+           )
+      THEN
+        CASE
+          WHEN GREATEST(0,
+                (MainTable."MIS Active Available" + MainTable."MIS Reserve Available")
+                - (MainTable."MIS Active Available COO" + MainTable."MIS Reserve Available COO")
+               ) > 0
+          THEN ' | COO restriction (from MIS: ' ||
+               TO_CHAR(GREATEST(0,
+                 (MainTable."MIS Active Available" + MainTable."MIS Reserve Available")
+                 - (MainTable."MIS Active Available COO" + MainTable."MIS Reserve Available COO")
+               )) || ' units)'
+          ELSE ''
+        END
+      /* Belongs to MIS → source is MIL */
+      ELSE
+        CASE
+          WHEN GREATEST(0,
+                (MainTable."MIL Active Available" + MainTable."MIL Reserve Available")
+                - (MainTable."MIL Active Available COO" + MainTable."MIL Reserve Available COO")
+               ) > 0
+          THEN ' | COO restriction (from MIL: ' ||
+               TO_CHAR(GREATEST(0,
+                 (MainTable."MIL Active Available" + MainTable."MIL Reserve Available")
+                 - (MainTable."MIL Active Available COO" + MainTable."MIL Reserve Available COO")
+               )) || ' units)'
+          ELSE ''
+        END
+    END
+
+  ELSE NULL
+END AS ACTION
+
+FROM MainTable
+LEFT JOIN (
+  SELECT
+    ib.item_name,
+    inv.inventory_type,
+    LISTAGG(DISTINCT lh.dsp_locn, ',') WITHIN GROUP (ORDER BY lh.area || lh.zone) AS area_list,
+    SUM(inv.on_hand_qty - inv.wm_allocated_qty + inv.to_be_filled_qty) AS total_qty
+  FROM wm.item_cbo ib
+  LEFT JOIN wm.wm_inventory inv ON inv.item_id = ib.item_id
+  LEFT JOIN wm.locn_hdr    lh  ON lh.locn_id  = inv.location_id
+  LEFT JOIN wm.lpn_lock    ll  ON ll.tc_lpn_id = inv.TC_LPN_ID
+  WHERE
+    lh.work_grp NOT IN ('GIFT','MPDK','CRAK','MRAK','SHLF','MFLW','MRPH','MACT','PRAK')
+    AND lh.dsp_locn <> 'MIL-SH-UN-T01'
+    AND lh.dsp_locn <> 'MIS-SH-UN-T01'
+    AND lh.LOCN_CLASS = 'R'
+    AND (
+         lh.dsp_locn LIKE 'ERS%'
+         OR NOT EXISTS (
+           SELECT 1
+           FROM wm.lpn_lock bad
+           WHERE bad.tc_lpn_id = inv.tc_lpn_id
+             AND bad.inventory_lock_code IN ('B6','CD','CE','CI','CR','DM','DN','DT','ED','ER','RA','RD','RE','RI','RV','SE','SI','WT','YE','YR')
+         )
+    )
+  GROUP BY ib.item_name, inv.inventory_type
+) INVESTIGATION
+  ON INVESTIGATION.ITEM_NAME = MainTable.Item_name
+ AND MainTable.invn_type     = INVESTIGATION.inventory_type
+WHERE MainTable."WAVEABLE QUANTITY" < 0;
