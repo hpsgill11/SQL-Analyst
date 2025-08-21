@@ -1,0 +1,19 @@
+SELECT
+  p.cntr_nbr,
+  LISTAGG(
+    DISTINCT TO_CHAR(p.create_date_time + INTERVAL '3' HOUR, 'MM/DD/YYYY'),
+    ','
+  ) WITHIN GROUP (
+    ORDER BY TO_CHAR(p.create_date_time + INTERVAL '3' HOUR, 'MM/DD/YYYY')
+  ) AS process_dates,
+  l.dsp_locn AS located_location
+FROM wm.prod_trkg_tran p
+JOIN wm.lpn 
+  ON lpn.tc_lpn_id = p.cntr_nbr 
+  AND lpn.inbound_outbound_indicator = 'I'
+LEFT JOIN wm.locn_hdr l 
+  ON l.locn_id = p.to_locn
+WHERE l.dsp_locn = 'VAS-SP-CO-MP'
+GROUP BY
+  p.cntr_nbr,
+  l.dsp_locn;
