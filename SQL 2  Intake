@@ -1011,4 +1011,4 @@ FROM loc_qty
 GROUP BY item_name, inventory_type) INVESTIGATION
   ON INVESTIGATION.ITEM_NAME = MainTable.Item_name
  AND MainTable.invn_type     = INVESTIGATION.inventory_type
-WHERE MainTable."WAVEABLE QUANTITY" < 0;
+--WHERE MainTable."WAVEABLE QUANTITY" < 0;
