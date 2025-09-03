@@ -208,7 +208,7 @@ TO_CHAR(
         WHEN o.order_type = 'COMMUNITY' AND o.mark_for LIKE '%BFMD%'                        THEN 'BFMD'
         ELSE NULL
       END
-)
+) 
 SELECT 
 Facility_Name,
     order_type,
