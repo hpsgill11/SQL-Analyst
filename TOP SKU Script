@@ -1,0 +1,215 @@
+select a."TC_ORDER_ID",a."D_STATE_PROV",a."T_TIME",a."T_TIME_SCORE",a."TT_WEIGHT",a."EST_MARGIN",a."MARGIN_SCORE",a."MARGIN_WEIGHT",a."TOTAL_LINES",a."MKD_LINES",a."MARKDOWN_PCT",a."MKD_WEIGHT",a."ORDER_VEL_RANK",a."OV_SCORE",a."OV_PCT", (t_time_score*tt_weight)+ 
+(margin_score*margin_weight)+ 
+(markdown_pct*mkd_weight)+ 
+(ov_score*ov_pct) final_score
+
+from (
+
+select o.tc_order_id, o.d_state_prov, tts.t_time, tts.t_time_score, (select 
+to_number(substr(misc_flags,9,4)) transit_wt
+from sys_code where rec_type = 'C' and code_type = 'OBR')/100 tt_weight,
+round(mr.est_margin,2) est_margin,
+mr.mw margin_score, 
+(select 
+to_number(substr(misc_flags,5,4))/100
+from sys_code where rec_type = 'C' and code_type = 'OBR')
+margin_weight, 
+mkd.total_lines, mkd.mkd_lines, round(mkd.markdown_pct,2) markdown_pct, (select 
+to_number(substr(misc_flags,12,4))
+from sys_code where rec_type = 'C' and code_type = 'OBR')/100 mkd_weight,
+ov.order_vel_rank, ov.wgt_rank ov_score, (select 
+to_number(substr(misc_flags,1,4))
+from sys_code where rec_type = 'C' and code_type = 'OBR')/100 ov_pct
+from orders o
+left outer join 
+(
+  select b.tc_order_id, b.t_time_act t_time, b.t_time*20 t_time_score
+  from(
+    select o.tc_order_id, abs(6-nvl(tt.t_time,5)) t_time,
+    nvl(tt.t_time,5) t_time_act
+    from orders o
+    left outer join (
+      select sc.code_id state_prov, 
+      to_number(substr(sc.misc_flags,1,2)) t_time
+      from sys_code sc
+      where sc.rec_type = 'C' and sc.code_type = 'STT'
+    )tt on tt.state_prov = o.d_state_prov
+    where o.order_type = 'ECOMM'
+  )b
+)tts on tts.tc_order_id = o.tc_order_id
+left outer join (
+  select tc_order_id, est_margin, margin_rank, total_orders, floor((margin_rank/total_orders)*100) mw
+  from (
+    select tc_order_id, est_margin, rank() over(order by est_margin desc) margin_rank, 
+    (select count(*) from orders o where o.do_status <= 110 and o.order_type = 'ECOMM' and o.d_country_code = 'US') total_orders
+    from (
+      select o.tc_order_id, --o.d_state_prov, 
+      case when nvl(o.monetary_value,0) - sc.cost < 0 then 0 else  
+      nvl(o.monetary_value,0) - sc.cost end
+      est_margin
+      from orders o
+      left outer join (
+        select d_state_prov, avg(actual_charge) cost
+        from (
+          select l.tc_lpn_id, o.d_state_prov, l.actual_charge, o.actual_shipped_dttm
+          from lpn l
+          join orders o on o.order_id = l.order_id
+          where l.actual_charge > 0
+          and o.do_status = '190'
+          and o.actual_shipped_dttm between sysdate - 14 and sysdate
+        ) group by d_state_prov
+      )sc on sc.d_state_prov = o.d_state_prov
+      where o.do_status <= 110 and
+      o.order_type = 'ECOMM'
+      and o.d_country_code = 'US'
+    )
+  )
+)mr on mr.tc_order_id = o.tc_order_id  
+left outer join 
+(
+  select order_id, count(*) total_lines, 
+  sum(mkd_line) mkd_lines, (sum(mkd_line)/count(*))*100 markdown_pct
+  from (
+    select oli.order_id, oli.line_item_id, 
+    case when mn.line_item_id is null then 0 else 1 end mkd_line
+    from order_line_item oli
+    left outer join (
+      select order_id, line_item_id
+      from order_note where note_code = 'ML'
+     )mn on mn.order_id = oli.order_id and mn.line_item_id = oli.line_item_id
+   )group by order_id
+)mkd on mkd.order_id = o.order_id
+
+
+
+
+left outer join (
+--BEGIN ORDER VELOCITY RANKING
+select g.tc_order_id, order_vel_rank,
+case 
+when order_vel_rank = 'A' then 10
+when order_vel_rank = 'B' then 20
+when order_vel_rank = 'C' then 30
+when order_vel_rank = 'D' then 40
+when order_vel_rank = 'E' then 50
+when order_vel_rank = 'F' then 60
+when order_vel_rank = 'G' then 65
+when order_vel_rank = 'H' then 70
+when order_vel_rank = 'I' then 75
+when order_vel_rank = 'J' then 80
+when order_vel_rank = 'K' then 85
+when order_vel_rank = 'L' then 90
+when order_vel_rank = 'M' then 95 end wgt_rank
+from (
+
+
+
+select o.tc_order_id, min(sku_rank) order_vel_rank
+from orders o join (
+
+
+select oli.order_id, icb.item_name, nvl(e.sku_rank,'M') sku_rank
+from order_line_item oli
+join orders o on o.order_id = oli.order_id
+join item_cbo icb on icb.item_id = oli.item_id
+left outer join (
+
+ SELECT
+    icb.item_name,
+    d."SKU_RANK"
+        FROM
+    wm.item_cbo icb
+    inner join
+    (
+      SELECT
+      c."ROW_NBR", c."ITEM_NAME", --c."PROD_CLASS",
+      c."QTY",
+      c."CUM_SUM", c."TOT_SUM", c."CUM_PER",
+      CASE
+        WHEN c."CUM_PER" BETWEEN 0 AND 10  THEN
+          'A'
+        WHEN c."CUM_PER" BETWEEN 11 AND 20 THEN
+          'B'
+        WHEN c."CUM_PER" BETWEEN 21 AND 30 THEN
+          'C'
+        WHEN c."CUM_PER" BETWEEN 31 AND 40 THEN
+          'D'
+        WHEN c."CUM_PER" BETWEEN 41 AND 50 THEN
+          'E'
+        WHEN c."CUM_PER" BETWEEN 51 AND 60 THEN
+          'F'
+        WHEN c."CUM_PER" BETWEEN 61 AND 65 THEN
+          'G'
+        WHEN c."CUM_PER" BETWEEN 66 AND 70 THEN
+          'H'
+        WHEN c."CUM_PER" BETWEEN 71 AND 75 THEN
+          'I'
+        WHEN c."CUM_PER" BETWEEN 76 AND 80 THEN
+          'J'
+        WHEN c."CUM_PER" BETWEEN 81 AND 85 THEN
+          'K'
+        WHEN c."CUM_PER" BETWEEN 86 AND 90 THEN
+          'L'
+        ELSE
+          'M'
+        END AS "SKU_RANK"
+      FROM
+      (
+        SELECT
+        b."ROW_NBR", b."ITEM_NAME", --b."PROD_CLASS",
+        b."QTY",
+        SUM(b."QTY")
+        OVER(
+          ORDER BY b."ROW_NBR" ASC
+        ) AS "CUM_SUM",
+        SUM(b."QTY")
+        OVER() AS "TOT_SUM",
+        TO_NUMBER(round((SUM(b."QTY")
+        OVER(
+          ORDER BY b."QTY" DESC ROWS UNBOUNDED PRECEDING
+        ) / SUM(b."QTY")
+        OVER()) * 100,0)) AS "CUM_PER"
+        FROM
+        (
+          SELECT
+          ROW_NUMBER()
+          OVER(
+            ORDER BY a."QTY" DESC
+            ) AS "ROW_NBR",
+          a."ITEM_NAME", --a."PROD_CLASS",
+          a."QTY"
+          from(
+            SELECT ic.item_name AS "ITEM_NAME",
+            SUM(oli.orig_order_qty) AS "QTY"
+            FROM
+            wm.order_line_item oli
+            inner join orders o on o.order_id = oli.order_id
+            INNER JOIN wm.item_cbo ic ON ic.item_id = oli.item_id
+            INNER JOIN wm.item_facility_mapping_wms ifmw ON ifmw.item_id = ic.item_id
+            inner join wm.product_class pc on pc.product_class_id = ic.product_class_id
+            WHERE
+            pc.description not like 'GIFT CARDS%'
+            AND to_char(o.tc_order_id) != to_char(o.order_id)
+            AND o.do_status <= '110' and o.order_type = 'ECOMM'
+            GROUP BY
+            ic.item_name, ifmw.pick_locn_assign_type
+            ORDER BY
+            SUM(oli.orig_order_qty) DESC
+          )a
+        )b
+      )c
+    )d on d."ITEM_NAME" = icb.item_name
+
+)e on e.item_name = icb.item_name
+where o.do_status <= '110' and o.order_type = 'ECOMM'
+
+)f on f.order_id = o.order_id
+where o.do_status <= '110' and o.order_type = 'ECOMM'
+group by o.tc_order_id
+)g
+--END ORDER VELOCITY RANKING
+)ov on ov.tc_order_id = o.tc_order_id
+where o.do_status <= '110' and o.order_type = 'ECOMM' 
+
+)a
+where est_margin is not null
