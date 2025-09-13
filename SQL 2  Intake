@@ -3,7 +3,6 @@ SELECT
   upper(substr(o.o_facility_name,1,3)) as Facility_Name,
     o.order_type,
     o.created_dttm,
-    
     TO_CHAR(
   CASE 
     WHEN o.order_type = 'ALLOC' THEN o.DELIVERY_END_DTTM
@@ -36,9 +35,11 @@ SELECT
     f.zone,
     o.d_facility_alias_id AS Store,
     o.MARK_FOR,
+    o.D_STATE_PROV,
     o.d_country_code,
     o.d_city,
     o.LANE_NAME AS LANE_NAME,
+    o.ref_field_10,
     o.ref_field_8,
     o.REF_FIELD_1,
     oli_status.code_desc as Order_Line_Status,
@@ -47,29 +48,22 @@ SELECT
     oli.ALLOCATED_QTY,
     oli.order_qty - oli.ALLOCATED_QTY AS required_quantity,
 
-    /* ------------ Total Required (existing window) ------------ */
-    SUM(
-        CASE
-            WHEN
-                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN oli.REF_FIELD4 ELSE NULL END) = 'A'
-                OR
-                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN wm.lulu_coo_restriction.NEW_REF_VALUE ELSE NULL END) = 'A'
-            THEN 0
-            ELSE oli.order_qty - oli.ALLOCATED_QTY
-        END
-    ) OVER (
-       PARTITION BY
-         o.order_type,
-         CASE WHEN o.order_type = 'REPLEN' THEN 'ALL' ELSE SUBSTR(f.region, 1, 1) END,
-         oli.invn_type,
-         oli.item_name,
-         CASE
-           WHEN o.order_type IN ('ECOMM','STRAT','REPLEN') THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD')
-           WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE','FINISHER') THEN o.tc_order_id
-           WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
-           WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm, 'YYYY/MM/DD')
-         END
-    ) AS "Total Required",
+/* ------------ Total Required  ------------ */
+SUM(oli.order_qty - oli.ALLOCATED_QTY)
+  OVER (
+     PARTITION BY
+       o.order_type,
+       CASE WHEN o.order_type = 'REPLEN' THEN 'ALL' ELSE SUBSTR(f.region, 1, 1) END,
+       oli.invn_type,
+       oli.item_name,
+       CASE
+         WHEN o.order_type IN ('ECOMM','STRAT','REPLEN') THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD')
+         WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE','FINISHER') THEN o.tc_order_id
+         WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
+         WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm, 'YYYY/MM/DD')
+       END
+  ) AS "Total Required",
+
 
     ic.REF_FIELD2,
     ic.REF_FIELD3,
@@ -234,7 +228,7 @@ SELECT
             ELSE 0
         END) AS "Total Unallocatable",
 
-/* ------------ WAVEABLE QUANTITY (MODIFIED to include new MPDK case in MIL logic) ------------ */
+/* ------------ WAVEABLE QUANTITY (cleaned) ------------ */
 CASE
   WHEN     ifm.pick_locn_assign_type = 'P09'
         OR ic.PRODUCT_CLASS_ID       = 172
@@ -249,22 +243,13 @@ CASE
             WHEN (lh.work_grp IN ('MFLW','MRPH','MACT','MRAK') OR (lh.work_grp = 'MPDK' AND lh.aisle IN ('04', '05')))
              AND oli.invn_type = wmi.inventory_type
              AND wmi.ALLOCATABLE = 'Y'
-             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+             AND NOT (ic.Unit_Volume > 1500 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
             THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
             ELSE 0
           END
         )
         >
-        SUM(
-          CASE
-            WHEN
-                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN oli.REF_FIELD4 ELSE NULL END) = 'A'
-                OR
-                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN wm.lulu_coo_restriction.NEW_REF_VALUE ELSE NULL END) = 'A'
-            THEN 0
-            ELSE oli.order_qty - oli.allocated_qty
-          END
-        )
+        SUM(oli.order_qty - oli.allocated_qty)
           OVER (
             PARTITION BY
               o.order_type,
@@ -284,7 +269,7 @@ CASE
             WHEN (lh.work_grp IN ('MFLW','MRPH','MACT','MRAK') OR (lh.work_grp = 'MPDK' AND lh.aisle IN ('04', '05')))
              AND oli.invn_type = wmi.inventory_type
              AND wmi.ALLOCATABLE = 'Y'
-             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+             AND NOT (ic.Unit_Volume > 1500 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
             THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
             ELSE 0
           END
@@ -295,22 +280,13 @@ CASE
             WHEN (lh.work_grp IN ('MFLW','MRPH','MACT','MRAK') OR (lh.work_grp = 'MPDK' AND lh.aisle IN ('04', '05')))
              AND oli.invn_type = wmi.inventory_type
              AND wmi.ALLOCATABLE = 'Y'
-             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+             AND NOT (ic.Unit_Volume > 1500 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
             THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
             ELSE 0
           END
         )
         -
-        SUM(
-          CASE
-            WHEN
-                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN oli.REF_FIELD4 ELSE NULL END) = 'A'
-                OR
-                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN wm.lulu_coo_restriction.NEW_REF_VALUE ELSE NULL END) = 'A'
-            THEN 0
-            ELSE oli.order_qty - oli.allocated_qty
-          END
-        )
+        SUM(oli.order_qty - oli.allocated_qty)
           OVER (
             PARTITION BY
               o.order_type,
@@ -333,22 +309,13 @@ CASE
             WHEN lh.work_grp IN ('CRAK','SHLF','PRAK','GIFT')
              AND oli.invn_type = wmi.inventory_type
              AND wmi.ALLOCATABLE = 'Y'
-             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+             AND NOT (ic.Unit_Volume > 1500 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
             THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
             ELSE 0
           END
         )
         >
-        SUM(
-          CASE
-            WHEN
-                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN oli.REF_FIELD4 ELSE NULL END) = 'A'
-                OR
-                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN wm.lulu_coo_restriction.NEW_REF_VALUE ELSE NULL END) = 'A'
-            THEN 0
-            ELSE oli.order_qty - oli.allocated_qty
-          END
-        )
+        SUM(oli.order_qty - oli.allocated_qty)
           OVER (
             PARTITION BY
               o.order_type,
@@ -368,7 +335,7 @@ CASE
             WHEN lh.work_grp IN ('CRAK','SHLF','PRAK','GIFT')
              AND oli.invn_type = wmi.inventory_type
              AND wmi.ALLOCATABLE = 'Y'
-             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+             AND NOT (ic.Unit_Volume > 1500 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
             THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
             ELSE 0
           END
@@ -379,22 +346,13 @@ CASE
             WHEN lh.work_grp IN ('CRAK','SHLF','PRAK','GIFT')
              AND oli.invn_type = wmi.inventory_type
              AND wmi.ALLOCATABLE = 'Y'
-             AND NOT (ic.Unit_Volume > 1499 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+             AND NOT (ic.Unit_Volume > 1500 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
             THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
             ELSE 0
           END
         )
         -
-        SUM(
-          CASE
-            WHEN
-                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN oli.REF_FIELD4 ELSE NULL END) = 'A'
-                OR
-                (CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN wm.lulu_coo_restriction.NEW_REF_VALUE ELSE NULL END) = 'A'
-            THEN 0
-            ELSE oli.order_qty - oli.allocated_qty
-          END
-        )
+        SUM(oli.order_qty - oli.allocated_qty)
           OVER (
             PARTITION BY
               o.order_type,
@@ -410,6 +368,7 @@ CASE
           )
     END
 END AS "WAVEABLE QUANTITY",
+
 
     /* ------------ Allocatable flag (unchanged) ------------ */
     CASE
@@ -464,7 +423,7 @@ WHERE
 
    --and o.tc_order_id like ('c174405257290051_20250703182211431364260')
 --AND    TRUNC(o.created_dttm) = TO_DATE('2025/09/01', 'YYYY/MM/DD')
---AND  not  TRUNC(o.created_dttm) = TO_DATE('2025/09/02', 'YYYY/MM/DD')
+--AND  not  TRUNC(o.created_dttm) = TO_DATE('2025/09/03', 'YYYY/MM/DD')
 --AND o.created_dttm = TO_DATE('2025/05/07 00:00', 'YYYY/MM/DD HH24:MI')
 --AND oli.invn_type = 'E'
 --AND NOT (  upper(o.d_city) IN ('APO','FPO','DPO')  OR upper(o.d_city) LIKE '%AFG%')
@@ -473,7 +432,7 @@ WHERE
 --AND  SUBSTR(f.Region, 1, 1) = '3'
    --and     oli.REF_FIELD4 != wm.lulu_coo_restriction.NEW_REF_VALUE
    -- and ic.item_name = '153833072'
---and o.d_country_code = 'US' and oli.REF_FIELD4 = 'A'
+--and o.d_country_code = 'US'
 --AND  (o.d_country_code = 'US' AND oli.ref_field4 = 'A')
 --AND not   ( (     o.d_country_code = 'US'    AND NVL(oli.ref_field4, '¤') = 'A' ) or o.lane_name = 'Smartpost' )
 
@@ -483,7 +442,9 @@ GROUP BY
     o.created_dttm,
     o.tc_order_id,
     o.d_city,
+    o.D_STATE_PROV,
     o.LANE_NAME,
+    o.ref_field_10,
     o.ref_field_8,
     o.REF_FIELD_1,
     oli.invn_type,
@@ -514,24 +475,26 @@ GROUP BY
 )
 
 SELECT
-    MainTable.facility_name,
-    MainTable.Oldest_Order_Date,
+    MainTable.facility_name AS FACILITY_NAME,
+    MainTable.Oldest_Order_Date as OLDEST_ORDER_DATE,
     MainTable.order_type            AS ORDER_TYPE,
-    MainTable.created_dttm          AS CREATED_DTTM,
     MainTable.Hour                  AS CREATED_HOUR,
+    MainTable.created_dttm          AS CREATED_DTTM,
     MainTable.delivery_end_dttm     AS DELIVERY_END_DTTM,
     MainTable.tc_order_id           AS TC_ORDER_ID,
     MainTable.single_multi_flag     AS SINGLE_MULTI_FLAG,
     MainTable.order_status          AS ORDER_STATUS,
     MainTable.invn_type             AS INVN_TYPE,
+    MainTable.ref_field_10          AS REF_FIELD_10,
     MainTable.ref_field4            AS REF_FIELD4,
     MainTable.actual_ref_field_4    AS ACTUAL_REF_FIELD_4,
-    MainTable.zone                  AS ZONE,
     MainTable.region                AS REGION,
+    MainTable.zone                  AS ZONE,
     MainTable.store                 AS STORE,
     MainTable.mark_for              AS MARK_FOR,
-    MainTable.d_country_code        AS D_COUNTRY_CODE,
-    MainTable.d_city                AS D_CITY,
+    MainTable.d_country_code        AS DEST_COUNTRY,
+    MainTable.D_STATE_PROV          AS DEST_STATE_PROVINCE,
+    MainTable.d_city                AS DEST_CITY,
     MainTable.lane_name             AS LANE_NAME,
     MainTable.ref_field_8           AS REF_FIELD_8,
     MainTable.ref_field_1           AS REF_FIELD_1,
@@ -556,8 +519,8 @@ SELECT
     MainTable.item_style            AS ITEM_STYLE,
     MainTable.unit_volume           AS UNIT_VOLUME,
         MainTable.LARGE_ITEM_FLAG           AS LARGE_ITEM_FLAG,
-    MainTable.description           AS DESCRIPTION,
-    MainTable.pick_locn_assign_type AS PICK_LOCN_ASSIGN_TYPE,
+    MainTable.description           AS ITEM_DESCRIPTION,
+    MainTable.pick_locn_assign_type AS PICK_LOCN_ASSIGNMENT_TYPE,
     MainTable.product_class_id      AS PRODUCT_CLASS_ID,
     MainTable.product_class         AS PRODUCT_CLASS,
 
@@ -677,7 +640,7 @@ CASE
       END
     )
 
-    /* ---------- NEW: Wrong-direction shunt parked in this building’s shunt lane ---------- */
+    /* ---------- NEW: Wrong-direction shunt sitting in this building’s shunt lane ---------- */
     ||
     CASE
       WHEN MainTable."WAVEABLE QUANTITY" < 0 THEN
@@ -801,10 +764,10 @@ CASE
     /* ---------- Volume Issue tag ---------- */
     ||
     CASE
-      WHEN MainTable.Unit_Volume > 1499 THEN
+      WHEN MainTable.Unit_Volume > 1500 THEN
         CASE
           WHEN (
-                /* any prior text exists? (shunt / back-shunt / available-in) */
+                /* any prior  exists? (shunt / back-shunt / available-in) */
                 ( ( MainTable.PICK_LOCN_ASSIGN_TYPE = 'P09'
                    OR MainTable.PRODUCT_CLASS_ID       = 172
                    OR MainTable.PICK_LOCN_ASSIGN_TYPE  = 'P06'
@@ -837,7 +800,7 @@ CASE
       ELSE ''
     END
 
-    /* ---------- COO restriction tags (unchanged logic) ---------- */
+    /* ---------- COO restriction tags ---------- */
     ||
     CASE
       /* Belongs to MIL → check MIL side first */
@@ -867,7 +830,7 @@ CASE
                       )
                     )
                     OR INVESTIGATION.area_list IS NOT NULL
-                    OR MainTable.Unit_Volume > 1499
+                    OR MainTable.Unit_Volume > 1500
                   )
               THEN ' | COO restriction (MIL: ' ||
                    TO_CHAR(GREATEST(0,
@@ -903,7 +866,7 @@ CASE
                       )
                     )
                     OR INVESTIGATION.area_list IS NOT NULL
-                    OR MainTable.Unit_Volume > 1499
+                    OR MainTable.Unit_Volume > 1500
                   )
               THEN ' | COO restriction (MIS: ' ||
                    TO_CHAR(GREATEST(0,
@@ -967,7 +930,7 @@ CASE
   ELSE NULL
 END
 )
-AS ACTION
+AS Investigation
 
 
 
@@ -976,7 +939,7 @@ LEFT JOIN (
  WITH loc_qty AS (
   SELECT
       ib.item_name,
-      inv.inventory_type,                 -- use your actual column name here
+      inv.inventory_type,                
       lh.area,
       lh.zone,
       lh.dsp_locn,
