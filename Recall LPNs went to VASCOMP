@@ -1,4 +1,5 @@
 SELECT
+wm.lpn.tc_purchase_orders_id,
   p.cntr_nbr,
   LISTAGG(
     DISTINCT TO_CHAR(p.create_date_time + INTERVAL '3' HOUR, 'MM/DD/YYYY'),
@@ -15,5 +16,6 @@ LEFT JOIN wm.locn_hdr l
   ON l.locn_id = p.to_locn
 WHERE l.dsp_locn = 'VAS-SP-CO-MP'
 GROUP BY
+wm.lpn.tc_purchase_orders_id,
   p.cntr_nbr,
   l.dsp_locn;
