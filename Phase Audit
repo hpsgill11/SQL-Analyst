@@ -158,10 +158,43 @@ IMMD_NEEDS.cmnt
 from IMMD_NEEDS
 inner join lpn on lpn.tc_asn_id = IMMD_NEEDS.tc_asn_id and lpn.tc_purchase_orders_id = IMMD_NEEDS.po_nbr
 left join item_cbo on item_cbo.item_id = IMMD_NEEDS.item_id) immd_needs on immd_needs.po_nbr = lpn.tc_purchase_orders_id and immd_needs.item_name = item_cbo.item_name
-left join (Select lpn.tc_LPN_ID, sum(lpn_detail.RECEIVED_QTY) as QTY from lpn_detail
-left join lpn on lpn.lpn_id = lpn_detail.lpn_id
-where lpn.INBOUND_OUTBOUND_INDICATOR = 'I'
-group by lpn.tc_LPN_ID) LPN_QTY on LPN_QTY.tc_lpn_id = lpn.tc_lpn_id
+left join (WITH qty_sums AS (
+    SELECT lpn.tc_LPN_ID,
+           NVL(SUM(ld.RECEIVED_QTY), 0) AS RECEIVED_QTY,
+           NVL(SUM(ld.SHIPPED_QTY), 0)  AS SHIPPED_QTY,
+           NVL(SUM(ld.INITIAL_QTY), 0)  AS INITIAL_QTY,
+           NVL(SUM(ld.size_value), 0)   AS SIZE_VALUE,
+           NVL(SUM(lt.nbr_units), 0)    AS LAST_TXN_QTY
+    FROM wm.lpn_detail ld
+    INNER JOIN wm.lpn lpn
+           ON lpn.lpn_id = ld.lpn_id
+          AND lpn.inbound_outbound_indicator = 'I'
+    LEFT JOIN (
+        SELECT cntr_nbr, nbr_units
+        FROM (
+            SELECT p.cntr_nbr,
+                   p.nbr_units,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY p.cntr_nbr
+                       ORDER BY p.create_date_time DESC
+                   ) rn
+            FROM wm.prod_trkg_tran p
+            WHERE p.menu_optn_name IN ('Fill Actv User Dir', 'Fill Actv - Truck')
+        )
+        WHERE rn = 1
+    ) lt
+      ON lt.cntr_nbr = lpn.tc_lpn_id
+    GROUP BY lpn.tc_LPN_ID
+)
+SELECT tc_lpn_id,
+       GREATEST(
+         RECEIVED_QTY,
+         SHIPPED_QTY,
+         INITIAL_QTY,
+         SIZE_VALUE,
+         LAST_TXN_QTY
+       ) AS qty
+FROM qty_sums) LPN_QTY on LPN_QTY.tc_lpn_id = lpn.tc_lpn_id
 WHERE
    1 = 1 
    and lpn.tc_lpn_id is not null
