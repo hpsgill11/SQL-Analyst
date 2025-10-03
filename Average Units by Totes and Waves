@@ -1,0 +1,39 @@
+WITH wave_tote AS (
+    SELECT 
+        TD.task_genrtn_ref_nbr AS Wave_Number,
+        wave_parm.wave_desc,
+        th.task_desc AS Tote_Type,
+        SUM(td.ORIG_REQMT) AS total_units,
+        COUNT(DISTINCT th.task_id) AS task_count,
+        ROUND(SUM(td.ORIG_REQMT) * 1.0 / COUNT(DISTINCT th.task_id), 2) AS avg_units_per_task
+    FROM
+        task_dtl td
+    INNER JOIN
+        task_hdr th ON th.task_id = td.task_id 
+        AND th.invn_need_type = '50' 
+        AND th.task_genrtn_ref_code = '1'
+    INNER JOIN
+        orders o ON o.tc_order_id = td.tc_order_id
+    INNER JOIN 
+        item_cbo ON item_cbo.item_id = td.item_id
+    INNER JOIN 
+        wave_parm ON TD.task_genrtn_ref_nbr = wave_parm.wave_nbr
+    WHERE 
+        o.order_type = 'ECOMM'
+    GROUP BY 
+        TD.task_genrtn_ref_nbr,
+        wave_parm.wave_desc,
+        th.task_desc
+)
+SELECT 
+    wt.Wave_Number,
+    wt.wave_desc,
+    wt.Tote_Type,
+    wt.total_units,
+    wt.task_count,
+    wt.avg_units_per_task,
+    ROUND(SUM(wt.total_units) OVER (PARTITION BY wt.Wave_Number) * 1.0 
+          / SUM(wt.task_count) OVER (PARTITION BY wt.Wave_Number), 2) 
+          AS avg_units_per_wave
+FROM wave_tote wt
+ORDER BY wt.Wave_Number DESC, wt.Tote_Type;
