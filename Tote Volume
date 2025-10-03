@@ -1,29 +1,35 @@
 SELECT 
-    TD.task_genrtn_ref_nbr,
-    wm.wave_parm.wave_desc,
-    COUNT(DISTINCT wm.item_cbo.item_name) AS item_count,
+    TD.task_genrtn_ref_nbr as Wave_Number,
+    wave_parm.wave_desc,
+    th.CREATE_DATE_TIME + INTERVAL '3' HOUR AS Create_Date_Time,
+    COUNT(DISTINCT item_cbo.item_name) AS item_count,
+    SUM(td.ORIG_REQMT) AS total_units,
     td.task_id,
-    SUM(wm.item_cbo.unit_volume * td.qty_alloc) AS total_volume,
-    th.task_desc,
-    ROUND(SUM(wm.item_cbo.unit_volume * td.qty_alloc) * 100.0 / 3807, 2) AS utilization
+    SUM(item_cbo.unit_volume * td.ORIG_REQMT) AS total_volume,
+    th.task_desc as Tote_Type,
+    ROUND(SUM(item_cbo.unit_volume * td.ORIG_REQMT) * 100.0 / 3807, 2) AS utilization
+    
 FROM
-    wm.task_dtl td
+    task_dtl td
 INNER JOIN
-    wm.task_hdr th ON th.task_id = td.task_id 
+    task_hdr th ON th.task_id = td.task_id 
     AND th.invn_need_type = '50' 
     AND th.task_genrtn_ref_code = '1'
 INNER JOIN
-    wm.orders o ON o.tc_order_id = td.tc_order_id
+    orders o ON o.tc_order_id = td.tc_order_id
 INNER JOIN 
-    wm.item_cbo ON wm.item_cbo.item_id = td.item_id
+    item_cbo ON item_cbo.item_id = td.item_id
 INNER JOIN 
-    wm.wave_parm ON TD.task_genrtn_ref_nbr = wm.wave_parm.wave_nbr
+    wave_parm ON TD.task_genrtn_ref_nbr = wave_parm.wave_nbr
+INNER JOIN 
+locn_hdr on locn_hdr.LOCN_ID = td.PULL_LOCN_ID
 where 
 o.order_type = 'ECOMM'
-and  TD.task_genrtn_ref_nbr = '202504100083'
+--and  TD.task_genrtn_ref_nbr = '202509280141'
 GROUP BY 
     TD.task_genrtn_ref_nbr,
-    wm.wave_parm.wave_desc,
+     th.CREATE_DATE_TIME + INTERVAL '3' HOUR,
+    wave_parm.wave_desc,
     td.task_id,
     th.task_desc
 ORDER BY     
