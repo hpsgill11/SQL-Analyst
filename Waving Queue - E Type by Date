@@ -484,6 +484,7 @@ detail AS (
   SELECT
     mt.Oldest_Order_Date,
     mt.tc_order_id,
+    mt.Single_Multi_Flag,
     mt.required_quantity,
 
     /* --------- ORDER_BUILDING (Milton / Mississauga / PNP) --------- */
@@ -542,12 +543,14 @@ detail AS (
 SELECT
   d.Oldest_Order_Date,
   d.ORDER_BUILDING,
+  d.Single_Multi_Flag,
   d.WAVING_ISSUE,
   SUM(d.required_quantity) AS REQUIRED_UNITS
 FROM detail d where d.WAVING_ISSUE != 'Waving Issue'
 GROUP BY
   d.Oldest_Order_Date,
   d.ORDER_BUILDING,
+  d.Single_Multi_Flag,
   d.WAVING_ISSUE
 ORDER BY
   d.Oldest_Order_Date,
