@@ -415,17 +415,17 @@ WHERE
     o.do_status IN ('110','120')
    AND oli.DO_DTL_STATUS <= 120
     --and o.d_facility_alias_id = '752'
---and o.order_type IN ('ECOMM')
+and o.order_type IN ('ECOMM')
 --and wm.orders.lane_name like ('%Smart%')
 --and ifm.pick_locn_assign_type = 'P09'
 --AND    TRUNC(o.DELIVERY_END_DTTM) = TO_DATE('2025/08/07', 'YYYY/MM/DD')
 --and o.MARK_FOR= 'Special FO Straggler Week 23'
 
    --and o.tc_order_id like ('c174405257290051_20250703182211431364260')
---AND    TRUNC(o.created_dttm) = TO_DATE('2025/09/01', 'YYYY/MM/DD')
+AND    TRUNC(o.created_dttm) = TO_DATE('2025/10/06', 'YYYY/MM/DD')
 --AND  not  TRUNC(o.created_dttm) = TO_DATE('2025/09/03', 'YYYY/MM/DD')
 --AND o.created_dttm = TO_DATE('2025/05/07 00:00', 'YYYY/MM/DD HH24:MI')
---AND oli.invn_type = 'E'
+AND oli.invn_type = 'E'
 --AND NOT (  upper(o.d_city) IN ('APO','FPO','DPO')  OR upper(o.d_city) LIKE '%AFG%')
 --and   o.d_city  not  IN ('APO','FPO','DPO')
 --and o.lane_name not like ('CP%')
@@ -498,7 +498,71 @@ SELECT
     MainTable.lane_name             AS LANE_NAME,
     MainTable.ref_field_8           AS REF_FIELD_8,
     MainTable.ref_field_1           AS REF_FIELD_1,
-    MainTable.order_line_status     AS ORDER_LINE_STATUS,
+    MainTable.order_line_status     AS ORDER_LINE_STATUS
+    , CASE
+    /* Any Milton categories in the order? (Mats, Bags, Footwear, Mens) */
+    WHEN (
+           (COUNT(CASE WHEN MainTable.product_class_id = 172 THEN 1 END)
+              OVER (PARTITION BY MainTable.tc_order_id))
+         + (COUNT(CASE WHEN MainTable.pick_locn_assign_type = 'P06' THEN 1 END)
+              OVER (PARTITION BY MainTable.tc_order_id))
+         + (COUNT(CASE WHEN MainTable.pick_locn_assign_type = 'P09' THEN 1 END)
+              OVER (PARTITION BY MainTable.tc_order_id))
+         + (COUNT(CASE WHEN MainTable.item_style LIKE 'LM%'
+                         AND MainTable.pick_locn_assign_type NOT IN ('P06','P09')
+                         AND MainTable.product_class_id <> 172
+                       THEN 1 END)
+              OVER (PARTITION BY MainTable.tc_order_id))
+         ) > 0
+      AND
+         /* Any Mississauga categories in the order? (Womens, Accessories) */
+         (
+           (COUNT(CASE WHEN MainTable.item_style LIKE 'LW%'
+                         AND MainTable.pick_locn_assign_type NOT IN ('P06','P09')
+                         AND MainTable.product_class_id <> 172
+                       THEN 1 END)
+              OVER (PARTITION BY MainTable.tc_order_id))
+         + (COUNT(CASE WHEN MainTable.item_style LIKE 'LU%'
+                         AND MainTable.pick_locn_assign_type NOT IN ('P06','P09')
+                         AND MainTable.product_class_id <> 172
+                       THEN 1 END)
+              OVER (PARTITION BY MainTable.tc_order_id))
+         ) > 0
+      THEN 'PNP'
+
+    /* Only Milton categories present */
+    WHEN (
+           (COUNT(CASE WHEN MainTable.product_class_id = 172 THEN 1 END)
+              OVER (PARTITION BY MainTable.tc_order_id))
+         + (COUNT(CASE WHEN MainTable.pick_locn_assign_type = 'P06' THEN 1 END)
+              OVER (PARTITION BY MainTable.tc_order_id))
+         + (COUNT(CASE WHEN MainTable.pick_locn_assign_type = 'P09' THEN 1 END)
+              OVER (PARTITION BY MainTable.tc_order_id))
+         + (COUNT(CASE WHEN MainTable.item_style LIKE 'LM%'
+                         AND MainTable.pick_locn_assign_type NOT IN ('P06','P09')
+                         AND MainTable.product_class_id <> 172
+                       THEN 1 END)
+              OVER (PARTITION BY MainTable.tc_order_id))
+         ) > 0
+      THEN 'Milton'
+
+    /* Only Mississauga categories present */
+    WHEN (
+           (COUNT(CASE WHEN MainTable.item_style LIKE 'LW%'
+                         AND MainTable.pick_locn_assign_type NOT IN ('P06','P09')
+                         AND MainTable.product_class_id <> 172
+                       THEN 1 END)
+              OVER (PARTITION BY MainTable.tc_order_id))
+         + (COUNT(CASE WHEN MainTable.item_style LIKE 'LU%'
+                         AND MainTable.pick_locn_assign_type NOT IN ('P06','P09')
+                         AND MainTable.product_class_id <> 172
+                       THEN 1 END)
+              OVER (PARTITION BY MainTable.tc_order_id))
+         ) > 0
+      THEN 'Mississauga'
+
+    ELSE NULL
+  END AS ORDER_BUILDING,
 
     TRIM(BOTH ',' FROM (
         CASE WHEN COUNT(CASE WHEN MainTable.product_class_id = 172 THEN 1 END) OVER (PARTITION BY MainTable.tc_order_id) > 0 THEN 'Mats' ELSE '' END
