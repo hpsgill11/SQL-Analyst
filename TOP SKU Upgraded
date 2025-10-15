@@ -1,0 +1,90 @@
+SELECT
+  o.ref_field_10 AS "ORDER_STREAMING_PRIORITY",
+  SUM(oli.orig_order_qty) AS "QTY",
+  COUNT(DISTINCT o.tc_order_id) AS "ORDERS",
+  COUNT(DISTINCT oli.item_id) AS "SKUS",
+  ROUND(SUM(oli.orig_order_qty) / COUNT(DISTINCT oli.item_id), 2) AS "UNITS/SKU",
+  SUM(CASE WHEN o.total_nbr_of_units = 1 THEN oli.orig_order_qty END) AS "QTY_SINGLE",
+  SUM(CASE WHEN o.total_nbr_of_units > 1 THEN oli.orig_order_qty END) AS "QTY_MULTI",
+  COUNT(DISTINCT CASE WHEN o.total_nbr_of_units = 1 THEN o.tc_order_id END) AS "ORDERS_SINGLE",
+  COUNT(DISTINCT CASE WHEN o.total_nbr_of_units > 1 THEN o.tc_order_id END) AS "ORDERS_MULTI",
+  SUM(SUM(oli.orig_order_qty)) OVER (ORDER BY o.ref_field_10) AS "QTY_ROLLING",
+  SUM(COUNT(DISTINCT o.tc_order_id)) OVER (ORDER BY o.ref_field_10) AS "ORDERS_ROLLING",
+  SUM(COUNT(DISTINCT oli.item_id)) OVER (ORDER BY o.ref_field_10) AS "SKUS_ROLLING",
+  ROUND(
+    SUM(SUM(oli.orig_order_qty)) OVER (ORDER BY o.ref_field_10)   /  NULLIF(SUM(COUNT(DISTINCT oli.item_id)) OVER (ORDER BY o.ref_field_10), 0),   2  ) AS "UNITS/SKU_ROLLING",
+  SUM(SUM(CASE WHEN o.total_nbr_of_units = 1 THEN oli.orig_order_qty END)) OVER (ORDER BY o.ref_field_10) AS "QTY_SINGLE_ROLLING",
+  SUM(SUM(CASE WHEN o.total_nbr_of_units > 1 THEN oli.orig_order_qty END)) OVER (ORDER BY o.ref_field_10) AS "QTY_MULTI_ROLLING",
+  SUM(COUNT(DISTINCT CASE WHEN o.total_nbr_of_units = 1 THEN o.tc_order_id END)) OVER (ORDER BY o.ref_field_10) AS "ORDERS_SINGLE_ROLLING",
+  SUM(COUNT(DISTINCT CASE WHEN o.total_nbr_of_units > 1 THEN o.tc_order_id END)) OVER (ORDER BY o.ref_field_10) AS "ORDERS_MULTI_ROLLING"
+FROM wm.orders o
+INNER JOIN wm.order_line_item oli ON oli.order_id = o.order_id
+INNER JOIN wm.item_cbo ic ON ic.item_id = oli.item_id
+--INNER JOIN wm.lulu_core_item lci ON lci.item_name = ic.item_name
+INNER JOIN wm.item_facility_mapping_wms ifmw ON ifmw.item_id = ic.item_id
+WHERE
+  o.order_type = 'ECOMM'
+  and  o.do_status IN ('110','120')
+   AND oli.DO_DTL_STATUS <= 120
+  AND oli.invn_type = 'E'
+ -- AND   TRUNC(o.created_dttm) = TO_DATE('2025/10/14', 'YYYY/MM/DD')
+  
+  and o.tc_order_id in (WITH MainTable AS (
+  SELECT
+      do.tc_order_id, 
+      ol.item_name,
+      wm.item_facility_mapping_wms.pick_locn_assign_type,
+      wm.item_cbo.product_class_id,
+      wm.item_cbo.item_style,
+      do.created_dttm
+  FROM wm.orders do
+  JOIN wm.order_line_item ol 
+      ON do.order_id = ol.order_id
+  JOIN wm.item_cbo 
+      ON ol.item_name = wm.item_cbo.item_name
+  JOIN wm.item_facility_mapping_wms 
+      ON ol.item_id = wm.item_facility_mapping_wms.item_id
+  WHERE do.order_type = 'ECOMM'
+ and   do.do_status IN ('110','120')
+   AND ol.DO_DTL_STATUS <= 120
+),
+order_attrs AS (
+  SELECT
+    mt.tc_order_id,
+    MAX(CASE WHEN mt.product_class_id = 172 THEN 1 ELSE 0 END) AS has_mats,
+    MAX(CASE WHEN mt.pick_locn_assign_type = 'P06' THEN 1 ELSE 0 END) AS has_bags,
+    MAX(CASE WHEN mt.pick_locn_assign_type = 'P09' THEN 1 ELSE 0 END) AS has_footwear,
+    MAX(CASE WHEN mt.item_style LIKE 'LM%'
+               AND mt.pick_locn_assign_type NOT IN ('P06','P09')
+               AND mt.product_class_id <> 172 THEN 1 ELSE 0 END) AS has_mens,
+    MAX(CASE WHEN mt.item_style LIKE 'LW%'
+               AND mt.pick_locn_assign_type NOT IN ('P06','P09')
+               AND mt.product_class_id <> 172 THEN 1 ELSE 0 END) AS has_womens,
+    MAX(CASE WHEN mt.item_style LIKE 'LU%'
+               AND mt.pick_locn_assign_type NOT IN ('P06','P09')
+               AND mt.product_class_id <> 172 THEN 1 ELSE 0 END) AS has_accessories
+  FROM MainTable mt
+  GROUP BY mt.tc_order_id
+),
+flags AS (
+  SELECT
+    oa.tc_order_id,
+    CASE 
+      WHEN (oa.has_mats + oa.has_bags + oa.has_footwear + oa.has_mens) > 0
+       AND (oa.has_womens + oa.has_accessories) > 0
+        THEN 'PNP'
+      WHEN (oa.has_mats + oa.has_bags + oa.has_footwear + oa.has_mens) > 0
+        THEN 'Milton'
+      WHEN (oa.has_womens + oa.has_accessories) > 0
+        THEN 'Mississauga'
+      ELSE NULL
+    END AS ORDER_BUILDING
+  FROM order_attrs oa
+)
+SELECT DISTINCT tc_order_id
+FROM flags
+WHERE ORDER_BUILDING = 'Mississauga')
+GROUP BY
+  o.ref_field_10
+ORDER BY
+  o.ref_field_10;
