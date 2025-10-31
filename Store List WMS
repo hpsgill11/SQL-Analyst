@@ -3,6 +3,7 @@ SELECT
         wm.facility.zone,
     wm.facility_alias.facility_name,
     wm.facility.facility_id,
+        wm.facility.district,
     wm.facility.address_1,
     wm.facility.address_2,
     wm.facility.address_3,
