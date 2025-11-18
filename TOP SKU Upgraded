@@ -1,52 +1,18 @@
-SELECT
-  o.ref_field_10 AS "ORDER_STREAMING_PRIORITY",
-  SUM(oli.orig_order_qty) AS "QTY",
-  COUNT(DISTINCT o.tc_order_id) AS "ORDERS",
-  COUNT(DISTINCT oli.item_id) AS "SKUS",
-  ROUND(SUM(oli.orig_order_qty) / COUNT(DISTINCT oli.item_id), 2) AS "UNITS/SKU",
-  SUM(CASE WHEN o.total_nbr_of_units = 1 THEN oli.orig_order_qty END) AS "QTY_SINGLE",
-  SUM(CASE WHEN o.total_nbr_of_units > 1 THEN oli.orig_order_qty END) AS "QTY_MULTI",
-  COUNT(DISTINCT CASE WHEN o.total_nbr_of_units = 1 THEN o.tc_order_id END) AS "ORDERS_SINGLE",
-  COUNT(DISTINCT CASE WHEN o.total_nbr_of_units > 1 THEN o.tc_order_id END) AS "ORDERS_MULTI",
-  SUM(SUM(oli.orig_order_qty)) OVER (ORDER BY o.ref_field_10) AS "QTY_ROLLING",
-  SUM(COUNT(DISTINCT o.tc_order_id)) OVER (ORDER BY o.ref_field_10) AS "ORDERS_ROLLING",
-  SUM(COUNT(DISTINCT oli.item_id)) OVER (ORDER BY o.ref_field_10) AS "SKUS_ROLLING",
-  ROUND(
-    SUM(SUM(oli.orig_order_qty)) OVER (ORDER BY o.ref_field_10)   /  NULLIF(SUM(COUNT(DISTINCT oli.item_id)) OVER (ORDER BY o.ref_field_10), 0),   2  ) AS "UNITS/SKU_ROLLING",
-  SUM(SUM(CASE WHEN o.total_nbr_of_units = 1 THEN oli.orig_order_qty END)) OVER (ORDER BY o.ref_field_10) AS "QTY_SINGLE_ROLLING",
-  SUM(SUM(CASE WHEN o.total_nbr_of_units > 1 THEN oli.orig_order_qty END)) OVER (ORDER BY o.ref_field_10) AS "QTY_MULTI_ROLLING",
-  SUM(COUNT(DISTINCT CASE WHEN o.total_nbr_of_units = 1 THEN o.tc_order_id END)) OVER (ORDER BY o.ref_field_10) AS "ORDERS_SINGLE_ROLLING",
-  SUM(COUNT(DISTINCT CASE WHEN o.total_nbr_of_units > 1 THEN o.tc_order_id END)) OVER (ORDER BY o.ref_field_10) AS "ORDERS_MULTI_ROLLING"
-FROM wm.orders o
-INNER JOIN wm.order_line_item oli ON oli.order_id = o.order_id
-INNER JOIN wm.item_cbo ic ON ic.item_id = oli.item_id
---INNER JOIN wm.lulu_core_item lci ON lci.item_name = ic.item_name
-INNER JOIN wm.item_facility_mapping_wms ifmw ON ifmw.item_id = ic.item_id
-WHERE
-  o.order_type = 'ECOMM'
-  and  o.do_status IN ('110','120')
-   AND oli.DO_DTL_STATUS <= 120
-  AND oli.invn_type = 'E'
- -- AND   TRUNC(o.created_dttm) = TO_DATE('2025/10/14', 'YYYY/MM/DD')
-  
-  and o.tc_order_id in (WITH MainTable AS (
+WITH MainTable AS (
   SELECT
       do.tc_order_id, 
       ol.item_name,
-      wm.item_facility_mapping_wms.pick_locn_assign_type,
-      wm.item_cbo.product_class_id,
-      wm.item_cbo.item_style,
+      ifmw.pick_locn_assign_type,
+      ic.product_class_id,
+      ic.item_style,
       do.created_dttm
   FROM wm.orders do
-  JOIN wm.order_line_item ol 
-      ON do.order_id = ol.order_id
-  JOIN wm.item_cbo 
-      ON ol.item_name = wm.item_cbo.item_name
-  JOIN wm.item_facility_mapping_wms 
-      ON ol.item_id = wm.item_facility_mapping_wms.item_id
+  JOIN wm.order_line_item ol   ON do.order_id = ol.order_id
+  JOIN wm.item_cbo ic          ON ol.item_name = ic.item_name
+  JOIN wm.item_facility_mapping_wms ifmw ON ol.item_id = ifmw.item_id
   WHERE do.order_type = 'ECOMM'
- and   do.do_status IN ('110','120')
-   AND ol.DO_DTL_STATUS <= 120
+    AND do.do_status IN ('110','120')
+    AND ol.do_dtl_status <= 120
 ),
 order_attrs AS (
   SELECT
@@ -71,20 +37,176 @@ flags AS (
     oa.tc_order_id,
     CASE 
       WHEN (oa.has_mats + oa.has_bags + oa.has_footwear + oa.has_mens) > 0
-       AND (oa.has_womens + oa.has_accessories) > 0
-        THEN 'PNP'
-      WHEN (oa.has_mats + oa.has_bags + oa.has_footwear + oa.has_mens) > 0
-        THEN 'Milton'
-      WHEN (oa.has_womens + oa.has_accessories) > 0
-        THEN 'Mississauga'
+       AND (oa.has_womens + oa.has_accessories) > 0 THEN 'PNP'
+      WHEN (oa.has_mats + oa.has_bags + oa.has_footwear + oa.has_mens) > 0 THEN 'Milton'
+      WHEN (oa.has_womens + oa.has_accessories) > 0 THEN 'Mississauga'
       ELSE NULL
-    END AS ORDER_BUILDING
+    END AS order_building
   FROM order_attrs oa
+),
+miss AS (  --- Input Building Below - 'Milton' or  'Mississauga' or 'PNP'
+  SELECT DISTINCT tc_order_id
+  FROM flags
+  WHERE order_building = 'Mississauga'
+),
+base AS (
+  SELECT
+    o.ref_field_10 AS order_streaming_priority,
+    o.tc_order_id,
+    o.total_nbr_of_units,
+    oli.item_id,
+    oli.orig_order_qty
+  FROM wm.orders o
+  JOIN wm.order_line_item oli ON oli.order_id = o.order_id
+  JOIN wm.item_cbo ic         ON ic.item_id = oli.item_id
+  JOIN wm.item_facility_mapping_wms ifmw ON ifmw.item_id = ic.item_id
+  WHERE o.order_type = 'ECOMM'
+    AND o.do_status IN ('110','120')
+    AND oli.do_dtl_status <= 120
+    AND oli.invn_type = 'E'
+    AND TRUNC(o.created_dttm) = TO_DATE('2025/11/18','YYYY/MM/DD')
+    AND EXISTS (SELECT 1 FROM miss m WHERE m.tc_order_id = o.tc_order_id)
+),
+agg AS ( 
+  SELECT
+    order_streaming_priority,
+    SUM(orig_order_qty) AS qty,
+    COUNT(DISTINCT tc_order_id) AS orders,
+    COUNT(DISTINCT item_id) AS skus,
+    SUM(CASE WHEN total_nbr_of_units = 1 THEN orig_order_qty END) AS qty_single,
+    SUM(CASE WHEN total_nbr_of_units > 1 THEN orig_order_qty END) AS qty_multi,
+    COUNT(DISTINCT CASE WHEN total_nbr_of_units = 1 THEN tc_order_id END) AS orders_single,
+    COUNT(DISTINCT CASE WHEN total_nbr_of_units > 1 THEN tc_order_id END) AS orders_multi
+  FROM base
+  GROUP BY order_streaming_priority
+),
+sku_first AS (  
+  SELECT item_id, MIN(order_streaming_priority) AS first_priority
+  FROM base
+  GROUP BY item_id
+),
+skus_rolling AS (  
+  SELECT b.order_streaming_priority,
+         COUNT(*) AS skus_rolling
+  FROM (SELECT DISTINCT order_streaming_priority FROM base) b
+  JOIN sku_first sf
+    ON sf.first_priority <= b.order_streaming_priority
+  GROUP BY b.order_streaming_priority
+),
+inv_active AS (
+  SELECT
+    wi.item_id,
+    SUM(wi.on_hand_qty - wi.wm_allocated_qty + wi.to_be_filled_qty) AS qty_active
+  FROM wm.wm_inventory wi
+  JOIN wm.locn_hdr lh
+    ON lh.locn_id = wi.location_id
+  WHERE wi.inventory_type = 'E'
+    AND lh.locn_class = 'A'
+    AND lh.work_grp   = 'SHLF'
+  GROUP BY wi.item_id
+),
+demand_by_prio AS (
+  SELECT
+    b.order_streaming_priority,
+    b.item_id,
+    SUM(b.orig_order_qty) AS qty_demand
+  FROM base b
+  GROUP BY b.order_streaming_priority, b.item_id
+),
+alloc_rows AS (
+  SELECT
+    d.order_streaming_priority,
+    d.item_id,
+    d.qty_demand,
+    NVL(ia.qty_active, 0) AS qty_active,
+    SUM(d.qty_demand) OVER (
+      PARTITION BY d.item_id
+      ORDER BY d.order_streaming_priority
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS cum_demand,
+    SUM(d.qty_demand) OVER (
+      PARTITION BY d.item_id
+      ORDER BY d.order_streaming_priority
+      ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+    ) AS prior_cum
+  FROM demand_by_prio d
+  LEFT JOIN inv_active ia
+    ON ia.item_id = d.item_id
+),
+alloc_rows_calc AS (
+  SELECT
+    ar.order_streaming_priority,
+    ar.item_id,
+    ar.qty_demand,
+    GREATEST(ar.qty_active - NVL(ar.prior_cum, 0), 0) AS remaining_before,
+    LEAST(ar.qty_demand, GREATEST(ar.qty_active - NVL(ar.prior_cum, 0), 0)) AS alloc_active
+  FROM alloc_rows ar
+),
+ 
+alloc_bucket AS (
+  SELECT
+    order_streaming_priority,
+    SUM(alloc_active) AS qty_active_alloc
+  FROM alloc_rows_calc
+  GROUP BY order_streaming_priority
+),
+final_rows AS (
+  SELECT
+    a.order_streaming_priority AS "ORDER_STREAMING_PRIORITY",
+    ROUND(a.qty / NULLIF(a.skus, 0), 2) AS "UNITS/SKU",
+    ROUND(
+      (SUM(a.qty) OVER (ORDER BY a.order_streaming_priority))
+      / NULLIF(sr.skus_rolling, 0), 2
+    ) AS "UNITS/SKU_ROLLING",
+    a.qty AS "QTY",
+    SUM(a.qty) OVER (ORDER BY a.order_streaming_priority) AS "QTY_ROLLING",
+    a.orders AS "ORDERS",
+    SUM(a.orders) OVER (ORDER BY a.order_streaming_priority) AS "ORDERS_ROLLING",
+    a.skus AS "SKUS",
+    sr.skus_rolling AS "SKUS_ROLLING",
+    NVL(ab.qty_active_alloc, 0) AS "QTY_ACTIVE",
+    GREATEST(a.qty - NVL(ab.qty_active_alloc, 0), 0) AS "QTY_NOT_ACTIVE",
+    SUM(NVL(ab.qty_active_alloc, 0)) OVER (ORDER BY a.order_streaming_priority) AS "QTY_ACTIVE_ROLLING",
+    SUM(GREATEST(a.qty - NVL(ab.qty_active_alloc, 0), 0)) OVER (ORDER BY a.order_streaming_priority) AS "QTY_NOT_ACTIVE_ROLLING",
+    a.qty_single AS "QTY_SINGLE",
+    SUM(a.qty_single) OVER (ORDER BY a.order_streaming_priority) AS "QTY_SINGLE_ROLLING",
+    a.qty_multi AS "QTY_MULTI",
+    SUM(a.qty_multi) OVER (ORDER BY a.order_streaming_priority) AS "QTY_MULTI_ROLLING",
+    a.orders_single AS "ORDERS_SINGLE",
+    SUM(a.orders_single) OVER (ORDER BY a.order_streaming_priority) AS "ORDERS_SINGLE_ROLLING",
+    a.orders_multi AS "ORDERS_MULTI",
+    SUM(a.orders_multi) OVER (ORDER BY a.order_streaming_priority) AS "ORDERS_MULTI_ROLLING"
+  FROM agg a
+  LEFT JOIN skus_rolling sr
+    ON sr.order_streaming_priority = a.order_streaming_priority
+  LEFT JOIN alloc_bucket ab
+    ON ab.order_streaming_priority = a.order_streaming_priority
 )
-SELECT DISTINCT tc_order_id
-FROM flags
-WHERE ORDER_BUILDING = 'Mississauga')
-GROUP BY
-  o.ref_field_10
-ORDER BY
-  o.ref_field_10;
+SELECT
+  f."ORDER_STREAMING_PRIORITY",
+  f."UNITS/SKU",
+  f."UNITS/SKU_ROLLING",
+  f."QTY",
+  f."QTY_ROLLING",
+  TO_CHAR(ROUND(f."QTY_ROLLING" / NULLIF(MAX(f."QTY_ROLLING") OVER (), 0) * 100, 2), 'FM9999990.00') || '%' AS "QTY_ROLLING_PCT",
+  f."QTY_ACTIVE",
+  f."QTY_ACTIVE_ROLLING",
+  TO_CHAR(ROUND(f."QTY_ACTIVE_ROLLING" / NULLIF(f."QTY_ROLLING", 0) * 100, 2), 'FM9999990.00') || '%' AS "QTY_ACTIVE_ROLLING_PCT",
+  f."QTY_NOT_ACTIVE",
+  f."QTY_NOT_ACTIVE_ROLLING",
+  TO_CHAR(ROUND(f."QTY_NOT_ACTIVE_ROLLING" / NULLIF(f."QTY_ROLLING", 0) * 100, 2), 'FM9999990.00') || '%' AS "QTY_NOT_ACTIVE_ROLLING_PCT",
+  f."ORDERS",
+  f."ORDERS_ROLLING",
+  TO_CHAR(ROUND(f."ORDERS_ROLLING" / NULLIF(MAX(f."ORDERS_ROLLING") OVER (), 0) * 100, 2), 'FM9999990.00') || '%' AS "ORDERS_ROLLING_PCT",
+  f."SKUS",
+  f."SKUS_ROLLING",
+  f."QTY_SINGLE",
+  f."QTY_SINGLE_ROLLING",
+  f."QTY_MULTI",
+  f."QTY_MULTI_ROLLING",
+  f."ORDERS_SINGLE",
+  f."ORDERS_SINGLE_ROLLING",
+  f."ORDERS_MULTI",
+  f."ORDERS_MULTI_ROLLING"
+FROM final_rows f
+ORDER BY f."ORDER_STREAMING_PRIORITY";
