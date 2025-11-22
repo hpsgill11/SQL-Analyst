@@ -489,37 +489,114 @@ detail AS (
     mt.Single_Multi_Flag,
     mt.required_quantity,
 
-    /* --------- ORDER_BUILDING (Milton / Mississauga / PNP) --------- */
-    CASE
-      /* both sides present → PNP */
+       CASE
+      /* -------- PNP -------- */
+      WHEN 
+        (
+          /* 1) Existing condition: both Milton + Mississauga items present */
+          (
+                 (COUNT(CASE WHEN mt.product_class_id = 172 THEN 1 END)
+                    OVER (PARTITION BY mt.tc_order_id))
+               + (COUNT(CASE WHEN mt.pick_locn_assign_type = 'P06' THEN 1 END)
+                    OVER (PARTITION BY mt.tc_order_id))
+               + (COUNT(CASE WHEN mt.pick_locn_assign_type = 'P09' THEN 1 END)
+                    OVER (PARTITION BY mt.tc_order_id))
+               + (COUNT(CASE WHEN mt.item_style LIKE 'LM%'
+                                AND mt.pick_locn_assign_type NOT IN ('P06','P09')
+                                AND mt.product_class_id <> 172
+                          THEN 1 END)
+                    OVER (PARTITION BY mt.tc_order_id))
+          ) > 0
+          AND
+          (
+               (COUNT(CASE WHEN mt.item_style LIKE 'LW%'
+                                AND mt.pick_locn_assign_type NOT IN ('P06','P09')
+                                AND mt.product_class_id <> 172
+                          THEN 1 END)
+                    OVER (PARTITION BY mt.tc_order_id))
+             + (COUNT(CASE WHEN mt.item_style LIKE 'LU%'
+                                AND mt.pick_locn_assign_type NOT IN ('P06','P09')
+                                AND mt.product_class_id <> 172
+                          THEN 1 END)
+                    OVER (PARTITION BY mt.tc_order_id))
+          ) > 0
+        )
+        OR
+        (
+          /* 2) NEW condition: Multi order with ONLY bags (P06) */
+          mt.Single_Multi_Flag = 'Multi'
+          AND
+          -- At least one P06 line
+          COUNT(CASE WHEN mt.pick_locn_assign_type = 'P06' THEN 1 END)
+            OVER (PARTITION BY mt.tc_order_id) > 0
+          AND
+          -- No lines that are NOT P06
+          COUNT(CASE WHEN mt.pick_locn_assign_type <> 'P06'
+                      OR mt.pick_locn_assign_type IS NULL
+                 THEN 1 END)
+            OVER (PARTITION BY mt.tc_order_id) = 0
+        )
+      THEN 'PNP'
+
+      /* -------- MILTON ONLY (then split into Milton categories) -------- */
       WHEN (
-             (COUNT(CASE WHEN mt.product_class_id = 172 THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
-           + (COUNT(CASE WHEN mt.pick_locn_assign_type = 'P06' THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
-           + (COUNT(CASE WHEN mt.pick_locn_assign_type = 'P09' THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
-           + (COUNT(CASE WHEN mt.item_style LIKE 'LM%' AND mt.pick_locn_assign_type NOT IN ('P06','P09') AND mt.product_class_id <> 172 THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
+             (COUNT(CASE WHEN mt.product_class_id = 172 THEN 1 END)
+                OVER (PARTITION BY mt.tc_order_id))
+           + (COUNT(CASE WHEN mt.pick_locn_assign_type = 'P06' THEN 1 END)
+                OVER (PARTITION BY mt.tc_order_id))
+           + (COUNT(CASE WHEN mt.pick_locn_assign_type = 'P09' THEN 1 END)
+                OVER (PARTITION BY mt.tc_order_id))
+           + (COUNT(CASE WHEN mt.item_style LIKE 'LM%'
+                          AND mt.pick_locn_assign_type NOT IN ('P06','P09')
+                          AND mt.product_class_id <> 172
+                     THEN 1 END)
+                OVER (PARTITION BY mt.tc_order_id))
            ) > 0
        AND
            (
-             (COUNT(CASE WHEN mt.item_style LIKE 'LW%' AND mt.pick_locn_assign_type NOT IN ('P06','P09') AND mt.product_class_id <> 172 THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
-           + (COUNT(CASE WHEN mt.item_style LIKE 'LU%' AND mt.pick_locn_assign_type NOT IN ('P06','P09') AND mt.product_class_id <> 172 THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
-           ) > 0
-      THEN 'PNP'
+             (COUNT(CASE WHEN mt.item_style LIKE 'LW%'
+                          AND mt.pick_locn_assign_type NOT IN ('P06','P09')
+                          AND mt.product_class_id <> 172
+                     THEN 1 END)
+                OVER (PARTITION BY mt.tc_order_id))
+           + (COUNT(CASE WHEN mt.item_style LIKE 'LU%'
+                          AND mt.pick_locn_assign_type NOT IN ('P06','P09')
+                          AND mt.product_class_id <> 172
+                     THEN 1 END)
+                OVER (PARTITION BY mt.tc_order_id))
+           ) = 0
+      THEN
+        CASE
+          WHEN mt.product_class_id = 172 THEN
+            'Milton - Mats'
+          WHEN mt.Single_Multi_Flag = 'Single'
+               AND mt.pick_locn_assign_type = 'P06' THEN
+            'Milton - Single Bags'
+          WHEN mt.Single_Multi_Flag = 'Single'
+               AND mt.Unit_Volume <= 500 THEN
+            'Milton - AB'
+          WHEN mt.Single_Multi_Flag = 'Single'
+               AND mt.Unit_Volume > 500 THEN
+            'Milton - Single'
+          ELSE
+            'Milton'
+        END
 
-      /* Milton only */
+      /* -------- MISSISSAUGA ONLY -------- */
       WHEN (
-             (COUNT(CASE WHEN mt.product_class_id = 172 THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
-           + (COUNT(CASE WHEN mt.pick_locn_assign_type = 'P06' THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
-           + (COUNT(CASE WHEN mt.pick_locn_assign_type = 'P09' THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
-           + (COUNT(CASE WHEN mt.item_style LIKE 'LM%' AND mt.pick_locn_assign_type NOT IN ('P06','P09') AND mt.product_class_id <> 172 THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
-           ) > 0
-      THEN 'Milton'
-
-      /* Mississauga only */
-      WHEN (
-             (COUNT(CASE WHEN mt.item_style LIKE 'LW%' AND mt.pick_locn_assign_type NOT IN ('P06','P09') AND mt.product_class_id <> 172 THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
-           + (COUNT(CASE WHEN mt.item_style LIKE 'LU%' AND mt.pick_locn_assign_type NOT IN ('P06','P09') AND mt.product_class_id <> 172 THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
+             (COUNT(CASE WHEN mt.item_style LIKE 'LW%'
+                          AND mt.pick_locn_assign_type NOT IN ('P06','P09')
+                          AND mt.product_class_id <> 172
+                     THEN 1 END)
+                OVER (PARTITION BY mt.tc_order_id))
+           + (COUNT(CASE WHEN mt.item_style LIKE 'LU%'
+                          AND mt.pick_locn_assign_type NOT IN ('P06','P09')
+                          AND mt.product_class_id <> 172
+                     THEN 1 END)
+                OVER (PARTITION BY mt.tc_order_id))
            ) > 0
       THEN 'Mississauga'
+
       ELSE NULL
     END AS ORDER_BUILDING,
 
