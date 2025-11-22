@@ -1,0 +1,563 @@
+WITH MainTable AS (
+  SELECT
+    UPPER(SUBSTR(o.o_facility_name,1,3)) AS Facility_Name,
+    o.order_type,
+    o.created_dttm,
+    TO_CHAR(
+      CASE 
+        WHEN o.order_type = 'ALLOC' THEN o.DELIVERY_END_DTTM
+        ELSE o.created_dttm
+      END,
+      'YYYY/MM/DD'
+    ) AS Oldest_Order_Date,
+    TO_CHAR(o.created_dttm, 'HH24') AS Hour,
+    o.DELIVERY_END_DTTM,
+    o.tc_order_id,
+    CASE WHEN o.TOTAL_NBR_OF_UNITS = 1 THEN 'Single' ELSE 'Multi' END AS Single_Multi_Flag,
+    ds.description AS ORDER_STATUS,
+    oli.invn_type,
+
+    CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN oli.REF_FIELD4 ELSE NULL END AS Ref_field4,
+    CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN wm.lulu_coo_restriction.NEW_REF_VALUE ELSE NULL END AS Actual_Ref_Field_4,
+
+    f.Region,
+    f.zone,
+    o.d_facility_alias_id AS Store,
+    o.MARK_FOR,
+    o.D_STATE_PROV,
+    o.d_country_code,
+    o.d_city,
+    o.LANE_NAME AS LANE_NAME,
+    o.ref_field_10,
+    o.ref_field_8,
+    o.REF_FIELD_1,
+    oli_status.code_desc AS Order_Line_Status,
+    oli.item_name,
+    oli.order_qty,
+    oli.ALLOCATED_QTY,
+    oli.order_qty - oli.ALLOCATED_QTY AS required_quantity,
+
+    /* ------------ Total Required  ------------ */
+    SUM(oli.order_qty - oli.ALLOCATED_QTY)
+      OVER (
+        PARTITION BY
+          o.order_type,
+          CASE WHEN o.order_type = 'REPLEN' THEN 'ALL' ELSE SUBSTR(f.region, 1, 1) END,
+          oli.invn_type,
+          oli.item_name,
+          CASE
+            WHEN o.order_type IN ('ECOMM','STRAT','REPLEN') THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD')
+            WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE','FINISHER') THEN o.tc_order_id
+            WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
+            WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm, 'YYYY/MM/DD')
+          END
+      ) AS "Total Required",
+
+    ic.REF_FIELD2,
+    ic.REF_FIELD3,
+    ic.item_style,
+    CASE WHEN IFM.SLOT_MISC_1 = 'Y' THEN 'YES' ELSE NULL END AS LARGE_ITEM_FLAG,
+    ic.Unit_Volume,
+    oli.description,
+    ifm.pick_locn_assign_type,
+    ic.PRODUCT_CLASS_ID,
+    im.PROD_GROUP AS PRODUCT_CLASS,
+
+    /* ------------ Unfiltered availability ------------ */
+    SUM(CASE
+          WHEN lh.work_grp IN ('CRAK','PRAK')
+           AND oli.invn_type = wmi.inventory_type
+           AND wmi.ALLOCATABLE = 'Y'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MIS Reserve Available",
+
+    /* MODIFIED MRAK LOGIC */
+    SUM(CASE
+          WHEN (lh.work_grp = 'MRAK' OR (lh.work_grp = 'MPDK' AND lh.aisle IN ('04','05')))
+           AND oli.invn_type = wmi.inventory_type
+           AND wmi.ALLOCATABLE = 'Y'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MIL Reserve Available",
+
+    SUM(CASE
+          WHEN lh.work_grp IN ('SHLF','GIFT')
+           AND oli.invn_type = wmi.inventory_type
+           AND wmi.ALLOCATABLE = 'Y'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MIS Active Available",
+
+    SUM(CASE
+          WHEN lh.work_grp IN ('MFLW','MRPH','MACT')
+           AND oli.invn_type = wmi.inventory_type
+           AND wmi.ALLOCATABLE = 'Y'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MIL Active Available",
+
+    /* ------------ COO-filtered availability ------------ */
+    SUM(CASE
+          WHEN lh.work_grp IN ('SHLF','GIFT')
+           AND oli.invn_type = wmi.inventory_type
+           AND wmi.ALLOCATABLE = 'Y'
+           AND wmi.CNTRY_OF_ORGN IS NOT NULL
+           AND wmi.CNTRY_OF_ORGN <> 'ZZ'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MIS Active Available COO",
+
+    SUM(CASE
+          WHEN lh.work_grp IN ('CRAK','PRAK')
+           AND oli.invn_type = wmi.inventory_type
+           AND wmi.ALLOCATABLE = 'Y'
+           AND wmi.CNTRY_OF_ORGN IS NOT NULL
+           AND wmi.CNTRY_OF_ORGN <> 'ZZ'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MIS Reserve Available COO",
+
+    SUM(CASE
+          WHEN lh.work_grp IN ('MFLW','MRPH','MACT')
+           AND oli.invn_type = wmi.inventory_type
+           AND wmi.ALLOCATABLE = 'Y'
+           AND wmi.CNTRY_OF_ORGN IS NOT NULL
+           AND wmi.CNTRY_OF_ORGN <> 'ZZ'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MIL Active Available COO",
+
+    /* MODIFIED MRAK LOGIC */
+    SUM(CASE
+          WHEN (lh.work_grp = 'MRAK' OR (lh.work_grp = 'MPDK' AND lh.aisle IN ('04','05')))
+           AND oli.invn_type = wmi.inventory_type
+           AND wmi.ALLOCATABLE = 'Y'
+           AND wmi.CNTRY_OF_ORGN IS NOT NULL
+           AND wmi.CNTRY_OF_ORGN <> 'ZZ'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MIL Reserve Available COO",
+
+    /* ------------ Other buckets ------------ */
+    SUM(CASE
+          WHEN lh.work_grp NOT IN ('SHLF')
+           AND oli.invn_type = wmi.inventory_type
+           AND lh.dsp_locn LIKE 'MA%'
+           AND lh.locn_class = 'A'
+           AND wmi.ALLOCATABLE = 'Y'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MA Active Available",
+
+    SUM(CASE
+          WHEN lh.work_grp NOT IN ('SHLF')
+           AND oli.invn_type = wmi.inventory_type
+           AND lh.dsp_locn LIKE 'MN%'
+           AND lh.locn_class = 'A'
+           AND wmi.ALLOCATABLE = 'Y'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MN Active Available",
+
+    SUM(CASE
+          WHEN lh.work_grp NOT IN ('SHLF')
+           AND oli.invn_type = wmi.inventory_type
+           AND lh.dsp_locn LIKE 'MH%'
+           AND lh.locn_class = 'A'
+           AND wmi.ALLOCATABLE = 'Y'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MH Active Available",
+
+    SUM(CASE
+          WHEN oli.invn_type = wmi.inventory_type
+           AND lh.dsp_locn = 'MIL-SH-UN-T01'
+           AND lh.locn_class = 'R'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MIL_SHUNT",
+
+    SUM(CASE
+          WHEN oli.invn_type = wmi.inventory_type
+           AND lh.dsp_locn = 'MIS-SH-UN-T01'
+           AND lh.locn_class = 'R'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MIS_SHUNT",
+
+    SUM(CASE
+          WHEN oli.invn_type = wmi.inventory_type
+           AND lh.locn_brcd LIKE '%VAS%'
+           AND lh.locn_brcd NOT LIKE '%ICA-%'
+           AND lh.locn_class = 'R'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "VAS",
+
+    /* MODIFIED to exclude the new MPDK case */
+    SUM(CASE
+          WHEN lh.work_grp NOT IN ('GIFT','CRAK','MRAK','SHLF','MFLW','MRPH','MACT','PRAK')
+           AND NOT (lh.work_grp = 'MPDK' AND lh.aisle IN ('04','05'))
+           AND oli.invn_type = wmi.inventory_type
+           AND wmi.ALLOCATABLE = 'Y'
+           AND lh.locn_brcd NOT LIKE '%VAS%'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "Needs Further Research",
+
+    SUM(CASE
+          WHEN wmi.ALLOCATABLE = 'N'
+           AND oli.invn_type = wmi.inventory_type
+           AND NOT lh.dsp_locn = 'MIS-SH-UN-T01'
+           AND NOT lh.dsp_locn = 'MIL-SH-UN-T01'
+           AND lh.locn_brcd NOT LIKE '%VAS%'
+           AND NOT lh.dsp_locn LIKE 'ICA%'
+          THEN (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+          ELSE 0
+        END) AS "Total Unallocatable",
+
+    /* ------------ WAVEABLE QUANTITY (cleaned) ------------ */
+    CASE
+      WHEN     ifm.pick_locn_assign_type = 'P09'
+            OR ic.PRODUCT_CLASS_ID       = 172
+            OR ifm.pick_locn_assign_type = 'P06'
+            OR (ic.item_style LIKE 'LM%' AND oli.invn_type = 'E')
+            OR oli.invn_type            != 'E'
+      THEN
+        CASE
+          WHEN
+            SUM(
+              CASE
+                WHEN (lh.work_grp IN ('MFLW','MRPH','MACT','MRAK') OR (lh.work_grp = 'MPDK' AND lh.aisle IN ('04','05')))
+                 AND oli.invn_type = wmi.inventory_type
+                 AND wmi.ALLOCATABLE = 'Y'
+                 AND NOT (ic.Unit_Volume > 1500 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+                THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+                ELSE 0
+              END
+            )
+            >
+            SUM(oli.order_qty - oli.allocated_qty)
+              OVER (
+                PARTITION BY
+                  o.order_type,
+                  CASE WHEN o.order_type = 'REPLEN' THEN 'ALL' ELSE SUBSTR(f.region, 1, 1) END,
+                  oli.invn_type,
+                  oli.item_name,
+                  CASE
+                    WHEN o.order_type IN ('ECOMM','STRAT','REPLEN') THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD')
+                    WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE','FINISHER') THEN o.tc_order_id
+                    WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
+                    WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm, 'YYYY/MM/DD')
+                  END
+              )
+          THEN
+            SUM(
+              CASE
+                WHEN (lh.work_grp IN ('MFLW','MRPH','MACT','MRAK') OR (lh.work_grp = 'MPDK' AND lh.aisle IN ('04','05')))
+                 AND oli.invn_type = wmi.inventory_type
+                 AND wmi.ALLOCATABLE = 'Y'
+                 AND NOT (ic.Unit_Volume > 1500 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+                THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+                ELSE 0
+              END
+            )
+          ELSE
+            SUM(
+              CASE
+                WHEN (lh.work_grp IN ('MFLW','MRPH','MACT','MRAK') OR (lh.work_grp = 'MPDK' AND lh.aisle IN ('04','05')))
+                 AND oli.invn_type = wmi.inventory_type
+                 AND wmi.ALLOCATABLE = 'Y'
+                 AND NOT (ic.Unit_Volume > 1500 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+                THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+                ELSE 0
+              END
+            )
+            -
+            SUM(oli.order_qty - oli.allocated_qty)
+              OVER (
+                PARTITION BY
+                  o.order_type,
+                  CASE WHEN o.order_type = 'REPLEN' THEN 'ALL' ELSE SUBSTR(f.region, 1, 1) END,
+                  oli.invn_type,
+                  oli.item_name,
+                  CASE
+                    WHEN o.order_type IN ('ECOMM','STRAT','REPLEN') THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD')
+                    WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE','FINISHER') THEN o.tc_order_id
+                    WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
+                    WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm, 'YYYY/MM/DD')
+                  END
+              )
+        END
+      ELSE
+        CASE
+          WHEN
+            SUM(
+              CASE
+                WHEN lh.work_grp IN ('CRAK','SHLF','PRAK','GIFT')
+                 AND oli.invn_type = wmi.inventory_type
+                 AND wmi.ALLOCATABLE = 'Y'
+                 AND NOT (ic.Unit_Volume > 1500 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+                THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+                ELSE 0
+              END
+            )
+            >
+            SUM(oli.order_qty - oli.allocated_qty)
+              OVER (
+                PARTITION BY
+                  o.order_type,
+                  CASE WHEN o.order_type = 'REPLEN' THEN 'ALL' ELSE SUBSTR(f.region, 1, 1) END,
+                  oli.invn_type,
+                  oli.item_name,
+                  CASE
+                    WHEN o.order_type IN ('ECOMM','STRAT','REPLEN') THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD')
+                    WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE','FINISHER') THEN o.tc_order_id
+                    WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
+                    WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm, 'YYYY/MM/DD')
+                  END
+              )
+          THEN
+            SUM(
+              CASE
+                WHEN lh.work_grp IN ('CRAK','SHLF','PRAK','GIFT')
+                 AND oli.invn_type = wmi.inventory_type
+                 AND wmi.ALLOCATABLE = 'Y'
+                 AND NOT (ic.Unit_Volume > 1500 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+                THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+                ELSE 0
+              END
+            )
+          ELSE
+            SUM(
+              CASE
+                WHEN lh.work_grp IN ('CRAK','SHLF','PRAK','GIFT')
+                 AND oli.invn_type = wmi.inventory_type
+                 AND wmi.ALLOCATABLE = 'Y'
+                 AND NOT (ic.Unit_Volume > 1500 OR (wmi.CNTRY_OF_ORGN IS NULL OR wmi.CNTRY_OF_ORGN = 'ZZ'))
+                THEN GREATEST(0, wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+                ELSE 0
+              END
+            )
+            -
+            SUM(oli.order_qty - oli.allocated_qty)
+              OVER (
+                PARTITION BY
+                  o.order_type,
+                  CASE WHEN o.order_type = 'REPLEN' THEN 'ALL' ELSE SUBSTR(f.region, 1, 1) END,
+                  oli.invn_type,
+                  oli.item_name,
+                  CASE
+                    WHEN o.order_type IN ('ECOMM','STRAT','REPLEN') THEN TO_CHAR(o.created_dttm, 'YYYY/MM/DD')
+                    WHEN o.order_type IN ('DCTRANSFER','INTERCOMPANY','RETAIL','COMM','WAREHOUSE','FINISHER') THEN o.tc_order_id
+                    WHEN o.order_type = 'SPECIAL' THEN o.MARK_FOR
+                    WHEN o.order_type = 'ALLOC'   THEN TO_CHAR(o.delivery_end_dttm, 'YYYY/MM/DD')
+                  END
+              )
+        END
+    END AS "WAVEABLE QUANTITY",
+
+    /* ------------ Allocatable flag ------------ */
+    CASE
+      WHEN
+        SUM(CASE WHEN lh.work_grp IN ('CRAK','PRAK') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+      + SUM(CASE WHEN (lh.work_grp = 'MRAK' OR (lh.work_grp = 'MPDK' AND lh.aisle IN ('04','05'))) AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+      + SUM(CASE WHEN lh.work_grp IN ('SHLF','GIFT') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+      + SUM(CASE WHEN lh.work_grp IN ('MFLW','MRPH','MACT') AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+      + SUM(CASE WHEN lh.work_grp NOT IN ('GIFT','CRAK','MRAK','SHLF','MFLW','MRPH','MACT','PRAK') AND NOT (lh.work_grp = 'MPDK' AND lh.aisle IN ('04','05')) AND oli.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+      = 0 THEN 'Zero Allocatable'
+      ELSE 'Allocatable'
+    END AS Allocatable_Flag,
+
+    /* ------------ Wave_Building ------------ */
+    CASE
+      WHEN oli.invn_type = 'E' AND ifm.pick_locn_assign_type = 'P09'            THEN 'Milton - Footwear'
+      WHEN oli.invn_type = 'E' AND ic.PRODUCT_CLASS_ID = 172                    THEN 'Milton - Mats'
+      WHEN oli.invn_type = 'E' AND ifm.pick_locn_assign_type = 'P06'            THEN 'Milton - Bags'
+      WHEN oli.invn_type = 'E' AND ic.item_style LIKE 'LM%'                     THEN 'Milton - Mens'
+      WHEN oli.invn_type = 'E' AND ic.item_style LIKE 'LW%'                     THEN 'Mississauga - Womens'
+      WHEN oli.invn_type = 'E' AND ic.item_style LIKE 'LU%'                     THEN 'Mississauga - Accessories'
+      WHEN ifm.pick_locn_assign_type = 'P09'                                    THEN 'Milton - Footwear'
+      WHEN ic.PRODUCT_CLASS_ID = 172                                            THEN 'Milton - Mats'
+      WHEN o.order_type IN ('ALLOC','REPLEN','SPECIAL') AND oli.invn_type = 'R' AND ifm.pick_locn_assign_type IN ('P06','P05') THEN 'Milton - Accessories'
+      WHEN o.order_type IN ('ALLOC','REPLEN','SPECIAL') AND oli.invn_type = 'R' AND ifm.pick_locn_assign_type NOT IN ('P06','P05') THEN 'Milton - Apparel'
+      WHEN oli.invn_type <> 'E'                                                 THEN 'Milton'
+      ELSE NULL
+    END AS Wave_Building
+
+  FROM WM.orders o
+  LEFT JOIN WM.order_line_item oli ON o.order_id = oli.order_id
+  LEFT JOIN WM.item_facility_mapping_wms ifm ON ifm.item_id = oli.item_id
+  LEFT JOIN WM.do_status ds ON ds.order_status = o.do_status
+  LEFT JOIN WM.item_cbo ic ON oli.item_name = ic.item_name
+  LEFT JOIN WM.wm_inventory wmi ON oli.item_id = wmi.ITEM_ID AND oli.invn_type = wmi.inventory_type
+  LEFT JOIN WM.locn_hdr lh ON wmi.LOCATION_ID = lh.LOCN_ID
+  LEFT JOIN WM.item_master im ON ic.item_id = im.item_id
+  LEFT JOIN WM.facility f ON o.d_facility_id = f.facility_id
+  LEFT JOIN wm.lulu_coo_restriction ON wm.lulu_coo_restriction.item_id = ic.item_id AND wm.lulu_coo_restriction.INVENTORY_TYPE = oli.invn_type
+  LEFT JOIN wm.sys_code oli_status ON oli_status.code_id = oli.DO_DTL_STATUS AND oli_status.code_type = '119'
+  WHERE
+      o.do_status IN ('110','120')
+  AND oli.DO_DTL_STATUS <= 120
+  AND o.order_type IN ('ECOMM')
+ -- AND TRUNC(o.created_dttm) = TO_DATE('2025/10/06','YYYY/MM/DD')
+ --and upper(o.REF_FIELD_1) like ('%FR%')
+  AND oli.invn_type = 'E'
+  GROUP BY
+    UPPER(SUBSTR(o.o_facility_name,1,3)),
+    o.created_dttm,
+    o.tc_order_id,
+    o.d_city,
+    o.D_STATE_PROV,
+    o.LANE_NAME,
+    o.ref_field_10,
+    o.ref_field_8,
+    o.REF_FIELD_1,
+    oli.invn_type,
+    CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN oli.REF_FIELD4 ELSE NULL END,
+    CASE WHEN o.order_type = 'ECOMM' AND o.d_country_code = 'US' THEN wm.lulu_coo_restriction.NEW_REF_VALUE ELSE NULL END,
+    o.order_type,
+    CASE WHEN o.TOTAL_NBR_OF_UNITS = 1 THEN 'Single' ELSE 'Multi' END,
+    oli.item_name,
+    oli_status.code_desc,
+    ds.description,
+    ic.REF_FIELD2,
+    ic.REF_FIELD3,
+    ic.item_style,
+    ic.Unit_Volume,
+    CASE WHEN IFM.SLOT_MISC_1 = 'Y' THEN 'YES' ELSE NULL END,
+    oli.description,
+    oli.order_qty,
+    oli.ALLOCATED_QTY,
+    ifm.pick_locn_assign_type,
+    ic.PRODUCT_CLASS_ID,
+    im.PROD_GROUP,
+    o.d_country_code,
+    f.zone,
+    f.Region,
+    o.d_facility_alias_id,
+    o.MARK_FOR,
+    o.DELIVERY_END_DTTM
+),
+/* ---- INVESTIGATION helper CTEs (as in your query) ---- */
+loc_qty AS (
+  SELECT
+      ib.item_name,
+      inv.inventory_type,                
+      lh.area,
+      lh.zone,
+      lh.dsp_locn,
+      SUM(inv.on_hand_qty - inv.wm_allocated_qty + inv.to_be_filled_qty) AS qty
+  FROM wm.item_cbo ib
+  LEFT JOIN wm.wm_inventory inv ON inv.item_id = ib.item_id
+  LEFT JOIN wm.locn_hdr    lh  ON lh.locn_id  = inv.location_id
+  LEFT JOIN wm.lpn_lock    ll  ON ll.tc_lpn_id = inv.tc_lpn_id
+  WHERE
+      lh.work_grp NOT IN ('GIFT','CRAK','MRAK','SHLF','MFLW','MRPH','MACT','PRAK')
+      AND NOT (lh.work_grp = 'MPDK' AND lh.aisle IN ('04','05'))
+      AND lh.dsp_locn <> 'MIL-SH-UN-T01'
+      AND lh.dsp_locn <> 'MIS-SH-UN-T01'
+      AND lh.locn_class = 'R'
+      AND (
+           lh.dsp_locn LIKE 'ERS%'
+           OR NOT EXISTS (
+               SELECT 1
+               FROM wm.lpn_lock bad_inventory
+               WHERE bad_inventory.tc_lpn_id = inv.tc_lpn_id
+                 AND bad_inventory.inventory_lock_code IN ('B6','CD','CE','CI','CR','DM','DN','DT','ED','ER','RA','RD','RE','RI','RV','SE','SI','WT','YE','YR')
+           )
+      )
+  GROUP BY
+      ib.item_name, inv.inventory_type, lh.area, lh.zone, lh.dsp_locn
+),
+INVESTIGATION AS (
+  SELECT
+      item_name,
+      inventory_type,
+      LISTAGG(dsp_locn || ' (' || qty || ' Units)', ' | ')
+        WITHIN GROUP (ORDER BY area || zone, dsp_locn) AS area_list
+  FROM loc_qty
+  GROUP BY item_name, inventory_type
+),
+/* ---- DETAIL: add ORDER_BUILDING + WAVING_ISSUE and keep required_quantity ---- */
+detail AS (
+  SELECT
+    mt.Oldest_Order_Date,
+    mt.hour,
+    mt.tc_order_id,
+    mt.Single_Multi_Flag,
+    mt.required_quantity,
+
+    /* --------- ORDER_BUILDING (Milton / Mississauga / PNP) --------- */
+    CASE
+      /* both sides present → PNP */
+      WHEN (
+             (COUNT(CASE WHEN mt.product_class_id = 172 THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
+           + (COUNT(CASE WHEN mt.pick_locn_assign_type = 'P06' THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
+           + (COUNT(CASE WHEN mt.pick_locn_assign_type = 'P09' THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
+           + (COUNT(CASE WHEN mt.item_style LIKE 'LM%' AND mt.pick_locn_assign_type NOT IN ('P06','P09') AND mt.product_class_id <> 172 THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
+           ) > 0
+       AND
+           (
+             (COUNT(CASE WHEN mt.item_style LIKE 'LW%' AND mt.pick_locn_assign_type NOT IN ('P06','P09') AND mt.product_class_id <> 172 THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
+           + (COUNT(CASE WHEN mt.item_style LIKE 'LU%' AND mt.pick_locn_assign_type NOT IN ('P06','P09') AND mt.product_class_id <> 172 THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
+           ) > 0
+      THEN 'PNP'
+
+      /* Milton only */
+      WHEN (
+             (COUNT(CASE WHEN mt.product_class_id = 172 THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
+           + (COUNT(CASE WHEN mt.pick_locn_assign_type = 'P06' THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
+           + (COUNT(CASE WHEN mt.pick_locn_assign_type = 'P09' THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
+           + (COUNT(CASE WHEN mt.item_style LIKE 'LM%' AND mt.pick_locn_assign_type NOT IN ('P06','P09') AND mt.product_class_id <> 172 THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
+           ) > 0
+      THEN 'Milton'
+
+      /* Mississauga only */
+      WHEN (
+             (COUNT(CASE WHEN mt.item_style LIKE 'LW%' AND mt.pick_locn_assign_type NOT IN ('P06','P09') AND mt.product_class_id <> 172 THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
+           + (COUNT(CASE WHEN mt.item_style LIKE 'LU%' AND mt.pick_locn_assign_type NOT IN ('P06','P09') AND mt.product_class_id <> 172 THEN 1 END) OVER (PARTITION BY mt.tc_order_id))
+           ) > 0
+      THEN 'Mississauga'
+      ELSE NULL
+    END AS ORDER_BUILDING,
+
+    /* --------- WAVING_ISSUE (as per your logic) --------- */
+    CASE
+      WHEN mt.order_type IN ('ECOMM','STRAT') THEN
+        CASE
+          WHEN SUM(CASE WHEN mt."WAVEABLE QUANTITY" < 0 THEN 1 ELSE 0 END) OVER (PARTITION BY mt.tc_order_id) > 0
+          THEN 'Waving Issue'
+          ELSE 'Waveable'
+        END
+      ELSE
+        CASE WHEN mt."WAVEABLE QUANTITY" < 0 THEN 'Waving Issue' ELSE 'Waveable' END
+    END AS WAVING_ISSUE
+
+  FROM MainTable mt
+  LEFT JOIN INVESTIGATION inv
+    ON inv.item_name = mt.item_name
+   AND inv.inventory_type = mt.invn_type
+)
+
+/* ---- FINAL ROLLUP ---- */
+SELECT
+  d.Oldest_Order_Date,
+  d.hour,
+  d.ORDER_BUILDING,
+  d.Single_Multi_Flag,
+  d.WAVING_ISSUE,
+  SUM(d.required_quantity) AS REQUIRED_UNITS
+FROM detail d where d.WAVING_ISSUE != 'Waving Issue'
+GROUP BY
+  d.Oldest_Order_Date,
+    d.hour,
+  d.ORDER_BUILDING,
+  d.Single_Multi_Flag,
+  d.WAVING_ISSUE
+ORDER BY
+  d.Oldest_Order_Date,
+    d.hour,
+  d.ORDER_BUILDING,
+  d.WAVING_ISSUE;
