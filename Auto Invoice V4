@@ -158,9 +158,9 @@ SELECT
     CTE.Shipment_Status,
     CTE.Age_in_Hours as oLPN_Age,
 CASE
-    WHEN MAX(CTE.Age_in_Hours) OVER (PARTITION BY CTE.tc_order_id) > 47 THEN 'More than 48'
-    WHEN MAX(CTE.Age_in_Hours) OVER (PARTITION BY CTE.tc_order_id) > 35 THEN 'More than 36'
-    WHEN MAX(CTE.Age_in_Hours) OVER (PARTITION BY CTE.tc_order_id) > 23 THEN 'More than 24'
+    WHEN MIN(CTE.Age_in_Hours) OVER (PARTITION BY CTE.tc_order_id) > 47 THEN 'More than 48'
+    WHEN MIN(CTE.Age_in_Hours) OVER (PARTITION BY CTE.tc_order_id) > 35 THEN 'More than 36'
+    WHEN MIN(CTE.Age_in_Hours) OVER (PARTITION BY CTE.tc_order_id) > 23 THEN 'More than 24'
     ELSE 'Less than 24'
 END AS Age_Category,
     CTE.Last_Updated_DTTM,
@@ -175,6 +175,6 @@ where 1=1
 and final_output.Age_Category not in ('Less than 24','More than 24')
 and final_output.Investigation != 'On Pallet'
 and final_output.Investigation != 'Invalid'
-and final_output.Investigation != 'Investigate'
+and final_output.Investigation = 'Investigate'
 and final_output.facility != 'Milton'
 ORDER BY Order_Create_Date_EST,tc_order_id
