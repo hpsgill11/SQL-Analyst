@@ -1,0 +1,147 @@
+WITH CHASECL AS (Select 
+    TO_CHAR(
+      CASE 
+        WHEN WM.ORDERS.order_type = 'ALLOC' THEN WM.ORDERS.DELIVERY_END_DTTM
+        ELSE WM.ORDERS.created_dttm
+      END,
+      'YYYY/MM/DD'
+    ) AS Oldest_Order_Date,
+wm.orders.tc_order_id,
+wm.orders.do_status,
+wm.item_cbo.item_name,
+psi.SHORT_QTY,
+ SUM(CASE
+          WHEN lh.work_grp IN ('CRAK','PRAK')
+           AND wm.order_line_item.invn_type = wmi.inventory_type
+           AND wmi.ALLOCATABLE = 'Y'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MIS Reserve Available",
+
+    /* MODIFIED MRAK LOGIC */
+    SUM(CASE
+          WHEN (lh.work_grp = 'MRAK' OR (lh.work_grp = 'MPDK' AND lh.aisle IN ('04','05')))
+           AND wm.order_line_item.invn_type = wmi.inventory_type
+           AND wmi.ALLOCATABLE = 'Y'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MIL Reserve Available",
+
+    SUM(CASE
+          WHEN lh.work_grp IN ('SHLF','GIFT')
+           AND wm.order_line_item.invn_type = wmi.inventory_type
+           AND wmi.ALLOCATABLE = 'Y'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MIS Active Available",
+
+    SUM(CASE
+          WHEN lh.work_grp IN ('MFLW','MRPH','MACT')
+           AND wm.order_line_item.invn_type = wmi.inventory_type
+           AND wmi.ALLOCATABLE = 'Y'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MIL Active Available",
+         SUM(CASE
+          WHEN wm.order_line_item.invn_type = wmi.inventory_type
+           AND lh.dsp_locn = 'MIL-SH-UN-T01'
+           AND lh.locn_class = 'R'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MIL_SHUNT",
+
+    SUM(CASE
+          WHEN wm.order_line_item.invn_type = wmi.inventory_type
+           AND lh.dsp_locn = 'MIS-SH-UN-T01'
+           AND lh.locn_class = 'R'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "MIS_SHUNT",
+
+    SUM(CASE
+          WHEN wm.order_line_item.invn_type = wmi.inventory_type
+           AND lh.locn_brcd LIKE '%VAS%'
+           AND lh.locn_brcd NOT LIKE '%ICA-%'
+           AND lh.locn_class = 'R'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "VAS",
+
+    /* MODIFIED to exclude the new MPDK case */
+    SUM(CASE
+          WHEN lh.work_grp NOT IN ('GIFT','CRAK','MRAK','SHLF','MFLW','MRPH','MACT','PRAK')
+           AND NOT (lh.work_grp = 'MPDK' AND lh.aisle IN ('04','05'))
+           AND wm.order_line_item.invn_type = wmi.inventory_type
+           AND wmi.ALLOCATABLE = 'Y'
+           AND lh.locn_brcd NOT LIKE '%VAS%'
+          THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty))
+          ELSE 0
+        END) AS "Needs Further Research",
+
+    SUM(CASE
+          WHEN wmi.ALLOCATABLE = 'N'
+           AND wm.order_line_item.invn_type = wmi.inventory_type
+           AND NOT lh.dsp_locn = 'MIS-SH-UN-T01'
+           AND NOT lh.dsp_locn = 'MIL-SH-UN-T01'
+           AND lh.locn_brcd NOT LIKE '%VAS%'
+           AND NOT lh.dsp_locn LIKE 'ICA%'
+          THEN (wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)
+          ELSE 0
+        END) AS "Total Unallocatable",
+            /* ------------ Allocatable flag ------------ */
+    CASE
+      WHEN
+        SUM(CASE WHEN lh.work_grp IN ('CRAK','PRAK') AND wm.order_line_item.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+      + SUM(CASE WHEN (lh.work_grp = 'MRAK' OR (lh.work_grp = 'MPDK' AND lh.aisle IN ('04','05'))) AND wm.order_line_item.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+      + SUM(CASE WHEN lh.work_grp IN ('SHLF','GIFT') AND wm.order_line_item.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+      + SUM(CASE WHEN lh.work_grp IN ('MFLW','MRPH','MACT') AND wm.order_line_item.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+      + SUM(CASE WHEN lh.work_grp NOT IN ('GIFT','CRAK','MRAK','SHLF','MFLW','MRPH','MACT','PRAK') AND NOT (lh.work_grp = 'MPDK' AND lh.aisle IN ('04','05')) AND wm.order_line_item.invn_type = wmi.inventory_type AND wmi.ALLOCATABLE = 'Y' THEN GREATEST(0,(wmi.on_hand_qty - wmi.WM_ALLOCATED_QTY + wmi.to_be_filled_qty)) ELSE 0 END)
+      = 0 THEN 'Zero Allocatable'
+      ELSE 'Allocatable'
+    END AS Allocatable_Flag
+        
+        
+from wm.orders
+left JOIN wm.order_line_item ON wm.orders.order_id = wm.order_line_item.order_id
+inner join wm.picking_short_item psi on psi.tc_order_id = wm.orders.tc_order_id and psi.item_id = wm.order_line_item.item_id
+LEFT join wm.item_cbo on wm.item_cbo.item_id = psi.item_id
+LEFT JOIN WM.item_facility_mapping_wms ifm ON ifm.item_id = wm.order_line_item.item_id
+LEFT JOIN WM.wm_inventory wmi ON wm.order_line_item.item_id = wmi.ITEM_ID AND wm.order_line_item.invn_type = wmi.inventory_type
+LEFT JOIN WM.locn_hdr lh ON wmi.LOCATION_ID = lh.LOCN_ID
+where
+psi.stat_code = '0'
+and wm.orders.order_type = 'ECOMM'
+and wm.orders.do_status < 181
+and wm.order_line_item.invn_type = 'E'
+group by
+  TO_CHAR(
+      CASE 
+        WHEN WM.ORDERS.order_type = 'ALLOC' THEN WM.ORDERS.DELIVERY_END_DTTM
+        ELSE WM.ORDERS.created_dttm
+      END,
+      'YYYY/MM/DD'
+    ) ,
+wm.orders.tc_order_id,
+wm.item_cbo.item_name,
+psi.SHORT_QTY,
+wm.orders.do_status)
+
+SELECT
+    Oldest_Order_Date,
+item_name,
+    /* aggregate short qty */
+    sum(short_qty) AS total_short_qty,
+    MAX("Total Unallocatable")    AS "Total Unallocatable",
+
+    /* If *any* row in that date is Zero Allocatable → mark entire date as Zero Allocatable */
+    CASE
+        WHEN SUM(CASE WHEN Allocatable_Flag = 'Zero Allocatable' THEN 1 ELSE 0 END) > 0
+        THEN 'Zero Allocatable'
+        ELSE 'Allocatable'
+    END AS Allocatable_Flag
+
+FROM chasecl
+WHERE Allocatable_Flag = 'Zero Allocatable'
+GROUP BY Oldest_Order_Date,
+item_name
+ORDER BY Oldest_Order_Date;
