@@ -38,12 +38,30 @@ CTE AS (
         wm.orders.do_status || ' - ' || wm.do_status.description AS Order_Status,
         wm.orders.total_nbr_of_units AS DO_Quantity,
         wm.lpn.total_LPN_QTY AS oLPN_Quantity,
-        CASE 
-            WHEN SUM(wm.lpn.total_LPN_QTY) OVER (PARTITION BY wm.orders.tc_order_id) = wm.orders.total_nbr_of_units 
-            THEN 'Good'
-            ELSE 'Bad'
-        END AS Invoice,
+CASE 
+    -- Normal "perfect match" case
+    WHEN SUM(wm.lpn.total_LPN_QTY) OVER (PARTITION BY wm.orders.tc_order_id)
+         = wm.orders.total_nbr_of_units
+    THEN 'Good'
+
+    -- If it would be Bad, but there are NO pending chase SKUs → treat as Good
+    WHEN psi.sku_list IS NULL
+    THEN 'Good'
+
+    -- Everything else → Bad
+    ELSE 'Bad'
+END AS Invoice,
+        psi.SKU_List,
         lpn_facility_status.description AS oLPN_Status,
+        
+        CASE
+        WHEN COUNT(CASE 
+                    WHEN current_locn_lpn.dsp_locn LIKE 'HS%' OR current_locn_lpn.dsp_locn LIKE 'HM%' OR current_locn_lpn.dsp_locn = 'SH-P -L-26' OR current_locn_lpn.dsp_locn = 'SHP-S2-28' THEN 1
+                 END) 
+             OVER (PARTITION BY wm.orders.tc_order_id) > 0 
+        THEN 'Yes'
+        ELSE 'No'
+END AS Hospital_Flag,
         current_locn_lpn.dsp_locn,
         wm.lpn.tc_lpn_id,
         wm.lpn.ship_via,
@@ -60,8 +78,6 @@ CTE AS (
             EXTRACT(HOUR FROM (CAST(SYSDATE + INTERVAL '3' HOUR AS TIMESTAMP) - CAST(oLPN_age.create_date_time AS TIMESTAMP))) +
             EXTRACT(MINUTE FROM (CAST(SYSDATE + INTERVAL '3' HOUR AS TIMESTAMP) - CAST(oLPN_age.create_date_time AS TIMESTAMP))) / 60
         ) AS Age_in_Hours,
-    
-        
         oLPN_age.create_date_time AS Last_Updated_DTTM,
         oLPN_age.menu_optn_name AS Last_Transaction_Name
     FROM wm.orders
@@ -104,6 +120,24 @@ CTE AS (
         ON oLPN_age.cntr_nbr = wm.lpn.tc_lpn_id
     LEFT JOIN wm.ship_via on wm.ship_via.ship_via = wm.lpn.ship_via
     LEFT JOIN WM.SHIPMENT ON WM.SHIPMENT.TC_SHIPMENT_ID = wm.lpn.TC_shipment_id
+    
+left join (SELECT
+    psi.tc_order_id,
+    RTRIM(
+        XMLCAST(
+            XMLAGG(
+                XMLELEMENT(e, ic.item_name || ', ')
+                ORDER BY ic.item_name
+            ) AS CLOB
+        ),
+        ', '
+    ) AS sku_list
+FROM wm.picking_short_item psi
+LEFT JOIN wm.item_cbo ic 
+       ON ic.item_id = psi.item_id
+WHERE psi.stat_code = '0'
+GROUP BY psi.tc_order_id) psi on psi.tc_order_id =     wm.orders.tc_order_id
+    
     WHERE wm.orders.order_type = 'ECOMM'
       AND wm.do_status.order_status IN ('160', '165')
       AND wm.lpn.lpn_facility_status != '99'
@@ -112,19 +146,24 @@ CTE AS (
 
 Final_Output as(
 SELECT
-    CASE WHEN COUNT(DISTINCT CTE.Facility) OVER (PARTITION BY CTE.tc_order_id) > 1 
-         THEN 'Cross Building'
-         ELSE CTE.Facility
-    END AS Facility,
+CASE 
+    WHEN COUNT(DISTINCT CTE.Facility)
+         OVER (PARTITION BY CTE.tc_order_id) > 1
+    THEN 'Cross Building'
+    ELSE MAX(CTE.Facility)
+         OVER (PARTITION BY CTE.tc_order_id)
+END AS Facility,
     CTE.Date_Difference as Order_Age,
     CTE.Order_Create_Date_EST,
     CTE.tc_order_id,
     CTE.Order_Country as Destination,
     CTE.Order_Status,
     CTE.Invoice,
+    CTE.SKU_List as Pending_Chase_SKUs,
     CTE.DO_Quantity,
     CTE.oLPN_Quantity,
     CTE.oLPN_Status,
+    CTE.Hospital_Flag,
     CTE.dsp_locn as Current_location,
     CTE.tc_lpn_id as oLPN,
             CASE
@@ -174,15 +213,14 @@ END AS Age_Category,
     CTE.Last_Updated_DTTM,
     CTE.Last_Transaction_Name
 FROM CTE
---where  Invoice != 'Bad'
+where  Invoice != 'Bad'
 )
 --ORDER BY Order_Create_Date_EST)
-
 SELECT *
 FROM final_output
 where 1=1
 and final_output.Age_Category not in ('Less than 24')
---and final_output.Investigation != 'On Pallet'
+and final_output.Investigation != 'On Pallet'
 --and final_output.Investigation != 'Invalid'
 --and final_output.Investigation = 'Investigate'
 --and final_output.facility != 'Milton'
