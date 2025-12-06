@@ -30,7 +30,7 @@ CTE AS (
             WHEN TRUNC(wm.orders.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 9)         THEN '9 Days old'
             WHEN TRUNC(wm.orders.created_dttm + INTERVAL '3' HOUR) = TRUNC((SYSDATE + INTERVAL '3' HOUR) - 10)        THEN '10 Days old'
         END AS Date_Difference,
-        wm.orders.created_dttm + INTERVAL '3' HOUR AS Order_Create_Date_EST,
+TO_CHAR(wm.orders.created_dttm + INTERVAL '3' HOUR, 'YYYY/MM/DD') AS Order_Create_Date_EST,
         wm.orders.tc_order_id,
         CASE
         WHEN upper(wm.orders.D_country_code) = 'CA' THEN 'Domestic'
@@ -223,5 +223,5 @@ and final_output.Age_Category not in ('Less than 24')
 and final_output.Investigation != 'On Pallet'
 --and final_output.Investigation != 'Invalid'
 --and final_output.Investigation = 'Investigate'
---and final_output.facility != 'Milton'
+and final_output.facility != 'Milton'
 ORDER BY Order_Create_Date_EST,tc_order_id
