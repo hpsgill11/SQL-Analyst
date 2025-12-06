@@ -9,6 +9,7 @@ WITH CHASECL AS (Select
 wm.orders.tc_order_id,
 wm.orders.do_status,
 wm.item_cbo.item_name,
+psi.SHORT_QTY,
  SUM(CASE
           WHEN lh.work_grp IN ('CRAK','PRAK')
            AND wm.order_line_item.invn_type = wmi.inventory_type
@@ -122,6 +123,7 @@ group by
     ) ,
 wm.orders.tc_order_id,
 wm.item_cbo.item_name,
+psi.SHORT_QTY,
 wm.orders.do_status)
 
 Select * from chasecl
