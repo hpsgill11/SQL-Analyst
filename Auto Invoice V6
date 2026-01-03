@@ -74,6 +74,7 @@ CTE AS (
             WHEN wm.shipment.shipment_closed_indicator = 1 THEN 'Closed'
             ELSE NULL 
         END AS Shipment_Status,
+        wm.shipment.TRAILER_NUMBER,
         FLOOR(
             EXTRACT(DAY FROM (CAST(SYSDATE + INTERVAL '3' HOUR AS TIMESTAMP) - CAST(oLPN_age.create_date_time AS TIMESTAMP))) * 24 +
             EXTRACT(HOUR FROM (CAST(SYSDATE + INTERVAL '3' HOUR AS TIMESTAMP) - CAST(oLPN_age.create_date_time AS TIMESTAMP))) +
@@ -147,7 +148,6 @@ CTE AS (
       AND wm.lpn.lpn_facility_status != '99'
 ),
 
-/* ✅ Clean version: compute Chosen_Min_Age once, then bucket it */
 Age_Calc AS (
     SELECT
         CTE.*,
@@ -226,6 +226,7 @@ Final_Output AS (
         END AS Investigation,
         Age_Bucket.Shipment_ID,
         Age_Bucket.Shipment_Status,
+        Age_Bucket.TRAILER_NUMBER,
         Age_Bucket.Age_in_Hours AS oLPN_Age,
         Age_Bucket.Age_Category,
         Age_Bucket.Last_Updated_DTTM,
